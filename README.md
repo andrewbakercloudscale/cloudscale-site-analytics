@@ -1,152 +1,125 @@
 # CloudScale Page Views
 
-**Version:** 1.1.0
-**Author:** Andrew Baker
-**Site:** https://andrewbaker.ninja
-**License:** GPL-2.0+
+![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.0-orange)
 
-Accurate page view tracking for WordPress sites behind Cloudflare, with a live statistics dashboard.
+WordPress analytics that actually work behind Cloudflare. Every other page view counter counts on the server. When Cloudflare serves a cached page, WordPress never executes and the counter never increments. On a site with 85 to 95 percent cache hit rate, server side counters undercount by 5x to 10x.
 
-## The Problem This Solves
+CloudScale Page Views fixes this with a lightweight JavaScript beacon that fires after the cached page loads and hits a REST API endpoint that always bypasses the CDN. Every single view is counted regardless of whether the page was served from cache or origin.
 
-When Cloudflare serves a cached HTML page, WordPress never runs. Server-side counters
-(Jetpack Stats, most view count plugins) therefore miss the view entirely. The result
-is severe undercounting — typically 5 to 10 times lower than actual traffic on sites
-with a high Cloudflare cache hit rate.
+Completely free. No subscriptions. No external services. No tracking pixels. Your data stays on your server.
+
+> Full write up with screenshots: [CloudScale Free WordPress Analytics: Analytics that Work Behind Cloudflare](https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/)
 
 ## How It Works
 
-1. Cloudflare serves the cached HTML page at full speed.
-2. The browser loads the page and executes beacon.js.
-3. The beacon fires a lightweight POST request to a WordPress REST API endpoint.
-4. That endpoint is excluded from Cloudflare caching via Cache Rule and response headers.
-5. WordPress receives the request, increments the counter in post meta, and logs a row.
-6. The .cspv-live-count element on the page updates in real time without a reload.
+1. Cloudflare serves the cached HTML at edge speed
+2. The browser renders the page and executes the beacon script
+3. The beacon sends a POST to `/wp-json/cloudscale-page-views/v1/record/{post_id}`
+4. The endpoint bypasses the CDN cache via headers and Cache Rules
+5. WordPress logs the view in a dedicated database table and increments post meta
+6. The page view counter on the page updates live via the API response
 
-Because the count happens client-side after the cache has done its job, every view is
-captured regardless of cache status.
+The beacon is tiny and fires asynchronously after the page has rendered. Zero impact on perceived performance.
+
+## Features
+
+### Core Analytics
+
+- JavaScript beacon counting that works behind any CDN (Cloudflare, Fastly, CloudFront)
+- Dedicated database table with per view logging (timestamp, post ID, referrer, IP hash)
+- Statistics dashboard with charts for 7 hours, 7 days, 1 month, and 6 months
+- Date range picker with quick buttons (Today, Last 7 Days, Last 30 Days, This Month, Last Month, This Year, All Time)
+- Most Viewed posts and top Referrers ranked lists
+- Real time counter updates on page load
+
+### Protection Against Gaming
+
+- Session deduplication: refresh ten times, counts as one view
+- IP throttle: configurable rate limit (default 50 requests per hour per IP)
+- Silent blocking: attackers get no signal they have been blocked
+- Automatic unblock after the time window expires
+- Logged in administrators bypass the throttle
+- Block log with chronological history of events
+
+### Display Options
+
+- Four display positions: Before Content, After Content, Both, or Off
+- Three counter styles: Badge (gradient), Pill (tinted), Minimal (plain text)
+- Five colour schemes: Blue, Pink, Red, Purple, Grey
+- Customisable icon and suffix text
+- Per post type control for display and tracking independently
+
+### Widgets
+
+- **Dashboard Widget**: today views, 7 day total, time series chart, top posts with bar charts
+- **Top Posts Sidebar Widget**: most viewed posts with thumbnails, pagination, configurable time window, responsive two column grid on desktop
+- **Recent Posts Sidebar Widget**: latest posts with optional date and view count badges
+
+### Jetpack Migration
+
+- One click import of Jetpack lifetime view totals
+- 28 day transition mode blends imported data with new beacon data
+- Migration lock prevents accidental re runs
+- Imported totals displayed in a banner on the Statistics tab
+
+### Template Functions
+
+- `cspv_the_views()` outputs the formatted view counter with icon and suffix
+- `cspv_get_view_count()` returns the raw numeric count for a post ID
+- Elements with CSS class `cspv-views-count` and `data-cspv-id` auto update on archive pages
 
 ## Requirements
 
 - WordPress 6.0 or higher
-- PHP 7.4 or higher
-- A Cloudflare account with Cache Rules (free tier is sufficient)
+- PHP 8.1 or higher
 
 ## Installation
 
-1. Upload the cloudscale-page-views folder to /wp-content/plugins/.
-2. Activate the plugin in Plugins > Installed Plugins.
-3. The plugin creates the wp_cspv_views table automatically on activation.
-4. Add the Cloudflare Cache Rule described below.
+1. Download the latest release zip from the [Releases](../../releases) page
+2. In WordPress admin go to **Plugins > Add New > Upload Plugin**
+3. Upload the zip file, click **Install Now**, then **Activate Plugin**
+4. Go to **Tools > CloudScale Page Views**
 
-## Cloudflare Cache Rule (Required)
+The plugin creates its database table automatically on activation.
 
-Without this rule, Cloudflare may cache the REST API response and the beacon will
-appear to succeed but no new rows will appear in the database.
+### Required Cloudflare Cache Rule
 
-In the Cloudflare dashboard go to Caching > Cache Rules > Create Rule:
+In the Cloudflare dashboard, go to **Caching > Cache Rules > Create Rule**:
 
-Field: URI Path
-Operator: contains
-Value: /wp-json/cloudscale-page-views/
-Action: Cache Status: Bypass
+- **Field**: URI Path
+- **Operator**: contains
+- **Value**: `/wp-json/cloudscale-page-views/`
+- **Action**: Cache Status: Bypass
 
-The plugin also sends Cloudflare-CDN-Cache-Control: no-store and related headers
-on every REST response, but the Cache Rule is the primary and most reliable protection.
+Without this rule, Cloudflare may cache the REST API response and no new views will be recorded.
 
-## Displaying View Counts in Your Theme
+### Upgrading
 
-In the loop (post listings):
+Deactivate > Delete > Upload zip > Activate.
 
-```php
-<?php if ( function_exists( 'cspv_the_view_count' ) ) : ?>
-    <span class="post-views">
-        <?php cspv_the_view_count( get_the_ID() ); ?>
-    </span>
-<?php endif; ?>
-```
+## Advantages Over Jetpack Stats
 
-On single post templates with live update. The .cspv-live-count class causes the
-beacon to update the number in real time after it fires, without a page reload:
-
-```php
-<?php if ( function_exists( 'cspv_get_view_count' ) ) : ?>
-    <span class="post-views">
-        <span class="cspv-live-count"><?php echo esc_html( cspv_get_view_count() ); ?></span> views
-    </span>
-<?php endif; ?>
-```
-
-Get the count as a number for custom use:
-
-```php
-$views = cspv_get_view_count( $post_id );
-```
-
-## Live Statistics Dashboard
-
-Go to Tools > Page Views to see:
-
-Summary cards showing total views all time, posts tracked, and views today.
-
-Top 10 posts by raw log count, with a meta count comparison column. If these two
-numbers differ for a post, the counts have drifted and need a re-sync.
-
-Live view log showing the 50 most recent raw entries, auto-refreshing every 10 seconds.
-If this list is not growing when you visit posts, the beacon is not reaching the server.
-
-Endpoint diagnostic Ping button. Click it and it shows the server timestamp. Click
-again and the timestamp should change. If it shows the same time, Cloudflare is
-caching the REST endpoint and you must add the Cache Rule above.
+- **Your data stays on your server.** No third party dependencies, no external service connections
+- **CDN aware by design.** Beacon architecture was built specifically for cached sites
+- **Privacy by default.** IP addresses are hashed with your site salt before storage. Raw IPs never touch the database
+- **Lightweight.** A few kilobytes of beacon JS, one database insert per view, no heavyweight analytics library
+- **Real time display.** Counter updates immediately on page load, no dashboard delay
 
 ## Debugging
 
-With WP_DEBUG enabled in wp-config.php, the beacon logs to the browser console:
+If views are not recording, check in order: Cloudflare Cache Rule is active, browser console shows `[CloudScale PV]` log messages, IP Throttle tab shows you have not hit the rate limit, and `wp_cspv_views` database table exists. Test the API directly:
+```
+fetch('/wp-json/cloudscale-page-views/v1/ping')
+  .then(r => r.json())
+  .then(d => console.log(d))
+```
 
-    [CloudScale Page Views] Firing beacon for post 42
-    [CloudScale Page Views] Endpoint: https://example.com/wp-json/cloudscale-page-views/v1/record/42
-    [CloudScale Page Views] Response status: 200
-    [CloudScale Page Views] View recorded. New count: 17
-
-Open Chrome DevTools > Console on any post and refresh to confirm the beacon is firing
-and receiving a 200 response. A non-200 response means the endpoint is unreachable,
-returning an error, or being intercepted.
-
-## Admin
-
-A sortable Views column appears in Posts > All Posts.
-
-## Database
-
-The plugin creates wp_cspv_views with these columns:
-
-- id — auto-increment primary key
-- post_id — WordPress post ID
-- user_agent — browser user agent (truncated to 255 chars)
-- ip_hash — SHA-256 hash of visitor IP plus wp_salt (never a raw IP)
-- viewed_at — server time of the view
-
-## REST API Endpoints
-
-POST /wp-json/cloudscale-page-views/v1/record/{id}
-Records a view for the given post ID. Returns JSON with post_id and views count.
-
-GET /wp-json/cloudscale-page-views/v1/ping
-Health check. Returns status, version, and current server time.
-
-## Roadmap
-
-Version 1.2.0 will add:
-
-- Cookie or sessionStorage flag to prevent duplicate counting on refresh (opt-in)
-- IP hash cooldown window (30 minutes per post per visitor)
-- Bot filtering based on user agent patterns
-- One-click Jetpack Stats data migration to seed historical counts
-
-## Changelog
-
-See CHANGELOG.md for full version history.
+This should return the plugin version and current server time. If repeated calls return the same timestamp, your Cache Rule is not working.
 
 ## License
 
-GPL-2.0+. See LICENSE.txt for full terms.
+GPLv2 or later. See [LICENSE](LICENSE) for the full text.
+
+## Author
+
+[Andrew Baker](https://andrewbaker.ninja/) - CIO at Capitec Bank, South Africa.

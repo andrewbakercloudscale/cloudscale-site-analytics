@@ -346,7 +346,7 @@ function cspv_render_dashboard_widget() {
 .cspv-dw-ref-toggle-wrap { display: inline-flex; gap: 0; margin-left: auto; }
 .cspv-dw-ref-toggle {
     background: rgba(0,0,0,.08); border: none; color: #999;
-    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
     padding: 2px 7px; cursor: pointer; transition: background .15s, color .15s;
     line-height: 1.4;
 }

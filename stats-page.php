@@ -10,6 +10,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'admin_menu',              'cspv_add_tools_page' );
 add_action( 'admin_enqueue_scripts',   'cspv_enqueue_admin_assets' );
 add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
+add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
+add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
+add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 
 function cspv_add_tools_page() {
     add_management_page(
@@ -86,26 +89,60 @@ function cspv_ajax_chart_data() {
         return;
     }
 
-    $from_str = $from->format( 'Y-m-d' ) . ' 00:00:00';
-    $to_str   = $to->format( 'Y-m-d' )   . ' 23:59:59';
+    $rolling24h = ! empty( $_POST['rolling24h'] );
+
+    if ( $rolling24h && $diff_days === 0 ) {
+        // Rolling 24h: from NOW-24h to NOW, bucketed by hour
+        $now_dt     = new DateTime( 'now', wp_timezone() );
+        $from_24    = clone $now_dt;
+        $from_24->modify( '-24 hours' );
+        $from_str   = $from_24->format( 'Y-m-d H:i:s' );
+        $to_str     = $now_dt->format( 'Y-m-d H:i:s' );
+    } else {
+        $from_str = $from->format( 'Y-m-d' ) . ' 00:00:00';
+        $to_str   = $to->format( 'Y-m-d' )   . ' 23:59:59';
+    }
 
     // Grouping: single day = hourly, <=90d = daily, >90d = weekly
     if ( $diff_days === 0 ) {
-        // ── Hourly: build all 24 slots, fill from DB ──────────────────
+        // ── Hourly: build 24 slots from rolling window or calendar day ──
         $label_fmt = 'hour';
-        $raw = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, COUNT(*) AS views
-              FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-              GROUP BY hr",
-            $from_str, $to_str ) );
-        $by_hour = array();
-        foreach ( (array) $raw as $r ) { $by_hour[ (int) $r->hr ] = (int) $r->views; }
-        $chart_rows = array();
-        for ( $h = 0; $h < 24; $h++ ) {
-            $obj         = new stdClass();
-            $obj->period = sprintf( '%02d:00', $h );
-            $obj->views  = isset( $by_hour[ $h ] ) ? $by_hour[ $h ] : 0;
-            $chart_rows[] = $obj;
+
+        if ( $rolling24h ) {
+            // Rolling: bucket by hour across the 24h window
+            $raw = $wpdb->get_results( $wpdb->prepare(
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, COUNT(*) AS views
+                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+                  GROUP BY hr_key ORDER BY hr_key ASC",
+                $from_str, $to_str ) );
+            $by_hour = array();
+            foreach ( (array) $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
+
+            $chart_rows = array();
+            $cur = clone $from_24;
+            for ( $i = 0; $i < 24; $i++ ) {
+                $key         = $cur->format( 'Y-m-d H' );
+                $obj         = new stdClass();
+                $obj->period = $cur->format( 'H:00' );
+                $obj->views  = isset( $by_hour[ $key ] ) ? $by_hour[ $key ] : 0;
+                $chart_rows[] = $obj;
+                $cur->modify( '+1 hour' );
+            }
+        } else {
+            $raw = $wpdb->get_results( $wpdb->prepare(
+                "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, COUNT(*) AS views
+                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+                  GROUP BY hr",
+                $from_str, $to_str ) );
+            $by_hour = array();
+            foreach ( (array) $raw as $r ) { $by_hour[ (int) $r->hr ] = (int) $r->views; }
+            $chart_rows = array();
+            for ( $h = 0; $h < 24; $h++ ) {
+                $obj         = new stdClass();
+                $obj->period = sprintf( '%02d:00', $h );
+                $obj->views  = isset( $by_hour[ $h ] ) ? $by_hour[ $h ] : 0;
+                $chart_rows[] = $obj;
+            }
         }
     } elseif ( $diff_days <= 90 ) {
         // ── Daily: build every date in range, fill from DB ────────────
@@ -296,10 +333,197 @@ function cspv_ajax_chart_data() {
 }
 
 // ---------------------------------------------------------------------------
+// Post search AJAX (for post history tab)
+// ---------------------------------------------------------------------------
+function cspv_ajax_post_search() {
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+
+    global $wpdb;
+    $q = isset( $_POST['q'] ) ? sanitize_text_field( $_POST['q'] ) : '';
+    if ( strlen( $q ) < 2 ) { wp_send_json_success( array() ); }
+
+    $args = array(
+        'post_type'      => 'any',
+        'post_status'    => 'publish',
+        's'              => $q,
+        'posts_per_page' => 10,
+        'orderby'        => 'relevance',
+    );
+    $posts = get_posts( $args );
+    // Get log counts for imported calculation
+    $search_log_counts = array();
+    if ( ! empty( $posts ) ) {
+        $s_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $posts ) );
+        $s_table = $wpdb->prefix . 'cspv_views';
+        $s_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $s_table ) );
+        if ( $s_table_exists ) {
+            $s_rows = $wpdb->get_results(
+                "SELECT post_id, COUNT(*) AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" );
+            foreach ( (array) $s_rows as $sr ) {
+                $search_log_counts[ (int) $sr->post_id ] = (int) $sr->cnt;
+            }
+        }
+    }
+    $results = array();
+    foreach ( $posts as $p ) {
+        $views   = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
+        $log_cnt = isset( $search_log_counts[ $p->ID ] ) ? $search_log_counts[ $p->ID ] : 0;
+        $results[] = array(
+            'id'      => $p->ID,
+            'title'   => $p->post_title,
+            'type'    => $p->post_type,
+            'date'    => get_the_date( 'j M Y', $p ),
+            'views'   => $views,
+            'jetpack' => max( 0, $views - $log_cnt ),
+        );
+    }
+    wp_send_json_success( $results );
+}
+
+// ---------------------------------------------------------------------------
+// Post history AJAX
+// ---------------------------------------------------------------------------
+function cspv_ajax_post_history() {
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+
+    global $wpdb;
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
+
+    $table = $wpdb->prefix . 'cspv_views';
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+    $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+    $jp_views   = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
+    $log_count  = 0;
+    $first_log  = null;
+    $last_log   = null;
+    $daily      = array();
+    $hourly     = array();
+
+    if ( $table_exists ) {
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+
+        $first_log = $wpdb->get_var( $wpdb->prepare(
+            "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+
+        $last_log = $wpdb->get_var( $wpdb->prepare(
+            "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+
+        // Daily views for last 180 days
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+             FROM `{$table}`
+             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY)
+             GROUP BY day ORDER BY day ASC", $post_id ) );
+        foreach ( (array) $rows as $r ) {
+            $daily[] = array( 'day' => $r->day, 'views' => (int) $r->views );
+        }
+
+        // Hourly views for last 48 hours
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, COUNT(*) AS views
+             FROM `{$table}`
+             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+             GROUP BY hour ORDER BY hour ASC", $post_id ) );
+        foreach ( (array) $rows as $r ) {
+            $hourly[] = array( 'hour' => $r->hour, 'views' => (int) $r->views );
+        }
+
+        // 180 day daily timeline with top referrer per day
+        $timeline_rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+             FROM `{$table}`
+             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY)
+             GROUP BY day ORDER BY day DESC", $post_id ) );
+
+        // Top referrer per day (excluding empty)
+        $ref_rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE(viewed_at) AS day, referrer, COUNT(*) AS cnt
+             FROM `{$table}`
+             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY) AND referrer != ''
+             GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id ) );
+
+        // Build top referrer lookup keyed by day
+        $top_refs = array();
+        foreach ( (array) $ref_rows as $rr ) {
+            if ( ! isset( $top_refs[ $rr->day ] ) ) {
+                $top_refs[ $rr->day ] = array( 'ref' => $rr->referrer, 'cnt' => (int) $rr->cnt );
+            }
+        }
+
+        $timeline = array();
+        foreach ( (array) $timeline_rows as $tr ) {
+            $ref_info = isset( $top_refs[ $tr->day ] ) ? $top_refs[ $tr->day ] : null;
+            $timeline[] = array(
+                'day'      => $tr->day,
+                'views'    => (int) $tr->views,
+                'top_ref'  => $ref_info ? $ref_info['ref'] : null,
+                'ref_hits' => $ref_info ? $ref_info['cnt'] : 0,
+            );
+        }
+    }
+
+    $jetpack_imported = max( 0, $meta_count - $log_count );
+    $post = get_post( $post_id );
+
+    wp_send_json_success( array(
+        'post_id'          => $post_id,
+        'title'            => $post ? $post->post_title : '(deleted)',
+        'url'              => $post ? get_permalink( $post_id ) : '',
+        'published'        => $post ? get_the_date( 'j M Y', $post ) : '',
+        'published_ymd'    => $post ? get_the_date( 'Y-m-d', $post ) : '',
+        'meta_count'       => $meta_count,
+        'log_count'        => $log_count,
+        'jp_views'         => $jp_views,
+        'jetpack_imported' => $jetpack_imported,
+        'first_log'        => $first_log,
+        'last_log'         => $last_log,
+        'daily'            => $daily,
+        'hourly'           => $hourly,
+        'timeline'         => isset( $timeline ) ? $timeline : array(),
+        'mismatch'         => false,  // No mismatch warning needed; imported = meta - log
+    ) );
+}
+
+// ---------------------------------------------------------------------------
+// Resync meta from stats page
+// ---------------------------------------------------------------------------
+function cspv_ajax_resync_meta_from_stats() {
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+
+    global $wpdb;
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
+
+    $table     = $wpdb->prefix . 'cspv_views';
+    $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+    $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
+    $new_count = $log_count + max( 0, $jp_views );
+    $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+
+    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
+
+    wp_send_json_success( array(
+        'post_id'   => $post_id,
+        'old_count' => $old_count,
+        'new_count' => $new_count,
+        'log_rows'  => $log_count,
+        'jp_views'  => $jp_views,
+    ) );
+}
+
+// ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
 function cspv_render_stats_page() {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
+    global $wpdb;
 
     // Handle display settings save
     if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( $_POST['cspv_display_nonce'], 'cspv_display_save' ) ) {
@@ -352,6 +576,30 @@ function cspv_render_stats_page() {
     $dedup_enabled    = ( $dedup_val !== 'no' );
     $dedup_window     = (int) get_option( 'cspv_dedup_window', 86400 );
 
+    // Top 100 posts by view count for Post History tab
+    $ph_top_posts = get_posts( array(
+        'post_type'      => 'any',
+        'post_status'    => 'publish',
+        'posts_per_page' => 100,
+        'meta_key'       => CSPV_META_KEY,
+        'orderby'        => 'meta_value_num',
+        'order'          => 'DESC',
+    ) );
+    // Preload log counts for jetpack imported calculation
+    $ph_log_counts = array();
+    if ( ! empty( $ph_top_posts ) ) {
+        $ph_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $ph_top_posts ) );
+        $ph_table = $wpdb->prefix . 'cspv_views';
+        $ph_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ph_table ) );
+        if ( $ph_table_exists ) {
+            $ph_rows = $wpdb->get_results(
+                "SELECT post_id, COUNT(*) AS cnt FROM `{$ph_table}` WHERE post_id IN ({$ph_ids_str}) GROUP BY post_id" );
+            foreach ( (array) $ph_rows as $pr ) {
+                $ph_log_counts[ (int) $pr->post_id ] = (int) $pr->cnt;
+            }
+        }
+    }
+
     // Display settings
     $dsp_position    = get_option( 'cspv_auto_display', 'before_content' );
     $dsp_post_types  = get_option( 'cspv_display_post_types', array( 'post' ) );
@@ -382,6 +630,7 @@ function cspv_render_stats_page() {
         <button class="cspv-tab active" data-tab="stats">📊 Statistics</button>
         <button class="cspv-tab" data-tab="display">👁 Display</button>
         <button class="cspv-tab" data-tab="throttle">🛡 IP Throttle</button>
+        <button class="cspv-tab" data-tab="history">🔍 Post History</button>
         <button class="cspv-tab" data-tab="migrate">🔀 Migrate Jetpack</button>
         <span class="cspv-tab-spacer"></span>
         <button class="cspv-tab-help" id="cspv-help-btn" title="Help">❓ Help</button>
@@ -393,7 +642,7 @@ function cspv_render_stats_page() {
         <!-- Date range bar -->
         <div id="cspv-date-bar">
             <div id="cspv-quick-btns">
-                <button class="cspv-quick" data-range="today">Today</button>
+                <button class="cspv-quick" data-range="today">Last 24h</button>
                 <button class="cspv-quick" data-range="7">1 Week</button>
                 <button class="cspv-quick" data-range="30">1 Month</button>
                 <button class="cspv-quick" data-range="90">3 Months</button>
@@ -498,6 +747,16 @@ function cspv_render_stats_page() {
             <div id="cspv-cf-test-log"></div>
         </div>
 
+        <!-- Site Health -->
+        <div style="margin-top:24px;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#065f46,#059669);">
+                <span>🏥 Site Health</span>
+            </div>
+            <div style="padding:20px 24px;">
+                <?php cspv_render_site_health_html( 'full' ); ?>
+            </div>
+        </div>
+
     </div><!-- /stats tab -->
 
     <!-- ═══════════════════════ DISPLAY TAB ═════════════════════════ -->
@@ -596,7 +855,7 @@ function cspv_render_stats_page() {
             <!-- Track Post Types -->
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;border-color:#ffd6a0;">
                 <h3 style="margin:0 0 10px;font-size:14px;">🛡️ Tracking Filter <a class="cspv-info-btn cspv-info-btn-dark" data-info="tracking-filter" title="Info">i</a></h3>
-                <p style="font-size:12px;color:#666;margin:0 0 10px;">Only record views on these post types. Unselected types will not fire the beacon.</p>
+                <p style="font-size:12px;color:#666;margin:0 0 10px;">Only record views on these post types. Unselected types will not record views.</p>
                 <div class="cspv-dsp-checks">
                     <?php foreach ( $dsp_all_types as $pt ) :
                         if ( in_array( $pt->name, array( 'attachment' ), true ) ) continue;
@@ -748,9 +1007,9 @@ function cspv_render_stats_page() {
                 </span>
             </div>
             <div style="padding:20px 24px;">
-                <p class="cspv-throttle-desc" style="margin-bottom:16px;">Emergency kill switch. When paused, the beacon JavaScript is not loaded on any page and the recording API silently rejects all requests. Use this to instantly stop all view tracking during an attack. Historical data is preserved.</p>
+                <p class="cspv-throttle-desc" style="margin-bottom:16px;">Emergency kill switch. When paused, the tracking script is not loaded on any page and the recording API silently rejects all requests. Use this to instantly stop all view tracking during an attack. Historical data is preserved.</p>
                 <div class="cspv-throttle-row" style="border-bottom:none;">
-                    <span class="cspv-throttle-label">Pause all tracking<br><small>Stops beacon + API recording immediately</small></span>
+                    <span class="cspv-throttle-label">Pause all tracking<br><small>Stops tracking + API recording immediately</small></span>
                     <label class="cspv-toggle-wrap">
                         <input type="checkbox" id="cspv-tracking-paused" <?php checked( $tracking_paused ); ?>>
                         <span class="cspv-toggle" style="<?php echo $tracking_paused ? 'background:#dc2626;' : ''; ?>" id="cspv-pause-toggle"></span>
@@ -997,6 +1256,128 @@ function cspv_render_stats_page() {
         </div>
     </div><!-- /migrate tab -->
 
+    <!-- ═══════════════════════ POST HISTORY TAB ═══════════════════ -->
+    <div id="cspv-tab-history" class="cspv-tab-content">
+
+        <div class="cspv-section-header" style="background:linear-gradient(135deg,#1a5276,#2e86c1);">
+            <span>🔍 Post View History <a class="cspv-info-btn" data-info="post-history" title="Info">i</a></span>
+        </div>
+
+        <div style="padding:20px 24px;">
+
+            <!-- Search bar with button -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;max-width:600px;">
+                <input type="text" id="cspv-ph-search" placeholder="Search posts by title..." autocomplete="off"
+                       style="flex:1;padding:10px 14px;border:2px solid #2e86c1;border-radius:6px;font-size:14px;">
+                <button id="cspv-ph-search-btn" style="padding:10px 20px;background:linear-gradient(135deg,#1a5276,#2e86c1);
+                    color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">Search Posts</button>
+            </div>
+
+            <!-- Post list -->
+            <div id="cspv-ph-list" style="max-height:400px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;margin-bottom:20px;">
+                <?php if ( empty( $ph_top_posts ) ) : ?>
+                    <div style="padding:20px;text-align:center;color:#888;">No posts with views found.</div>
+                <?php else : ?>
+                    <!-- Column headers (sortable) -->
+                    <div id="cspv-ph-header" style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">
+                        <div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post ▼</div>
+                        <div class="cspv-ph-sort" data-col="views" style="width:100px;text-align:right;cursor:pointer;">Total Views</div>
+                        <div class="cspv-ph-sort" data-col="pageviews" style="width:100px;text-align:right;cursor:pointer;">Page Views</div>
+                        <div class="cspv-ph-sort" data-col="jetpack" style="width:100px;text-align:right;cursor:pointer;">Jetpack</div>
+                    </div>
+                    <?php foreach ( $ph_top_posts as $i => $p ) :
+                        $views    = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
+                        $ph_logged = isset( $ph_log_counts[ $p->ID ] ) ? $ph_log_counts[ $p->ID ] : 0;
+                        $jetpack  = max( 0, $views - $ph_logged );
+                        $bg = $i % 2 === 0 ? '#fff' : '#f8f9fa';
+                    ?>
+                    <div class="cspv-ph-row" data-id="<?php echo $p->ID; ?>"
+                         data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
+                         data-views="<?php echo $views; ?>"
+                         data-pageviews="<?php echo $ph_logged; ?>"
+                         data-jetpack="<?php echo $jetpack; ?>"
+                         style="display:flex;align-items:center;
+                        padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
+                        <div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo $p->post_type; ?></span>
+                        </div>
+                        <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
+                            <?php echo number_format( $views ); ?>
+                        </div>
+                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">
+                            <?php echo number_format( $ph_logged ); ?>
+                        </div>
+                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:<?php echo $jetpack > 0 ? '#f47c20' : '#ccc'; ?>;font-variant-numeric:tabular-nums;">
+                            <?php echo $jetpack > 0 ? number_format( $jetpack ) : '—'; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Detail panel (shown when a post is selected) -->
+            <div id="cspv-ph-panel" style="display:none;">
+
+                <div id="cspv-ph-title-bar" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+                    <h3 id="cspv-ph-post-title" style="margin:0;font-size:16px;"></h3>
+                    <a id="cspv-ph-post-link" href="#" target="_blank" style="font-size:12px;color:#2e86c1;">View post ↗</a>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                    <div class="cspv-ph-card">
+                        <div class="cspv-ph-card-label">Total Views</div>
+                        <div class="cspv-ph-card-value" id="cspv-ph-meta" style="color:#059669;">0</div>
+                        <div class="cspv-ph-card-sub">displayed count</div>
+                    </div>
+                    <div class="cspv-ph-card">
+                        <div class="cspv-ph-card-label">Page Views</div>
+                        <div class="cspv-ph-card-value" id="cspv-ph-log" style="color:#2e86c1;">0</div>
+                        <div class="cspv-ph-card-sub">wp_cspv_views rows</div>
+                    </div>
+                    <div class="cspv-ph-card">
+                        <div class="cspv-ph-card-label">Jetpack Imported</div>
+                        <div class="cspv-ph-card-value" id="cspv-ph-jp" style="color:#f47c20;">0</div>
+                        <div class="cspv-ph-card-sub">total minus page views</div>
+                    </div>
+                </div>
+                <div id="cspv-ph-jpmeta" style="display:none;"></div>
+
+                <div id="cspv-ph-warn" style="display:none;background:#fef3cd;border:1px solid #f0d060;border-radius:6px;
+                    padding:12px 16px;margin-bottom:16px;font-size:13px;color:#856404;">
+                    <strong>⚠ Count mismatch:</strong> <span id="cspv-ph-warn-text"></span>
+                    <button id="cspv-ph-resync" style="display:inline-block;margin-left:12px;padding:4px 14px;
+                        background:#e53e3e;color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;">Resync meta</button>
+                    <span id="cspv-ph-resync-status" style="margin-left:8px;font-size:12px;font-weight:700;"></span>
+                </div>
+
+                <div style="display:flex;gap:24px;margin-bottom:16px;font-size:12px;color:#666;flex-wrap:wrap;">
+                    <span>Published: <strong id="cspv-ph-published">—</strong></span>
+                    <span>First logged view: <strong id="cspv-ph-first">—</strong></span>
+                    <span>Last logged view: <strong id="cspv-ph-last">—</strong></span>
+                </div>
+
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button class="cspv-ph-period active" data-period="daily">Last 180 days</button>
+                    <button class="cspv-ph-period" data-period="hourly">Last 48 hours</button>
+                </div>
+
+                <div style="height:220px;position:relative;">
+                    <canvas id="cspv-ph-chart"></canvas>
+                </div>
+
+                <!-- 180 day timeline audit trail -->
+                <div style="margin-top:24px;">
+                    <div style="font-size:12px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.04em;margin-bottom:8px;">
+                        📋 180 Day Audit Trail
+                    </div>
+                    <div id="cspv-ph-timeline" style="max-height:500px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;"></div>
+                </div>
+
+            </div>
+        </div>
+
+    </div><!-- /history tab -->
+
     <!-- ═══════════════════════ INFO MODAL ══════════════════════════ -->
     <div class="cspv-modal-overlay" id="cspv-modal">
         <div class="cspv-modal">
@@ -1221,8 +1602,8 @@ function cspv_render_stats_page() {
 .cspv-card-value { font-size: 34px; font-weight: 800; line-height: 1; color: #1a2332; }
 .cspv-card-label { font-size: 12px; color: #7a8aaa; margin-top: 4px; font-weight: 500; }
 .cspv-card-delta { font-size: 11px; margin-top: 6px; font-weight: 700; }
-.cspv-delta-up   { color: #e53e3e; }
-.cspv-delta-down { color: #1db954; }
+.cspv-delta-up   { color: #059669; }
+.cspv-delta-down { color: #e53e3e; }
 .cspv-delta-same { color: #aaa; }
 
 /* ── Chart ───────────────────────────────────────── */
@@ -1599,6 +1980,30 @@ function cspv_render_stats_page() {
     font-size: 13px; color: #555; line-height: 1.7;
 }
 .cspv-help-card-body strong { color: #1a2332; }
+
+/* ── Post History tab ──────────────────────────────────── */
+.cspv-ph-card {
+    background: #f8f9fa; border: 1px solid #e8ecf0; border-radius: 8px;
+    padding: 14px 16px; text-align: center;
+}
+.cspv-ph-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #888; margin-bottom: 4px; }
+.cspv-ph-card-value { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cspv-ph-card-sub { font-size: 10px; color: #aaa; margin-top: 2px; }
+.cspv-ph-period {
+    background: rgba(0,0,0,.06); border: none; color: #666; font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: background .15s, color .15s;
+}
+.cspv-ph-period:hover { background: rgba(0,0,0,.1); }
+.cspv-ph-period.active { background: #2e86c1; color: #fff; }
+#cspv-ph-results .cspv-ph-result {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
+    transition: background .1s;
+}
+#cspv-ph-results .cspv-ph-result:hover { background: #f0f7ff; }
+#cspv-ph-results .cspv-ph-result:last-child { border-bottom: none; }
+#cspv-ph-search:focus { border-color: #2e86c1; outline: none; }
+.cspv-ph-row:hover { background: #e8f4fd !important; }
+.cspv-ph-row.active { background: #d0ebff !important; border-left: 3px solid #2e86c1; }
 </style>
 
 <script>
@@ -1698,6 +2103,11 @@ function cspv_render_stats_page() {
         fd.append('nonce',     nonce);
         fd.append('date_from', from);
         fd.append('date_to',   to);
+        // If "Last 24h" is active, tell the server to use rolling window
+        var todayBtn = document.querySelector('.cspv-quick[data-range="today"]');
+        if (todayBtn && todayBtn.classList.contains('active') && from === to) {
+            fd.append('rolling24h', '1');
+        }
 
         fetch(ajaxUrl, { method: 'POST', body: fd })
             .then(function(r) {
@@ -2216,9 +2626,9 @@ function cspv_render_stats_page() {
             title: 'Statistics Dashboard — How It Works',
             cards: [
                 { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>unique posts viewed</strong>, and <strong>average views per day</strong> for the selected date range. Use the quick range buttons (Today, 7 Days, 30 Days, 6 Months) or the custom date picker to change the period.' },
-                { title: 'Chart', badge: 'info', body: 'The chart displays views over time. A single day shows hourly breakdown, up to 90 days shows daily, and longer ranges show weekly aggregation. All data comes from the beacon log table.' },
+                { title: 'Chart', badge: 'info', body: 'The chart displays views over time. A single day shows hourly breakdown, up to 90 days shows daily, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here (not imported Jetpack totals). Click any title to visit the post.' },
-                { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with beacon views.' },
+                { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
                 { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-page-views/</code> → Bypass Cache.' },
                 { title: 'Installation', badge: 'required', body: 'No additional installation required. The plugin creates its database table automatically on activation. Ensure your Cloudflare Cache Rule is set up (see Cache Bypass above) for accurate counting behind a CDN.' }
@@ -2232,14 +2642,14 @@ function cspv_render_stats_page() {
                 { title: 'Badge Colour', badge: 'optional', body: 'Choose from five gradient colour schemes: Blue (default), Pink, Red, Purple, and Grey. The colour applies to all three styles.' },
                 { title: 'Customise Text', badge: 'optional', body: '<strong>Icon</strong> is the emoji shown before the count (default: 👁). <strong>Suffix</strong> is the text after the number (default: "views"). Leave either empty to hide it.' },
                 { title: 'Show Counter On', badge: 'info', body: 'Select which post types display the badge on the front end. This is independent of the Tracking Filter — you might display on Pages but only track Posts.' },
-                { title: 'Tracking Filter', badge: 'info', body: 'Controls which post types <strong>record views</strong> in the database. Untracked post types silently skip the beacon. Separate from the display setting.' },
+                { title: 'Tracking Filter', badge: 'info', body: 'Controls which post types <strong>record views</strong> in the database. Untracked post types silently skip tracking. Separate from the display setting.' },
                 { title: 'Installation', badge: 'required', body: 'No additional setup needed. Styles are applied automatically. If you use a caching plugin, purge your page cache after changing display settings.' }
             ]
         },
         'throttle': {
             title: 'IP Throttle & Fail2Ban — How It Works',
             cards: [
-                { title: 'Emergency Tracking Pause', badge: 'tip', body: 'The <strong>Page Tracking</strong> kill switch at the top instantly stops all view recording across your entire site. When paused, the beacon JavaScript is not loaded and the API silently rejects requests. Use this during sustained attacks to protect your database from junk data. Historical data is preserved.' },
+                { title: 'Emergency Tracking Pause', badge: 'tip', body: 'The <strong>Page Tracking</strong> kill switch at the top instantly stops all view recording across your entire site. When paused, the tracking script is not loaded and the API silently rejects requests. Use this during sustained attacks to protect your database from junk data. Historical data is preserved.' },
                 { title: 'Tier 1: Throttle (Soft Block)', badge: 'info', body: 'After an IP exceeds the <strong>request limit</strong> (default: 50) within the <strong>time window</strong> (default: 1 hour), it is silently blocked for 1 hour. The block auto expires — no manual cleanup needed. Attackers receive HTTP 200 so they have no signal to adapt.' },
                 { title: 'Tier 2: Fail2Ban (Hard Block)', badge: 'info', body: 'When an IP exceeds the <strong>page limit</strong> (default: 1,000) within the same time window, it is blocked for <strong>2 hours</strong>. FTB blocks auto clear after 2 hours. This catches persistent abusers who keep returning after throttle blocks expire.' },
                 { title: 'How to Know if FTB is Running', badge: 'tip', body: 'Look for the <strong>● FTB ACTIVE</strong> or <strong>○ FTB OFF</strong> status pill in the Fail2Ban section header. The FTB Rules card also shows whether the rule is Active or Inactive, along with the current page limit and window. Use the <strong>🧪 Test Fail2Ban</strong> button to run a full diagnostic.' },
@@ -2253,7 +2663,7 @@ function cspv_render_stats_page() {
             cards: [
                 { title: 'What Migration Does', badge: 'info', body: 'Reads your historical Jetpack view counts (<code>jetpack_post_views</code> meta) and imports them into CloudScale (<code>_cspv_view_count</code> field). After migration you can safely disable Jetpack Stats or uninstall Jetpack entirely.' },
                 { title: 'One Time Operation', badge: 'info', body: 'Migration runs <strong>once</strong>. A lock prevents accidental re-runs that would double-count views. The lock records how many posts and views were imported, and when.' },
-                { title: 'Transition Period', badge: 'info', body: 'For the first <strong>28 days</strong> after migration, the plugin blends imported totals with new beacon data so your historically popular posts remain visible while CloudScale builds its own history. After 28 days, ranking switches to pure beacon data.' },
+                { title: 'Transition Period', badge: 'info', body: 'For the first <strong>28 days</strong> after migration, the plugin blends imported totals with new tracked data so your historically popular posts remain visible while CloudScale builds its own history. After 28 days, ranking switches to pure tracked data.' },
                 { title: 'Reset Lock', badge: 'optional', body: 'If you need to re-import (for example after adding content from a Jetpack export), use the <strong>Reset Lock</strong> button. This allows the migration to run again. Be aware that re-running without resetting view counts first will double-count.' },
                 { title: 'Installation', badge: 'required', body: 'Jetpack (or its Stats module) must have been previously active so that <code>jetpack_post_views</code> meta values exist. No external API access is needed — the migration reads directly from your WordPress database.' }
             ]
@@ -2676,15 +3086,15 @@ function cspv_render_stats_page() {
     var infoData = {
         'stats-overview': {
             title: '📊 Statistics Overview',
-            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 7 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the beacon log table, reflecting actual recorded views.</p><p>If you recently migrated from Jetpack, the cards blend imported totals with new beacon data during a 28 day transition period so the numbers are not misleadingly low.</p>'
+            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 7 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the page views log table, reflecting actual recorded views.</p><p>If you recently migrated from Jetpack, the cards blend imported totals with new tracked data during a 28 day transition period so the numbers are not misleadingly low.</p>'
         },
         'top-posts': {
             title: '🏆 Most Viewed Posts',
-            body: '<p>Shows the top 10 posts ranked by view count within the selected date range. Only views recorded by the beacon are counted here (not imported Jetpack totals).</p><p>Click any post title to visit it on your site. The view count reflects the selected period, not all time totals.</p>'
+            body: '<p>Shows the top 10 posts ranked by view count within the selected date range. Only views recorded by the tracker are counted here (not imported Jetpack totals).</p><p>Click any post title to visit it on your site. The view count reflects the selected period, not all time totals.</p>'
         },
         'all-time': {
             title: '🏆 All Time Statistics',
-            body: '<p>The <strong>All Time Views</strong> banner shows your total lifetime views across all posts, including any imported Jetpack data. This reads from the <code>_cspv_view_count</code> post meta field.</p><p>The <strong>All Time Top Posts</strong> list ranks posts by their lifetime total, combining imported data with beacon recorded views. This is useful for seeing your historically most popular content.</p>'
+            body: '<p>The <strong>All Time Views</strong> banner shows your total lifetime views across all posts, including any imported Jetpack data. This reads from the <code>_cspv_view_count</code> post meta field.</p><p>The <strong>All Time Top Posts</strong> list ranks posts by their lifetime total, combining imported data with tracked views. This is useful for seeing your historically most popular content.</p>'
         },
         'referrers': {
             title: '🔗 Top Referrers',
@@ -2716,7 +3126,7 @@ function cspv_render_stats_page() {
         },
         'tracking-filter': {
             title: '🛡️ Tracking Filter',
-            body: '<p>Controls which post types actually <strong>record views</strong> in the database. When a visitor views an untracked post type, the beacon does not fire and no view is logged.</p><p>This is separate from the display setting. The Tracking Filter controls what gets counted. The Show Counter On setting controls what displays a badge. You can track Pages without displaying a counter on them, keeping your stats comprehensive while keeping your page layouts clean.</p>'
+            body: '<p>Controls which post types actually <strong>record views</strong> in the database. When a visitor views an untracked post type, no view is recorded.</p><p>This is separate from the display setting. The Tracking Filter controls what gets counted. The Show Counter On setting controls what displays a badge. You can track Pages without displaying a counter on them, keeping your stats comprehensive while keeping your page layouts clean.</p>'
         },
         'throttle': {
             title: '🛡 IP Throttle Protection',
@@ -2748,15 +3158,19 @@ function cspv_render_stats_page() {
         },
         'tracking-pause': {
             title: '⏸ Page Tracking Kill Switch',
-            body: '<p>This is an <strong>emergency kill switch</strong> that instantly stops all page view tracking across your entire site.</p><p>When activated:<br>• The beacon JavaScript is not loaded on any page<br>• The recording REST API silently rejects all requests (returns HTTP 200 with logged: false)<br>• No new views are counted or stored<br>• All historical data is preserved</p><p>Use this when your site is under a sustained bot attack and you want to prevent the database from being flooded with junk view data. Re-enable tracking once the attack subsides.</p>'
+            body: '<p>This is an <strong>emergency kill switch</strong> that instantly stops all page view tracking across your entire site.</p><p>When activated:<br>• The tracking script is not loaded on any page<br>• The recording REST API silently rejects all requests (returns HTTP 200 with logged: false)<br>• No new views are counted or stored<br>• All historical data is preserved</p><p>Use this when your site is under a sustained bot attack and you want to prevent the database from being flooded with junk view data. Re-enable tracking once the attack subsides.</p>'
         },
         'dedup': {
             title: '🔁 View Deduplication',
-            body: '<p>Prevents the same visitor from being counted multiple times for the same post within a configurable time window.</p><p><strong>Client side:</strong> The beacon stores a timestamp in localStorage for each post viewed. Repeat visits within the window skip the recording API entirely. This handles same browser tab/window reopens.</p><p><strong>Server side:</strong> Before inserting a view, the API checks whether the same IP hash + post ID combination already exists in the database within the dedup window. This catches cross browser duplicates, such as a WhatsApp in app browser followed by opening the same link in Chrome.</p><p>When disabled, every page load records a view (subject only to IP throttle limits). The default window is 24 hours.</p>'
+            body: '<p>Prevents the same visitor from being counted multiple times for the same post within a configurable time window.</p><p><strong>Client side:</strong> The tracker stores a timestamp in localStorage for each post viewed. Repeat visits within the window skip the API entirely. This handles same browser tab/window reopens.</p><p><strong>Server side:</strong> Before inserting a view, the API checks whether the same IP hash + post ID combination already exists in the database within the dedup window. This catches cross browser duplicates, such as a WhatsApp in app browser followed by opening the same link in Chrome.</p><p>When disabled, every page load records a view (subject only to IP throttle limits). The default window is 24 hours.</p>'
         },
         'migrate': {
             title: '🔀 Migrate from Jetpack Stats',
-            body: '<p>Imports lifetime view totals from Jetpack Stats into CloudScale. The migration reads <code>jetpack_post_views</code> meta values from all posts and writes them into the CloudScale <code>_cspv_view_count</code> field.</p><p>This is a <strong>one time operation</strong>. After migration, a lock prevents accidental re runs. The migration copies lifetime totals only, not per day breakdowns (Jetpack does not store daily granularity in post meta).</p><p>For the first <strong>28 days</strong> after migration, the plugin runs in transition mode. Summary cards and the Top Posts widget blend imported totals with new beacon data so your historically popular posts remain visible while the plugin builds its own history. After 28 days, ranking switches to pure beacon data.</p>'
+            body: '<p>Imports lifetime view totals from Jetpack Stats into CloudScale. The migration reads <code>jetpack_post_views</code> meta values from all posts and writes them into the CloudScale <code>_cspv_view_count</code> field.</p><p>This is a <strong>one time operation</strong>. After migration, a lock prevents accidental re runs. The migration copies lifetime totals only, not per day breakdowns (Jetpack does not store daily granularity in post meta).</p><p>For the first <strong>28 days</strong> after migration, the plugin runs in transition mode. Summary cards and the Top Posts widget blend imported totals with new tracked data so your historically popular posts remain visible while the plugin builds its own history. After 28 days, ranking switches to pure tracked data.</p>'
+        },
+        'post-history': {
+            title: '🔍 Post View History',
+            body: '<p>Search for any post by title to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Log table rows</strong> is the actual number of view records in <code>wp_cspv_views</code>, representing tracked views.</p><p><strong>Jetpack imported</strong> is the difference between the displayed count and the log table rows. If you migrated from Jetpack, this represents the imported historic total.</p><p><strong>Jetpack meta</strong> is the raw value from <code>jetpack_post_views</code> post meta (what was imported during migration).</p><p>If the counts don\'t add up (meta \u2260 log + Jetpack), a mismatch warning appears with a <strong>Resync</strong> button that recalculates the correct total from log rows + Jetpack meta.</p><p>The chart shows daily views for the last 90 days or hourly views for the last 48 hours, from the log table only.</p>'
         }
     };
 
@@ -2778,6 +3192,342 @@ function cspv_render_stats_page() {
     document.getElementById('cspv-modal').addEventListener('click', function(e) {
         if (e.target === this) this.classList.remove('active');
     });
+
+    // ── Post History tab ────────────────────────────────────────────
+    (function() {
+        var searchInput   = document.getElementById('cspv-ph-search');
+        var searchBtn     = document.getElementById('cspv-ph-search-btn');
+        var listBox       = document.getElementById('cspv-ph-list');
+        var panel         = document.getElementById('cspv-ph-panel');
+        if (!searchInput || !listBox) return;
+
+        var phChart       = null;
+        var phData        = null;
+        var currentPostId = 0;
+
+        // Wire clicks on preloaded rows
+        function wireRowClicks() {
+            listBox.querySelectorAll('.cspv-ph-row').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    listBox.querySelectorAll('.cspv-ph-row').forEach(function(r) { r.classList.remove('active'); });
+                    el.classList.add('active');
+                    loadPostHistory(parseInt(el.dataset.id));
+                });
+            });
+        }
+        wireRowClicks();
+
+        // Sortable column headers
+        var phSortCol = 'views';
+        var phSortAsc = false;
+        document.querySelectorAll('.cspv-ph-sort').forEach(function(hdr) {
+            hdr.addEventListener('click', function() {
+                var col = hdr.dataset.col;
+                if (phSortCol === col) { phSortAsc = !phSortAsc; } else { phSortCol = col; phSortAsc = (col === 'title'); }
+                var rows = Array.from(listBox.querySelectorAll('.cspv-ph-row'));
+                rows.sort(function(a, b) {
+                    var av, bv;
+                    if (col === 'title') { av = a.dataset.title; bv = b.dataset.title; return phSortAsc ? av.localeCompare(bv) : bv.localeCompare(av); }
+                    av = parseInt(a.dataset[col]) || 0; bv = parseInt(b.dataset[col]) || 0;
+                    return phSortAsc ? av - bv : bv - av;
+                });
+                var header = document.getElementById('cspv-ph-header');
+                rows.forEach(function(r, i) { r.style.background = i % 2 === 0 ? '#fff' : '#f8f9fa'; header.parentNode.appendChild(r); });
+                document.querySelectorAll('.cspv-ph-sort').forEach(function(h) {
+                    var label = h.textContent.replace(/ [\u25B2\u25BC]$/, '');
+                    if (h.dataset.col === col) { label += phSortAsc ? ' \u25B2' : ' \u25BC'; }
+                    h.textContent = label;
+                });
+            });
+        });
+
+        // Search button click
+        function doSearch() {
+            var q = searchInput.value.trim();
+            if (q.length < 2) return;
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Searching...';
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=cspv_post_search&nonce=' + encodeURIComponent(nonce) + '&q=' + encodeURIComponent(q)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search Posts';
+                if (!resp.success || !resp.data.length) {
+                    listBox.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">No posts found for \u201c' + q + '\u201d</div>';
+                    return;
+                }
+                var html = '<div style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">' +
+                    '<div style="flex:1;">Post</div><div style="width:100px;text-align:right;">Total Views</div><div style="width:100px;text-align:right;">Page Views</div><div style="width:100px;text-align:right;">Jetpack</div></div>';
+                resp.data.forEach(function(p, i) {
+                    var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
+                    var pageViews = Math.max(0, p.views - p.jetpack);
+                    var jpColor = p.jetpack > 0 ? '#f47c20' : '#ccc';
+                    var jpText  = p.jetpack > 0 ? p.jetpack.toLocaleString() : '\u2014';
+                    html += '<div class="cspv-ph-row" data-id="' + p.id + '" style="display:flex;align-items:center;' +
+                        'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
+                        '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+                        escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span></div>' +
+                        '<div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">' + p.views.toLocaleString() + '</div>' +
+                        '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">' + pageViews.toLocaleString() + '</div>' +
+                        '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:' + jpColor + ';font-variant-numeric:tabular-nums;">' + jpText + '</div></div>';
+                });
+                listBox.innerHTML = html;
+                wireRowClicks();
+                panel.style.display = 'none';
+            })
+            .catch(function() { searchBtn.disabled = false; searchBtn.textContent = 'Search Posts'; });
+        }
+
+        searchBtn.addEventListener('click', doSearch);
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+        });
+
+        function escHtml(s) {
+            var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+        }
+
+        function loadPostHistory(postId) {
+            currentPostId = postId;
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=cspv_post_history&nonce=' + encodeURIComponent(nonce) + '&post_id=' + postId
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                if (!resp.success) { return; }
+                phData = resp.data;
+                renderPostHistory();
+            });
+        }
+
+        function renderPostHistory() {
+            var d = phData;
+            document.getElementById('cspv-ph-post-title').textContent = d.title;
+            document.getElementById('cspv-ph-post-link').href = d.url;
+            document.getElementById('cspv-ph-meta').textContent = d.meta_count.toLocaleString();
+            document.getElementById('cspv-ph-log').textContent = d.log_count.toLocaleString();
+            document.getElementById('cspv-ph-jp').textContent = d.jetpack_imported.toLocaleString();
+            document.getElementById('cspv-ph-jpmeta').textContent = d.jp_views.toLocaleString();
+            document.getElementById('cspv-ph-published').textContent = d.published || 'unknown';
+            document.getElementById('cspv-ph-first').textContent = d.first_log || 'none';
+            document.getElementById('cspv-ph-last').textContent = d.last_log || 'none';
+
+            var warn = document.getElementById('cspv-ph-warn');
+            if (d.mismatch) {
+                var expected = d.log_count + d.jp_views;
+                document.getElementById('cspv-ph-warn-text').textContent =
+                    'Meta says ' + d.meta_count.toLocaleString() + ' but log (' + d.log_count.toLocaleString() +
+                    ') + Jetpack (' + d.jp_views.toLocaleString() + ') = ' + expected.toLocaleString();
+                warn.style.display = 'block';
+                document.getElementById('cspv-ph-resync-status').textContent = '';
+            } else {
+                warn.style.display = 'none';
+            }
+
+            panel.style.display = 'block';
+            drawPhChart('daily');
+            document.querySelectorAll('.cspv-ph-period').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.period === 'daily');
+            });
+            renderTimeline();
+        }
+
+        function renderTimeline() {
+            var box = document.getElementById('cspv-ph-timeline');
+            if (!box || !phData) return;
+
+            var rawTl = phData.timeline || [];
+            var jp = phData.jetpack_imported || 0;
+
+            // Build lookup from raw data
+            var tlMap = {};
+            rawTl.forEach(function(r) { tlMap[r.day] = r; });
+
+            // Generate days from today back to published date (min 180 days)
+            var pubYmd = phData.published_ymd || '';
+            var tl = [];
+            var now = new Date();
+            var minDays = 180;
+            if (pubYmd) {
+                var pp = pubYmd.split('-');
+                var pubDate = new Date(parseInt(pp[0]), parseInt(pp[1])-1, parseInt(pp[2]));
+                var diffMs = now.getTime() - pubDate.getTime();
+                var pubDays = Math.ceil(diffMs / 86400000) + 1;
+                if (pubDays > minDays) minDays = pubDays;
+            }
+            for (var d = 0; d < minDays; d++) {
+                var dt = new Date(now);
+                dt.setDate(dt.getDate() - d);
+                var ymd = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+                // Stop before the published date
+                if (pubYmd && ymd < pubYmd) break;
+                var entry = tlMap[ymd] ? Object.assign({}, tlMap[ymd]) : { day: ymd, views: 0, top_ref: null, ref_hits: 0 };
+                entry.isCreated = (ymd === pubYmd);
+                tl.push(entry);
+            }
+
+            // Header row
+            var html = '<div style="display:flex;align-items:center;padding:8px 12px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">' +
+                '<div style="width:110px;">Date</div>' +
+                '<div style="width:70px;text-align:right;">Views</div>' +
+                '<div style="flex:1;padding-left:16px;">Top Referrer</div></div>';
+
+            if (jp > 0) {
+                html += '<div style="display:flex;align-items:center;padding:8px 12px;background:#fff7ed;border-bottom:2px solid #f47c20;">' +
+                    '<div style="width:110px;font-weight:700;font-size:12px;color:#f47c20;">Jetpack Import</div>' +
+                    '<div style="width:70px;text-align:right;font-weight:800;font-size:13px;color:#f47c20;font-variant-numeric:tabular-nums;">' + jp.toLocaleString() + '</div>' +
+                    '<div style="flex:1;padding-left:16px;font-size:11px;color:#c2410c;">Imported historical total (not per day)</div></div>';
+            }
+
+            // Max views for bar width
+            var maxV = 0;
+            tl.forEach(function(r) { if (r.views > maxV) maxV = r.views; });
+
+            tl.forEach(function(r, i) {
+                    var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
+                    var barW = maxV > 0 ? Math.round((r.views / maxV) * 100) : 0;
+                    var dp = r.day.split('-');
+                    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    var dayStr = parseInt(dp[2]) + ' ' + months[parseInt(dp[1])-1] + ' ' + dp[0];
+                    var refStr = '';
+                    if (r.top_ref) {
+                        try {
+                            var u = new URL(r.top_ref);
+                            refStr = u.hostname.replace(/^www\\./, '');
+                        } catch(e) {
+                            refStr = r.top_ref.substring(0, 50);
+                        }
+                        refStr += ' (' + r.ref_hits + ')';
+                    }
+                    var viewColor = r.views > 0 ? '#2e86c1' : '#ddd';
+                    var dateColor = r.views > 0 ? '#333' : '#bbb';
+                    var rowBg = r.isCreated ? '#eff6ff' : bg;
+                    var rowBorder = r.isCreated ? '2px solid #3b82f6' : '1px solid #f0f0f0';
+                    var createdBadge = r.isCreated ? '<span style="display:inline-block;background:#3b82f6;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase;letter-spacing:.03em;">Post Created</span>' : '';
+                    html += '<div style="display:flex;align-items:center;padding:6px 12px;background:' + rowBg + ';border-bottom:' + rowBorder + ';font-size:12px;">' +
+                        '<div style="min-width:110px;font-weight:600;color:' + (r.isCreated ? '#1d4ed8' : dateColor) + ';white-space:nowrap;">' + createdBadge + dayStr + '</div>' +
+                        '<div style="width:70px;text-align:right;font-weight:800;color:' + viewColor + ';font-variant-numeric:tabular-nums;">' + (r.views > 0 ? r.views.toLocaleString() : '0') + '</div>' +
+                        '<div style="flex:1;padding-left:16px;display:flex;align-items:center;gap:8px;">' +
+                        '<div style="height:6px;width:' + barW + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;min-width:2px;"></div>' +
+                        (refStr ? '<span style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;">' + escHtml(refStr) + '</span>' : '') +
+                        '</div></div>';
+            });
+
+            box.innerHTML = html;
+        }
+
+        function drawPhChart(period) {
+            var canvas = document.getElementById('cspv-ph-chart');
+            if (!canvas || !window.Chart || !phData) return;
+
+            var labels, values;
+            if (period === 'hourly') {
+                labels = phData.hourly.map(function(h) { var p = h.hour.split(' '); return p[1] || h.hour; });
+                values = phData.hourly.map(function(h) { return h.views; });
+            } else {
+                // Build day array from published date to today
+                var dailyMap = {};
+                phData.daily.forEach(function(d) { dailyMap[d.day] = d.views; });
+                var allDays = [];
+                var now = new Date();
+                var chartPub = phData.published_ymd || '';
+                var startDay = 179;
+                if (chartPub) {
+                    var cp = chartPub.split('-');
+                    var cpDate = new Date(parseInt(cp[0]), parseInt(cp[1])-1, parseInt(cp[2]));
+                    var cpDiff = Math.ceil((now.getTime() - cpDate.getTime()) / 86400000);
+                    startDay = Math.max(0, cpDiff);
+                }
+                for (var dd = startDay; dd >= 0; dd--) {
+                    var dt = new Date(now);
+                    dt.setDate(dt.getDate() - dd);
+                    var ymd = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+                    allDays.push({ day: ymd, views: dailyMap[ymd] || 0 });
+                }
+                labels = allDays.map(function(d) {
+                    var p = d.day.split('-');
+                    var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    return parseInt(p[2]) + ' ' + m[parseInt(p[1]) - 1];
+                });
+                values = allDays.map(function(d) { return d.views; });
+            }
+
+            if (phChart) phChart.destroy();
+            var maxVal = Math.max.apply(null, values.length ? values : [0]);
+            phChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: values.map(function(v) {
+                            var pct = maxVal > 0 ? v / maxVal : 0;
+                            return 'rgba(46, 134, 193, ' + (0.3 + pct * 0.7) + ')';
+                        }),
+                        borderRadius: 2, borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1a5276', titleColor: 'rgba(255,255,255,.7)',
+                            bodyColor: '#fff', bodyFont: { size: 12, weight: '700' },
+                            padding: 8, displayColors: false,
+                            callbacks: { label: function(c) { return c.parsed.y.toLocaleString() + ' views'; } }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#888', font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: period === 'hourly' ? 12 : 10 } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, border: { display: false }, ticks: { color: '#888', font: { size: 11 }, maxTicksLimit: 5, precision: 0 } }
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('.cspv-ph-period').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.cspv-ph-period').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                drawPhChart(btn.dataset.period);
+            });
+        });
+
+        document.getElementById('cspv-ph-resync').addEventListener('click', function() {
+            var btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Resyncing...';
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=cspv_resync_meta&nonce=' + encodeURIComponent(nonce) + '&post_id=' + currentPostId
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                btn.disabled = false;
+                btn.textContent = 'Resync meta';
+                if (resp.success) {
+                    var st = document.getElementById('cspv-ph-resync-status');
+                    st.textContent = '\u2713 Resynced: ' + resp.data.old_count.toLocaleString() + ' \u2192 ' + resp.data.new_count.toLocaleString();
+                    st.style.color = '#059669';
+                    document.getElementById('cspv-ph-meta').textContent = resp.data.new_count.toLocaleString();
+                    loadPostHistory(currentPostId);
+                }
+            })
+            .catch(function() { btn.disabled = false; btn.textContent = 'Resync meta'; });
+        });
+    })();
 
 })();
 </script>

@@ -3,6 +3,50 @@
 All notable changes to CloudScale Page Views are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.12] - 2026-03-01
+
+### Changed
+- Site Health v2: complete rewrite of metrics engine
+- Traffic Growth renamed to "Traffic Growth per Time Window", labels now "7 Days", "30 Days", "90 Days"
+- Insufficient Data: buckets without enough historical data (need 2x period) show "Insufficient Data" instead of misleading 100% growth
+- Hot Pages now mirrors Traffic Growth layout with three time window buckets (7 Days, 30 Days, 90 Days), each showing how many top pages exceed 50% of traffic, compared to prior period with % change
+- Hot Pages RAG: more pages needed for 50% = better distribution = green (>5%), fewer = concentrating = red (<-5%)
+- All site health queries cached in wp_options (cspv_site_health_cache) for 1 hour to avoid DB load
+- Overall RAG considers all buckets with sufficient data across both metrics
+
+## [2.9.11] - 2026-03-01
+
+### Added
+- Site Health summary on both the dashboard widget and Statistics page with red/amber/green indicators
+- Traffic Growth metric: compares daily view averages across 7d, 30d, and 90d periods against prior equivalent periods, with per period RAG (red if shrinking >5%, green if growing >5%, amber otherwise)
+- Hot Pages metric: shows how many pages account for 50% of total 30 day traffic, indicating content concentration
+- Overall RAG: green when all three growth periods are positive >5%, red when all three are negative >5%, amber for anything else
+- New site-health.php with shared cspv_compute_site_health() and cspv_render_site_health_html() functions
+
+### Changed
+- Debug panel button (front end): moved from fixed bottom right circle to inline pink pill (🐛 Debug) positioned right next to the view counter, bigger and more visible
+- Debug panel header and chart bars now pink gradient to match button
+- Debug panel has close button (✕) in header
+- auto-display.php: added HTML comment marker for debug button injection point
+
+## [2.9.10] - 2026-03-01
+
+### Added
+- Post History tab on Statistics page: search any post by title and see displayed count (meta), log table rows, Jetpack imported count, Jetpack meta value, first/last view timestamps, and a 90 day daily or 48 hour hourly view chart
+- Resync button on Post History tab to recalculate meta from log rows + Jetpack when counts mismatch
+- AJAX endpoints: cspv_post_search (typeahead post search), cspv_post_history (full diagnostics), cspv_resync_meta (recalculate meta)
+- Info modal entry explaining all Post History fields
+
+## [2.9.9] - 2026-03-01
+
+### Added
+- View Diagnostics panel: admin only debug overlay on every post (🔍 button, bottom right) showing the displayed meta count, actual log table rows, Jetpack imported count, first/last view timestamps, 30 day daily view chart, and system info (plugin version, dedup status)
+- Resync button: when meta count does not match log table + Jetpack imports, one click recalculates the correct value from log rows + jetpack_post_views meta
+- AJAX endpoint cspv_resync_meta for the resync operation with nonce protection
+
+### Fixed
+- Dashboard widget referrer Sites/Pages toggle: inactive button font weight reduced from 600 to 500, active state explicitly set to 800, so the selected tab is visually distinct
+
 ## [2.9.0] - 2026-02-28
 
 ### Changed

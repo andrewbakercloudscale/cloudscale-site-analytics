@@ -342,6 +342,8 @@ function cspv_render_stats_page() {
     $block_log        = cspv_get_block_log();
     $ftb_enabled      = cspv_ftb_enabled();
     $ftb_page_limit   = cspv_ftb_page_limit();
+    $ftb_window       = cspv_ftb_window_seconds();
+    $ftb_block_dur    = cspv_ftb_block_duration();
     $ftb_rules        = cspv_ftb_get_rules();
     $ftb_blocklist    = cspv_ftb_get_blocklist();
     $ftb_log          = cspv_ftb_get_log();

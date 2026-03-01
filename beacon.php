@@ -54,6 +54,15 @@ function cspv_enqueue_beacon() {
         true
     );
 
+    // Some optimisation plugins strip ?ver= from scripts.
+    // Re-add the version as a cache buster that survives stripping.
+    add_filter( 'script_loader_src', function( $src, $handle ) {
+        if ( $handle === 'cloudscale-page-views-beacon' && strpos( $src, 'ver=' ) === false ) {
+            $src = add_query_arg( 'cspv', CSPV_VERSION, $src );
+        }
+        return $src;
+    }, 99, 2 );
+
     $data = array(
         'mode'       => $is_singular ? 'record' : 'fetch',
         'countsUrl'  => rest_url( 'cloudscale-page-views/v1/counts' ),

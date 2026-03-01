@@ -128,7 +128,7 @@
         if ( dedupOn && isDuplicate( postId ) ) {
             log( 'already recorded within 24h — skipping beacon, fetching count' );
             // Still fetch the current count so the display stays fresh
-            fetch( cspvData.apiUrl.replace( '/record/', '/counts?ids=' ) + postId, {
+            fetch( cspvData.apiUrl.replace( '/record/' + postId, '/counts?ids=' + postId ), {
                 method: 'GET', credentials: 'same-origin'
             } )
             .then( function( r ) { return r.ok ? r.json() : null; } )
@@ -196,9 +196,12 @@
     }
 
     // ------------------------------------------------------------------
-    // Boot
+    // Boot (guarded against double execution)
     // ------------------------------------------------------------------
+    var booted = false;
     function boot() {
+        if ( booted ) { return; }
+        booted = true;
         if ( cspvData.mode === 'record' ) {
             recordView();
         } else {

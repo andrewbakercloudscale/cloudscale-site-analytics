@@ -339,7 +339,7 @@ function cspv_render_dashboard_widget() {
 }
 .cspv-dw-ref-link {
     flex: 1; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; font-weight: 600; font-size: 11px;
+    text-overflow: ellipsis; font-weight: 600; font-size: 12px;
     color: #1a3a8f; text-decoration: none;
 }
 .cspv-dw-ref-link:hover { text-decoration: underline; color: #059669; }
@@ -353,7 +353,7 @@ function cspv_render_dashboard_widget() {
 .cspv-dw-ref-toggle:first-child { border-radius: 3px 0 0 3px; }
 .cspv-dw-ref-toggle:last-child  { border-radius: 0 3px 3px 0; }
 .cspv-dw-ref-toggle:hover { background: rgba(0,0,0,.12); }
-.cspv-dw-ref-toggle.active { background: #059669; color: #fff; }
+.cspv-dw-ref-toggle.active { background: #059669; color: #fff; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 .cspv-dw-footer {
     padding: 8px 16px; border-top: 1px solid #eee;

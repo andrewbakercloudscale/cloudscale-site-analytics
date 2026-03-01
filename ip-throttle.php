@@ -21,7 +21,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'CSPV_BLOCK_DURATION',     3600 ); // tier 1 throttle: 1 hour
-define( 'CSPV_FTB_BLOCK_DURATION', 7200 ); // tier 2 fail2ban: 2 hours
+// Default FTB block duration (overridden by cspv_ftb_block_duration option)
+define( 'CSPV_FTB_BLOCK_DURATION_DEFAULT', 7200 );
 
 // =========================================================================
 // 1. CONFIG HELPERS
@@ -53,13 +54,34 @@ function cspv_ftb_page_limit() {
     return max( 1, (int) get_option( 'cspv_ftb_page_limit', 1000 ) );
 }
 
+function cspv_ftb_window_seconds() {
+    return (int) get_option( 'cspv_ftb_window', 3600 );
+}
+
+function cspv_ftb_block_duration() {
+    return (int) get_option( 'cspv_ftb_block_duration', CSPV_FTB_BLOCK_DURATION_DEFAULT );
+}
+
+function cspv_ftb_duration_label( $seconds ) {
+    $labels = array(
+        1800  => '30 minutes',
+        3600  => '1 hour',
+        7200  => '2 hours',
+        14400 => '4 hours',
+        28800 => '8 hours',
+        43200 => '12 hours',
+        86400 => '24 hours',
+    );
+    return isset( $labels[ $seconds ] ) ? $labels[ $seconds ] : round( $seconds / 3600, 1 ) . ' hours';
+}
+
 /**
  * Return the current FTB rules as a human readable array for admin display.
  */
 function cspv_ftb_get_rules() {
     $enabled    = cspv_ftb_enabled();
     $page_limit = cspv_ftb_page_limit();
-    $window     = cspv_throttle_window_seconds();
+    $window     = cspv_ftb_window_seconds();
 
     $window_labels = array(
         600   => '10 minutes',
@@ -70,14 +92,18 @@ function cspv_ftb_get_rules() {
     );
     $window_label = isset( $window_labels[ $window ] ) ? $window_labels[ $window ] : $window . 's';
 
+    $block_dur    = cspv_ftb_block_duration();
+    $block_label  = cspv_ftb_duration_label( $block_dur );
+
     return array(
         'enabled'      => $enabled,
         'page_limit'   => $page_limit,
         'window'       => $window,
         'window_label' => $window_label,
-        'block_hours'  => CSPV_FTB_BLOCK_DURATION / 3600,
+        'block_dur'    => $block_dur,
+        'block_label'  => $block_label,
         'summary'      => $enabled
-            ? 'Block IP for 2 hours after ' . number_format( $page_limit ) . ' pages within ' . $window_label
+            ? 'Block IP for ' . $block_label . ' after ' . number_format( $page_limit ) . ' pages within ' . $window_label
             : 'Fail2Ban is disabled',
     );
 }
@@ -243,7 +269,7 @@ function cspv_ftb_track_page( $ip_hash ) {
     }
 
     $limit  = cspv_ftb_page_limit();
-    $window = cspv_throttle_window_seconds();
+    $window = cspv_ftb_window_seconds();
     $key    = 'cspv_ftb_' . substr( $ip_hash, 0, 32 );
 
     $count = (int) get_transient( $key );
@@ -259,7 +285,7 @@ function cspv_ftb_track_page( $ip_hash ) {
 }
 
 /**
- * Add an IP to the FTB blocklist. Block lasts CSPV_FTB_BLOCK_DURATION (2 hrs).
+ * Add an IP to the FTB blocklist. Block duration is configurable via admin UI.
  */
 function cspv_ftb_block_ip( $ip_hash ) {
     $block_key = 'cspv_ftb_block_' . substr( $ip_hash, 0, 32 );
@@ -268,14 +294,16 @@ function cspv_ftb_block_ip( $ip_hash ) {
         return; // already blocked
     }
 
-    // Transient is the authoritative block — auto clears after 2 hrs
-    set_transient( $block_key, 1, CSPV_FTB_BLOCK_DURATION );
+    $duration = cspv_ftb_block_duration();
+
+    // Transient is the authoritative block — auto clears after configured duration
+    set_transient( $block_key, 1, $duration );
 
     // Persistent list for admin display (pruned on read)
     $list = cspv_ftb_get_blocklist();
     $list[ $ip_hash ] = array(
         'blocked_at' => current_time( 'mysql' ),
-        'expires'    => time() + CSPV_FTB_BLOCK_DURATION,
+        'expires'    => time() + $duration,
         'reason'     => 'Exceeded ' . number_format( cspv_ftb_page_limit() ) . ' page limit',
     );
     update_option( 'cspv_ftb_blocklist', $list, false );
@@ -448,14 +476,22 @@ function cspv_ajax_save_ftb_settings() {
 
     $enabled    = ! empty( $_POST['enabled'] );
     $page_limit = isset( $_POST['page_limit'] ) ? max( 1, min( 100000, (int) $_POST['page_limit'] ) ) : 1000;
+    $raw_win    = isset( $_POST['window'] ) ? (int) $_POST['window'] : 3600;
+    $window     = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
+    $raw_dur    = isset( $_POST['block_duration'] ) ? (int) $_POST['block_duration'] : CSPV_FTB_BLOCK_DURATION_DEFAULT;
+    $block_dur  = in_array( $raw_dur, array( 1800, 3600, 7200, 14400, 28800, 43200, 86400 ), true ) ? $raw_dur : CSPV_FTB_BLOCK_DURATION_DEFAULT;
 
-    update_option( 'cspv_ftb_enabled',    $enabled,    false );
-    update_option( 'cspv_ftb_page_limit', $page_limit, false );
+    update_option( 'cspv_ftb_enabled',        $enabled,    false );
+    update_option( 'cspv_ftb_page_limit',     $page_limit, false );
+    update_option( 'cspv_ftb_window',         $window,     false );
+    update_option( 'cspv_ftb_block_duration', $block_dur,  false );
 
     wp_send_json_success( array(
-        'enabled'    => $enabled,
-        'page_limit' => $page_limit,
-        'rules'      => cspv_ftb_get_rules(),
+        'enabled'        => $enabled,
+        'page_limit'     => $page_limit,
+        'window'         => $window,
+        'block_duration' => $block_dur,
+        'rules'          => cspv_ftb_get_rules(),
     ) );
 }
 
@@ -631,7 +667,7 @@ function cspv_ajax_test_ftb() {
     $results[] = array(
         'test'   => 'Block duration',
         'pass'   => true,
-        'detail' => 'FTB blocks last ' . ( CSPV_FTB_BLOCK_DURATION / 3600 ) . ' hours and auto clear via transient expiry',
+        'detail' => 'FTB blocks last ' . cspv_ftb_duration_label( cspv_ftb_block_duration() ) . ' and auto clear via transient expiry',
     );
 
     $all_pass = true;

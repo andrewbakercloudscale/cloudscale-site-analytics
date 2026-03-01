@@ -720,17 +720,29 @@ function cspv_render_dashboard_widget() {
     }
 
     // ── Referrer sites/pages toggle ─────────────────────────────
+    var savedRefView = null;
+    try { savedRefView = localStorage.getItem('cspv_dw_ref_view'); } catch(e) {}
+
+    function applyRefView(mode) {
+        document.querySelectorAll('.cspv-dw-ref-toggle').forEach(function(b) {
+            b.classList.remove('active');
+            if (b.dataset.refView === mode) { b.classList.add('active'); }
+        });
+        var sites = document.getElementById('cspv-dw-ref-sites');
+        var pages = document.getElementById('cspv-dw-ref-pages');
+        if (sites && pages) {
+            sites.style.display = (mode === 'pages') ? 'none' : '';
+            pages.style.display = (mode === 'pages') ? '' : 'none';
+        }
+    }
+
+    if (savedRefView) { applyRefView(savedRefView); }
+
     document.querySelectorAll('.cspv-dw-ref-toggle').forEach(function(btn) {
         btn.addEventListener('click', function() {
-            document.querySelectorAll('.cspv-dw-ref-toggle').forEach(function(b){ b.classList.remove('active'); });
-            btn.classList.add('active');
-            var mode   = btn.dataset.refView;
-            var sites  = document.getElementById('cspv-dw-ref-sites');
-            var pages  = document.getElementById('cspv-dw-ref-pages');
-            if (sites && pages) {
-                sites.style.display = (mode === 'pages') ? 'none' : '';
-                pages.style.display = (mode === 'pages') ? '' : 'none';
-            }
+            var mode = btn.dataset.refView;
+            applyRefView(mode);
+            try { localStorage.setItem('cspv_dw_ref_view', mode); } catch(e) {}
         });
     });
 })();

@@ -122,7 +122,9 @@
         log( 'record mode — post', postId );
 
         // Deduplicate: only record once per 24 hours per post per browser
-        if ( isDuplicate( postId ) ) {
+        // Respects the server-side dedup setting — when dedup is off, always record
+        var dedupOn = cspvData.dedupOn !== false;
+        if ( dedupOn && isDuplicate( postId ) ) {
             log( 'already recorded within 24h — skipping beacon, fetching count' );
             // Still fetch the current count so the display stays fresh
             fetch( cspvData.apiUrl.replace( '/record/', '/counts?ids=' ) + postId, {
@@ -151,8 +153,8 @@
             var counts = {};
             counts[ postId ] = data.views;
             updateDOM( counts );
-            // Mark as seen for 24 hours
-            markSeen( postId );
+            // Mark as seen for 24 hours (only when dedup is enabled)
+            if ( dedupOn ) { markSeen( postId ); }
         } )
         .catch( function( err ) { log( 'beacon error:', err ); } );
     }

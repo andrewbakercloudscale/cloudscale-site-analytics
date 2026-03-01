@@ -59,6 +59,7 @@ function cspv_enqueue_beacon() {
         'countsUrl'  => rest_url( 'cloudscale-page-views/v1/counts' ),
         'nonce'      => wp_create_nonce( 'wp_rest' ),
         'debug'      => defined( 'WP_DEBUG' ) && WP_DEBUG,
+        'dedupOn'    => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
     );
 
     if ( $is_singular ) {

@@ -123,7 +123,8 @@
 
         // Deduplicate: only record once per 24 hours per post per browser
         // Respects the server-side dedup setting — when dedup is off, always record
-        var dedupOn = cspvData.dedupOn !== false;
+        // wp_localize_script converts booleans: true -> "1", false -> ""
+        var dedupOn = !!cspvData.dedupOn && cspvData.dedupOn !== '0' && cspvData.dedupOn !== '';
         if ( dedupOn && isDuplicate( postId ) ) {
             log( 'already recorded within 24h — skipping beacon, fetching count' );
             // Still fetch the current count so the display stays fresh

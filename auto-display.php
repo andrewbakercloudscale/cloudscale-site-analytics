@@ -105,7 +105,7 @@ function cspv_build_counter_html() {
     return '<div class="cspv-auto-views">'
          . '<span class="cspv-ad-' . esc_attr( $style ) . '">'
          . $icon_html . $num_html . $suffix_html
-         . '</span></div>';
+         . '</span></div><!-- /cspv-auto -->';
 }
 
 /**
@@ -182,7 +182,7 @@ function cspv_auto_display_style() {
     $c = isset( $colors[ $color ] ) ? $colors[ $color ] : $colors['blue'];
     ?>
 <style id="cspv-auto-display-style">
-.cspv-auto-views { margin: 0 0 0.25em; line-height: 1; text-align: right; clear: both; }
+.cspv-auto-views { margin: 0 0 0.25em; line-height: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; clear: both; }
 
 /* Badge: gradient background, white text */
 .cspv-ad-badge {

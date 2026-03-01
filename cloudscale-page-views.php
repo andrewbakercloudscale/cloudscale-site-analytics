@@ -3,7 +3,7 @@
  * Plugin Name:  CloudScale Page Views
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.8
+ * Version:      2.9.33
  * Author:       Andrew Baker
  * Author URI:   https://andrewbaker.ninja
  * License:      GPL-2.0+
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.8' );
+define( 'CSPV_VERSION',    '2.9.33' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -34,6 +34,8 @@ require_once CSPV_PLUGIN_DIR . 'auto-display.php';
 require_once CSPV_PLUGIN_DIR . 'admin-columns.php';
 require_once CSPV_PLUGIN_DIR . 'dashboard-widget.php';
 require_once CSPV_PLUGIN_DIR . 'stats-page.php';
+require_once CSPV_PLUGIN_DIR . 'site-health.php';
+require_once CSPV_PLUGIN_DIR . 'debug-panel.php';
 
 register_activation_hook( __FILE__, 'cspv_activate' );
 

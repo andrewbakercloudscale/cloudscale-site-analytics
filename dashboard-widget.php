@@ -346,14 +346,14 @@ function cspv_render_dashboard_widget() {
 .cspv-dw-ref-toggle-wrap { display: inline-flex; gap: 0; margin-left: auto; }
 .cspv-dw-ref-toggle {
     background: rgba(0,0,0,.08); border: none; color: #999;
-    font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+    font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
     padding: 2px 7px; cursor: pointer; transition: background .15s, color .15s;
     line-height: 1.4;
 }
 .cspv-dw-ref-toggle:first-child { border-radius: 3px 0 0 3px; }
 .cspv-dw-ref-toggle:last-child  { border-radius: 0 3px 3px 0; }
 .cspv-dw-ref-toggle:hover { background: rgba(0,0,0,.12); }
-.cspv-dw-ref-toggle.active { background: #059669; color: #fff; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.cspv-dw-ref-toggle.active { background: #059669; color: #fff; font-weight: 800; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 .cspv-dw-footer {
     padding: 8px 16px; border-top: 1px solid #eee;
@@ -490,6 +490,11 @@ function cspv_render_dashboard_widget() {
             <?php endif; ?>
         </div>
     </div>
+</div>
+
+<!-- Site Health -->
+<div style="padding:12px 16px 0;border-top:1px solid #f0f0f0;">
+    <?php cspv_render_site_health_html( 'widget' ); ?>
 </div>
 
 <!-- Footer -->

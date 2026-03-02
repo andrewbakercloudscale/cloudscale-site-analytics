@@ -18,7 +18,7 @@ add_action( 'wp_dashboard_setup', 'cspv_register_dashboard_widget' );
 function cspv_register_dashboard_widget() {
     wp_add_dashboard_widget(
         'cspv_dashboard_widget',
-        '☁ CloudScale Page Views',
+        '☁ CloudScale Page Views v' . CSPV_VERSION,
         'cspv_render_dashboard_widget',
         null,
         null,
@@ -60,6 +60,11 @@ function cspv_render_dashboard_widget() {
         $week_views = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
 
+        // Rolling 24h: shared function (WordPress timezone, matches Statistics page)
+        $r24 = cspv_rolling_24h_views();
+        $rolling_24h_views = $r24['current'];
+        $prev_rolling_24h  = $r24['prior'];
+
         $top_today = $wpdb->get_results( $wpdb->prepare(
             "SELECT post_id, COUNT(*) AS views FROM `{$table}`
              WHERE viewed_at BETWEEN %s AND %s
@@ -96,16 +101,8 @@ function cspv_render_dashboard_widget() {
         }
     }
 
-    // Delta badge (initial state shown before JS takes over)
+    // Delta badge placeholder (computed after rolling 24h data is ready)
     $delta_html = '';
-    if ( $yest_views > 0 ) {
-        $delta = $today_views - $yest_views;
-        $pct   = round( ( $delta / $yest_views ) * 100 );
-        $arrow = $delta >= 0 ? '↑' : '↓';
-        $color = $delta >= 0 ? '#1db954' : '#e53e3e';
-        $delta_html = '<span style="font-size:11px;color:' . $color . ';font-weight:700;margin-left:6px;white-space:nowrap;">'
-                    . $arrow . ' ' . abs( $pct ) . '% vs prior period</span>';
-    }
 
     // Build all four period datasets in PHP so no AJAX needed
     // 7 Hours: last 7 complete hours + current hour
@@ -161,6 +158,19 @@ function cspv_render_dashboard_widget() {
         $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_start, $day1_start ) );
+    }
+
+    // Delta badge: today vs yesterday (initial render is 7 Hours tab)
+    // Rolling 24h values available for JS when switching to 1 Day tab
+    $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
+    $prev_24h    = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
+    if ( $yest_views > 0 ) {
+        $delta = $today_views - $yest_views;
+        $pct   = round( ( $delta / $yest_views ) * 100 );
+        $arrow = $delta >= 0 ? '↑' : '↓';
+        $color = $delta >= 0 ? '#1db954' : '#e53e3e';
+        $delta_html = '<span style="font-size:11px;color:' . $color . ';font-weight:700;margin-left:6px;white-space:nowrap;">'
+                    . $arrow . ' ' . abs( $pct ) . '% vs prior period</span>';
     }
 
     // 7 Days
@@ -542,6 +552,8 @@ function cspv_render_dashboard_widget() {
     var weekViews  = <?php echo (int) $week_views; ?>;
     var prev7Views = <?php echo (int) $prev7_views; ?>;
     var prevDay1Views = <?php echo (int) $prev_day1_views; ?>;
+    var rolling24h    = <?php echo (int) $rolling_24h; ?>;
+    var prevRolling24h = <?php echo (int) $prev_24h; ?>;
 
     function formatDelta(current, previous) {
         if (previous <= 0) return '';
@@ -569,15 +581,16 @@ function cspv_render_dashboard_widget() {
 
         // Right side + delta: contextual comparison
         if (period === 'hours') {
-            // 7 Hours: show today's total, compare vs yesterday
+            // 7 Hours: calendar day today vs yesterday
             sideCount.textContent = yestViews.toLocaleString();
             sideLabel.textContent = 'Yesterday';
-            if (deltaEl) deltaEl.innerHTML = yestViews > 0 ? formatDelta(todayViews, yestViews) : '';
+            if (deltaEl) deltaEl.innerHTML = yestViews > 0 ? formatDelta(total, yestViews) : '';
         } else if (period === 'day') {
-            // 1 Day: show last 24h total, compare vs previous 24h
-            sideCount.textContent = prevDay1Views.toLocaleString();
+            // 1 Day: rolling 24h vs prior 24h (matches Statistics page)
+            mainCount.textContent = rolling24h.toLocaleString();
+            sideCount.textContent = prevRolling24h.toLocaleString();
             sideLabel.textContent = 'Prior 24 hours';
-            if (deltaEl) deltaEl.innerHTML = prevDay1Views > 0 ? formatDelta(total, prevDay1Views) : '';
+            if (deltaEl) deltaEl.innerHTML = prevRolling24h > 0 ? formatDelta(rolling24h, prevRolling24h) : '';
         } else if (period === 'days') {
             // 7 Days: show 7 day total, compare vs previous 7 days
             sideCount.textContent = prev7Views.toLocaleString();
@@ -650,7 +663,7 @@ function cspv_render_dashboard_widget() {
                     x: {
                         grid: { display: false },
                         ticks: {
-                            color: '#ec4899',
+                            color: '#7a5230',
                             font: { size: 12, weight: '600' },
                             maxRotation: 0,
                             autoSkip: true,
@@ -666,7 +679,7 @@ function cspv_render_dashboard_widget() {
                         grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
                         border: { display: false },
                         ticks: {
-                            color: '#ec4899',
+                            color: '#7a5230',
                             font: { size: 11, weight: '600' },
                             maxTicksLimit: 4,
                             padding: 4,

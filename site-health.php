@@ -22,6 +22,7 @@ function cspv_get_site_health() {
         ! empty( $cache )
         && isset( $cache['computed_at'] )
         && ( time() - $cache['computed_at'] ) < 3600
+        && isset( $cache['version'] ) && $cache['version'] === CSPV_VERSION
     ) {
         return $cache['data'];
     }
@@ -29,6 +30,7 @@ function cspv_get_site_health() {
     $data = cspv_compute_site_health();
     update_option( 'cspv_site_health_cache', array(
         'computed_at' => time(),
+        'version'     => CSPV_VERSION,
         'data'        => $data,
     ), false );
 
@@ -299,8 +301,11 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     </div>
 
     <?php // ── Hot Pages ── ?>
-    <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.05em;margin-bottom:6px;">
+    <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.05em;margin-bottom:2px;">
         🔥 Hot Pages Distribution per Time Window
+    </div>
+    <div style="font-size:9px;color:#888;margin-bottom:6px;line-height:1.4;">
+        Content diversity indicator. Shows how many pages account for &gt;= 50% of traffic. The lower the number, the less SEO value you are getting, as visitors are only reaching narrow content.
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo $gs; ?>px;">
     <?php foreach ( $health['hot_pages'] as $label => $h ) :
@@ -320,7 +325,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
                 <?php echo $arrow; ?> <?php echo abs( $h['pct_change'] ); ?>%
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
-                <?php echo $h['current_count']; ?> page<?php echo $h['current_count'] !== 1 ? 's' : ''; ?> = 50% traffic
+                <?php echo $h['current_count']; ?> page<?php echo $h['current_count'] !== 1 ? 's' : ''; ?> &gt;= 50% traffic
             </div>
         </div>
     <?php else : ?>

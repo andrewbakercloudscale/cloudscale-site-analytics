@@ -231,13 +231,19 @@ function cspv_ajax_chart_data() {
         }
     }
 
-    $period_days = max( 1, $diff_days );
-    $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );
-    $prev_to     = clone $to;   $prev_to->modify(   '-' . $period_days . ' days' );
-    $prev_total  = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-        $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
-        $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
+    if ( $rolling24h && $diff_days === 0 ) {
+        // Rolling prior: shared function (WordPress timezone, matches dashboard widget)
+        $r24 = cspv_rolling_24h_views();
+        $prev_total = $r24['prior'];
+    } else {
+        $period_days = max( 1, $diff_days );
+        $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );
+        $prev_to     = clone $to;   $prev_to->modify(   '-' . $period_days . ' days' );
+        $prev_total  = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
+            $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
+    }
 
     $referrers      = array();
     $referrer_pages = array();
@@ -402,6 +408,10 @@ function cspv_ajax_post_history() {
     $last_log   = null;
     $daily      = array();
     $hourly     = array();
+    // WordPress timezone timestamps for queries (viewed_at is stored in WP timezone)
+    $wp_now    = current_time( 'mysql' );
+    $wp_180d   = date( 'Y-m-d H:i:s', strtotime( $wp_now ) - ( 180 * 86400 ) );
+    $wp_48h    = date( 'Y-m-d H:i:s', strtotime( $wp_now ) - 172800 );
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare(
@@ -417,8 +427,8 @@ function cspv_ajax_post_history() {
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
              FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY)
-             GROUP BY day ORDER BY day ASC", $post_id ) );
+             WHERE post_id = %d AND viewed_at >= %s
+             GROUP BY day ORDER BY day ASC", $post_id, $wp_180d ) );
         foreach ( (array) $rows as $r ) {
             $daily[] = array( 'day' => $r->day, 'views' => (int) $r->views );
         }
@@ -427,8 +437,8 @@ function cspv_ajax_post_history() {
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, COUNT(*) AS views
              FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
-             GROUP BY hour ORDER BY hour ASC", $post_id ) );
+             WHERE post_id = %d AND viewed_at >= %s
+             GROUP BY hour ORDER BY hour ASC", $post_id, $wp_48h ) );
         foreach ( (array) $rows as $r ) {
             $hourly[] = array( 'hour' => $r->hour, 'views' => (int) $r->views );
         }
@@ -437,15 +447,15 @@ function cspv_ajax_post_history() {
         $timeline_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
              FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY)
-             GROUP BY day ORDER BY day DESC", $post_id ) );
+             WHERE post_id = %d AND viewed_at >= %s
+             GROUP BY day ORDER BY day DESC", $post_id, $wp_180d ) );
 
         // Top referrer per day (excluding empty)
         $ref_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE(viewed_at) AS day, referrer, COUNT(*) AS cnt
              FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 180 DAY) AND referrer != ''
-             GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id ) );
+             WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
+             GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
 
         // Build top referrer lookup keyed by day
         $top_refs = array();
@@ -616,7 +626,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ HEADER BANNER ═══════════════════════ -->
     <div id="cspv-banner">
         <div id="cspv-banner-left">
-            <div id="cspv-banner-title">☁ CloudScale Page Views</div>
+            <div id="cspv-banner-title">☁ CloudScale Page Views v<?php echo esc_html( CSPV_VERSION ); ?></div>
             <div id="cspv-banner-sub">Cloudflare-accurate view tracking · v<?php echo esc_html( CSPV_VERSION ); ?></div>
         </div>
         <div id="cspv-banner-right">

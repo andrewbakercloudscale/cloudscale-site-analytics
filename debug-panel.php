@@ -62,8 +62,8 @@ function cspv_render_debug_panel() {
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
              FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-             GROUP BY day ORDER BY day ASC", $post_id ) );
+             WHERE post_id = %d AND viewed_at >= %s
+             GROUP BY day ORDER BY day ASC", $post_id, date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 30 * 86400 ) ) ) );
         if ( is_array( $rows ) ) {
             foreach ( $rows as $r ) {
                 $daily_data[] = array( 'day' => $r->day, 'views' => (int) $r->views );

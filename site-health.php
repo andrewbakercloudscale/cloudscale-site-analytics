@@ -74,15 +74,22 @@ function cspv_compute_site_health() {
         $has_data = false;
 
         if ( $has_enough_data ) {
-            $start = date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
-            $current = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $start ) );
+            if ( $days === 1 ) {
+                // 1 Day: use shared rolling 24h function (matches widget and stats page)
+                $r24      = cspv_rolling_24h_views();
+                $current  = $r24['current'];
+                $previous = $r24['prior'];
+            } else {
+                $start = date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
+                $current = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $start ) );
 
-            $prev_end   = $start;
-            $prev_start = date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
-            $previous = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
-                $prev_start, $prev_end ) );
+                $prev_end   = $start;
+                $prev_start = date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
+                $previous = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
+                    $prev_start, $prev_end ) );
+            }
 
             $has_data = ( $previous > 0 );
         }
@@ -280,7 +287,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
                 <?php echo $arrow; ?> <?php echo abs( $g['pct_change'] ); ?>%
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
-                <?php echo number_format( $g['daily_avg'] ); ?>/day avg
+                <?php echo number_format( $g['current'] ); ?> current
+            </div>
+            <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.7;margin-top:2px;font-weight:500;">
+                <?php echo number_format( $g['previous'] ); ?> prior
             </div>
         </div>
     <?php else : ?>

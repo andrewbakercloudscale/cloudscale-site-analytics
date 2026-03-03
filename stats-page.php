@@ -232,9 +232,10 @@ function cspv_ajax_chart_data() {
     }
 
     if ( $rolling24h && $diff_days === 0 ) {
-        // Rolling prior: shared function (WordPress timezone, matches dashboard widget)
-        $r24 = cspv_rolling_24h_views();
-        $prev_total = $r24['prior'];
+        // Rolling 24h: use shared stats library so total matches banner + site health
+        $r24        = cspv_rolling_24h_views();
+        $total_views = $r24['current'];  // override the BETWEEN query above
+        $prev_total  = $r24['prior'];
     } else {
         $period_days = max( 1, $diff_days );
         $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );

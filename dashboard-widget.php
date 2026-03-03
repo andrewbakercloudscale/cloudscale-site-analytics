@@ -60,8 +60,8 @@ function cspv_render_dashboard_widget() {
         $week_views = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
 
-        // Rolling 24h: shared function (WordPress timezone, matches Statistics page)
-        $r24 = cspv_rolling_24h_views();
+        // Rolling 24h: shared stats library (single source of truth)
+        $r24               = cspv_rolling_24h_views();
         $rolling_24h_views = $r24['current'];
         $prev_rolling_24h  = $r24['prior'];
 

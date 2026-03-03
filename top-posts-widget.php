@@ -64,13 +64,13 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                  LIMIT 500"
             );
 
-            // Combine: lifetime + beacon for each post
+            // Rank by lifetime meta (already includes Jetpack + tracked views).
+            // Do NOT add beacon count here — meta already contains tracked views
+            // from rest-api.php, so adding beacon would double count them.
             $combined = array();
             foreach ( (array) $meta_rows as $r ) {
                 $pid = absint( $r->ID );
-                $lt  = (int) $r->lifetime;
-                $bc  = isset( $beacon_map[ $pid ] ) ? $beacon_map[ $pid ] : 0;
-                $combined[ $pid ] = $lt + $bc;
+                $combined[ $pid ] = (int) $r->lifetime;
             }
             // Add beacon-only posts not in meta
             foreach ( $beacon_map as $pid => $cnt ) {
@@ -277,14 +277,6 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
             $p     = $item['post'];
             $views = $item['views'];
             $lifetime = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
-
-            // Lifetime (total) must never be less than the beacon window count.
-            // This can happen if meta was reimported at a lower value or a race
-            // condition prevented the meta increment. Fix it on the fly.
-            if ( $lifetime < $views ) {
-                $lifetime = $views;
-                update_post_meta( $p->ID, CSPV_META_KEY, $lifetime );
-            }
 
             $thumb = '';
             if ( $image_width > 0 && has_post_thumbnail( $p->ID ) ) {

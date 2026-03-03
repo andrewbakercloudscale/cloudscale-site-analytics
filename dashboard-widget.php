@@ -29,7 +29,8 @@ function cspv_register_dashboard_widget() {
 
 function cspv_render_dashboard_widget() {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
@@ -50,15 +51,15 @@ function cspv_render_dashboard_widget() {
 
     if ( $table_exists ) {
         $today_views = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $today_s, $today_e ) );
 
         $yest_views = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $yest_s, $yest_e ) );
 
         $week_views = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
 
         // Rolling 24h: shared stats library (single source of truth)
         $r24               = cspv_rolling_24h_views();
@@ -66,38 +67,36 @@ function cspv_render_dashboard_widget() {
         $prev_rolling_24h  = $r24['prior'];
 
         $top_today = $wpdb->get_results( $wpdb->prepare(
-            "SELECT post_id, COUNT(*) AS views FROM `{$table}`
+            "SELECT post_id, {$cnt} AS views FROM `{$table}`
              WHERE viewed_at BETWEEN %s AND %s
              GROUP BY post_id ORDER BY views DESC LIMIT 3",
             $today_s, $today_e ) );
 
-        // Top 3 referrers today (requires referrer column)
-        $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'referrer' ) );
-        if ( $has_referrer ) {
-            $own_host = wp_parse_url( home_url(), PHP_URL_HOST );
-            $ref_rows = $wpdb->get_results( $wpdb->prepare(
-                "SELECT referrer, COUNT(*) AS view_count FROM `{$table}`
-                 WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
-                 GROUP BY referrer ORDER BY view_count DESC LIMIT 30",
-                $today_s, $today_e ) );
-            if ( is_array( $ref_rows ) ) {
-                $host_totals = array();
-                foreach ( $ref_rows as $r ) {
-                    $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
-                    if ( ! $host ) { $host = $r->referrer; }
-                    if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) { continue; }
-                    if ( ! isset( $host_totals[ $host ] ) ) { $host_totals[ $host ] = 0; }
-                    $host_totals[ $host ] += (int) $r->view_count;
-                    $top_ref_pages[] = array(
-                        'url'   => $r->referrer,
-                        'views' => (int) $r->view_count,
-                    );
-                }
-                arsort( $host_totals );
-                $top_referrers = array_slice( $host_totals, 0, 3, true );
-                usort( $top_ref_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
-                $top_ref_pages = array_slice( $top_ref_pages, 0, 3 );
+        // Top 3 referrers today (V2 referrer table)
+        $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
+        $own_host = wp_parse_url( home_url(), PHP_URL_HOST );
+        $ref_rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT referrer, COALESCE(SUM(view_count),0) AS view_count FROM `{$ref_src}`
+             WHERE viewed_at BETWEEN %s AND %s AND referrer <> ''
+             GROUP BY referrer ORDER BY view_count DESC LIMIT 30",
+            $today_s, $today_e ) );
+        if ( ! empty( $ref_rows ) && is_array( $ref_rows ) ) {
+            $host_totals = array();
+            foreach ( $ref_rows as $r ) {
+                $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
+                if ( ! $host ) { $host = $r->referrer; }
+                if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) { continue; }
+                if ( ! isset( $host_totals[ $host ] ) ) { $host_totals[ $host ] = 0; }
+                $host_totals[ $host ] += (int) $r->view_count;
+                $top_ref_pages[] = array(
+                    'url'   => $r->referrer,
+                    'views' => (int) $r->view_count,
+                );
             }
+            arsort( $host_totals );
+            $top_referrers = array_slice( $host_totals, 0, 3, true );
+            usort( $top_ref_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
+            $top_ref_pages = array_slice( $top_ref_pages, 0, 3 );
         }
     }
 
@@ -122,7 +121,7 @@ function cspv_render_dashboard_widget() {
                 $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
             }
             $hour_values[] = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
                 $hr_s, $hr_e ) );
         } else {
             $hour_values[] = 0;
@@ -142,7 +141,7 @@ function cspv_render_dashboard_widget() {
             $hr_s = $d . ' ' . sprintf( '%02d:00:00', $hr );
             $hr_e = $d . ' ' . sprintf( '%02d:59:59', $hr );
             $day1_values[] = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
                 $hr_s, $hr_e ) );
         } else {
             $day1_values[] = 0;
@@ -156,7 +155,7 @@ function cspv_render_dashboard_widget() {
         $day1_start = date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end ) ) );
         $prev_start = date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end ) ) );
         $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_start, $day1_start ) );
     }
 
@@ -182,7 +181,7 @@ function cspv_render_dashboard_widget() {
         $day7_labels[] = date( 'j M', strtotime( $d ) );
         if ( $table_exists ) {
             $day7_values[] = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table}` WHERE DATE(viewed_at) = %s", $d ) );
+                "SELECT {$cnt} FROM `{$table}` WHERE DATE(viewed_at) = %s", $d ) );
         } else {
             $day7_values[] = 0;
         }
@@ -191,7 +190,7 @@ function cspv_render_dashboard_widget() {
         $prev7_start = date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
         $prev7_end   = date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
         $prev7_views = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev7_start, $prev7_end ) );
     }
 
@@ -202,7 +201,7 @@ function cspv_render_dashboard_widget() {
     $raw_month    = array();
     if ( $table_exists ) {
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}` WHERE viewed_at >= %s
              GROUP BY day", $m28_s ) );
         foreach ( $rows as $r ) { $raw_month[ $r->day ] = (int) $r->views; }
@@ -223,7 +222,7 @@ function cspv_render_dashboard_widget() {
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE_FORMAT(viewed_at, '%%Y-%%u') AS week_key,
                     MIN(DATE(viewed_at)) AS week_start,
-                    COUNT(*) AS views
+                    {$cnt} AS views
              FROM `{$table}` WHERE viewed_at >= %s
              GROUP BY week_key ORDER BY week_key ASC", $m6_s ) );
         foreach ( $rows as $r ) { $raw_6m[ $r->week_key ] = array( 'views' => (int) $r->views, 'start' => $r->week_start ); }

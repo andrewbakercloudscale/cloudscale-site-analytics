@@ -13,6 +13,7 @@ add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
 add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
 add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
+add_action( 'wp_ajax_cspv_toggle_ignore_jetpack', 'cspv_ajax_toggle_ignore_jetpack' );
 
 function cspv_add_tools_page() {
     add_management_page(
@@ -76,7 +77,8 @@ function cspv_ajax_chart_data() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -111,7 +113,7 @@ function cspv_ajax_chart_data() {
         if ( $rolling24h ) {
             // Rolling: bucket by hour across the 24h window
             $raw = $wpdb->get_results( $wpdb->prepare(
-                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, COUNT(*) AS views
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
                   FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
                   GROUP BY hr_key ORDER BY hr_key ASC",
                 $from_str, $to_str ) );
@@ -130,7 +132,7 @@ function cspv_ajax_chart_data() {
             }
         } else {
             $raw = $wpdb->get_results( $wpdb->prepare(
-                "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, COUNT(*) AS views
+                "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, {$cnt} AS views
                   FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
                   GROUP BY hr",
                 $from_str, $to_str ) );
@@ -148,7 +150,7 @@ function cspv_ajax_chart_data() {
         // ── Daily: build every date in range, fill from DB ────────────
         $label_fmt = 'day';
         $raw = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS ymd, COUNT(*) AS views
+            "SELECT DATE(viewed_at) AS ymd, {$cnt} AS views
               FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
               GROUP BY ymd",
             $from_str, $to_str ) );
@@ -170,7 +172,7 @@ function cspv_ajax_chart_data() {
         $raw = $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE_FORMAT(viewed_at,'%%Y-%%u') AS wk,
                      MIN(DATE(viewed_at)) AS wk_start,
-                     COUNT(*) AS views
+                     {$cnt} AS views
               FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
               GROUP BY wk ORDER BY wk ASC",
             $from_str, $to_str ) );
@@ -193,7 +195,7 @@ function cspv_ajax_chart_data() {
     }
 
     $total_views  = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s", $from_str, $to_str ) );
+        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s", $from_str, $to_str ) );
     $unique_posts = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s", $from_str, $to_str ) );
 
@@ -216,7 +218,7 @@ function cspv_ajax_chart_data() {
 
     $top_posts     = array();
     $top_posts_raw = $wpdb->get_results( $wpdb->prepare(
-        "SELECT post_id, COUNT(*) AS view_count FROM `{$table}`
+        "SELECT post_id, {$cnt} AS view_count FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY view_count DESC LIMIT 10", $from_str, $to_str ) );
     if ( is_array( $top_posts_raw ) ) {
@@ -241,57 +243,55 @@ function cspv_ajax_chart_data() {
         $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );
         $prev_to     = clone $to;   $prev_to->modify(   '-' . $period_days . ' days' );
         $prev_total  = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
             $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
     }
 
     $referrers      = array();
     $referrer_pages = array();
-    $has_referrer   = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'referrer' ) );
-    if ( $has_referrer ) {
-        $ref_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT referrer, COUNT(*) AS view_count FROM `{$table}`
-             WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
-             GROUP BY referrer ORDER BY view_count DESC LIMIT 50", $from_str, $to_str ) );
-        if ( is_array( $ref_rows ) ) {
-            // Aggregate by domain (host) to avoid duplicates from different URL paths
-            $host_totals = array();
-            $own_host    = wp_parse_url( home_url(), PHP_URL_HOST );
-            foreach ( $ref_rows as $r ) {
-                $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
-                if ( ! $host ) { $host = $r->referrer; }
-                // Skip self referrals from own domain
-                if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) {
-                    continue;
-                }
-                if ( ! isset( $host_totals[ $host ] ) ) {
-                    $host_totals[ $host ] = 0;
-                }
-                $host_totals[ $host ] += (int) $r->view_count;
+    $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
+    $ref_rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT referrer, COALESCE(SUM(view_count),0) AS view_count FROM `{$ref_src}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer <> ''
+         GROUP BY referrer ORDER BY view_count DESC LIMIT 50", $from_str, $to_str ) );
+    if ( ! empty( $ref_rows ) && is_array( $ref_rows ) ) {
+        // Aggregate by domain (host) to avoid duplicates from different URL paths
+        $host_totals = array();
+        $own_host    = wp_parse_url( home_url(), PHP_URL_HOST );
+        foreach ( $ref_rows as $r ) {
+            $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
+            if ( ! $host ) { $host = $r->referrer; }
+            // Skip self referrals from own domain
+            if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) {
+                continue;
+            }
+            if ( ! isset( $host_totals[ $host ] ) ) {
+                $host_totals[ $host ] = 0;
+            }
+            $host_totals[ $host ] += (int) $r->view_count;
 
-                // Also build full page list (skip self referrals)
-                $referrer_pages[] = array(
-                    'url'   => esc_url( $r->referrer ),
-                    'host'  => esc_html( $host ),
-                    'views' => (int) $r->view_count,
-                );
-            }
-            arsort( $host_totals );
-            $i = 0;
-            foreach ( $host_totals as $host => $views ) {
-                if ( $i >= 10 ) break;
-                $referrers[] = array(
-                    'host'  => esc_html( $host ),
-                    'views' => $views,
-                );
-                $i++;
-            }
-            // Sort pages by views descending (already mostly sorted from SQL, but
-            // re-sort after filtering out self referrals)
-            usort( $referrer_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
-            $referrer_pages = array_slice( $referrer_pages, 0, 20 );
+            // Also build full page list (skip self referrals)
+            $referrer_pages[] = array(
+                'url'   => esc_url( $r->referrer ),
+                'host'  => esc_html( $host ),
+                'views' => (int) $r->view_count,
+            );
         }
+        arsort( $host_totals );
+        $i = 0;
+        foreach ( $host_totals as $host => $views ) {
+            if ( $i >= 10 ) break;
+            $referrers[] = array(
+                'host'  => esc_html( $host ),
+                'views' => $views,
+            );
+            $i++;
+        }
+        // Sort pages by views descending (already mostly sorted from SQL, but
+        // re-sort after filtering out self referrals)
+        usort( $referrer_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
+        $referrer_pages = array_slice( $referrer_pages, 0, 20 );
     }
 
     // ── Lifetime totals from post meta (includes Jetpack imports) ────
@@ -302,15 +302,34 @@ function cspv_ajax_chart_data() {
         "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
     );
 
-    // All time top posts from meta (for the "All Time" display)
-    $lifetime_top     = array();
-    $lifetime_top_raw = $wpdb->get_results(
-        "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
-         FROM {$wpdb->postmeta} pm
-         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
-         WHERE pm.meta_key = '_cspv_view_count' AND pm.meta_value > 0
-         ORDER BY total_views DESC LIMIT 10"
-    );
+    // All time top posts
+    $ignore_jp    = get_option( 'cspv_ignore_jetpack', '0' ) === '1';
+    $lifetime_top = array();
+
+    if ( $ignore_jp ) {
+        // Exclude Jetpack/imported rows — V2 schema uses source column
+        $jp_where      = "v.source != 'imported'";
+        $jp_where_bare = "source != 'imported'";
+        $lifetime_top_raw = $wpdb->get_results(
+            "SELECT v.post_id, {$cnt} AS total_views
+             FROM `{$table}` v
+             INNER JOIN {$wpdb->posts} p ON p.ID = v.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
+             WHERE {$jp_where}
+             GROUP BY v.post_id
+             ORDER BY total_views DESC LIMIT 10"
+        );
+        $lifetime_total = (int) $wpdb->get_var( "SELECT {$cnt} FROM `{$table}` WHERE {$jp_where_bare}" );
+        $lifetime_posts = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE {$jp_where_bare}" );
+    } else {
+        // Meta (includes Jetpack imported)
+        $lifetime_top_raw = $wpdb->get_results(
+            "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
+             WHERE pm.meta_key = '_cspv_view_count' AND pm.meta_value > 0
+             ORDER BY total_views DESC LIMIT 10"
+        );
+    }
     if ( is_array( $lifetime_top_raw ) ) {
         foreach ( $lifetime_top_raw as $row ) {
             $pid  = absint( $row->post_id );
@@ -335,7 +354,8 @@ function cspv_ajax_chart_data() {
         'referrer_pages'  => $referrer_pages,
         'lifetime_total' => $lifetime_total,
         'lifetime_posts' => $lifetime_posts,
-        'lifetime_top'   => $lifetime_top,
+        'lifetime_top'      => $lifetime_top,
+        'ignore_jetpack'    => $ignore_jp,
     ) );
 }
 
@@ -362,11 +382,12 @@ function cspv_ajax_post_search() {
     $search_log_counts = array();
     if ( ! empty( $posts ) ) {
         $s_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $posts ) );
-        $s_table = $wpdb->prefix . 'cspv_views';
+        $s_table = cspv_views_table();
+        $s_cnt   = cspv_count_expr();
         $s_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $s_table ) );
         if ( $s_table_exists ) {
             $s_rows = $wpdb->get_results(
-                "SELECT post_id, COUNT(*) AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" );
+                "SELECT post_id, {$s_cnt} AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" );
             foreach ( (array) $s_rows as $sr ) {
                 $search_log_counts[ (int) $sr->post_id ] = (int) $sr->cnt;
             }
@@ -399,7 +420,8 @@ function cspv_ajax_post_history() {
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
     if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
 
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
@@ -416,7 +438,7 @@ function cspv_ajax_post_history() {
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d AND source = 'tracked'", $post_id ) );
 
         $first_log = $wpdb->get_var( $wpdb->prepare(
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
@@ -426,7 +448,7 @@ function cspv_ajax_post_history() {
 
         // Daily views for last 180 days
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY day ORDER BY day ASC", $post_id, $wp_180d ) );
@@ -436,7 +458,7 @@ function cspv_ajax_post_history() {
 
         // Hourly views for last 48 hours
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, COUNT(*) AS views
+            "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY hour ORDER BY hour ASC", $post_id, $wp_48h ) );
@@ -446,15 +468,16 @@ function cspv_ajax_post_history() {
 
         // 180 day daily timeline with top referrer per day
         $timeline_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY day ORDER BY day DESC", $post_id, $wp_180d ) );
 
-        // Top referrer per day (excluding empty)
+        // Top referrer per day (V2 referrer table)
+        $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
         $ref_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, referrer, COUNT(*) AS cnt
-             FROM `{$table}`
+            "SELECT DATE(viewed_at) AS day, referrer, COALESCE(SUM(view_count),0) AS cnt
+             FROM `{$ref_src}`
              WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
              GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
 
@@ -511,9 +534,10 @@ function cspv_ajax_resync_meta_from_stats() {
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
     if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
 
-    $table     = $wpdb->prefix . 'cspv_views';
+    $table     = cspv_views_table();
+    $cnt       = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $new_count = $log_count + max( 0, $jp_views );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
@@ -527,6 +551,23 @@ function cspv_ajax_resync_meta_from_stats() {
         'log_rows'  => $log_count,
         'jp_views'  => $jp_views,
     ) );
+}
+
+// ---------------------------------------------------------------------------
+function cspv_ajax_toggle_ignore_jetpack() {
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+
+    // Accept explicit value if sent, otherwise toggle
+    if ( isset( $_POST['value'] ) ) {
+        $new = $_POST['value'] === '1' ? '1' : '0';
+    } else {
+        $current = get_option( 'cspv_ignore_jetpack', '0' );
+        $new     = ( $current === '1' ) ? '0' : '1';
+    }
+    update_option( 'cspv_ignore_jetpack', $new, true );
+
+    wp_send_json_success( array( 'ignore_jetpack' => $new === '1' ) );
 }
 
 // ---------------------------------------------------------------------------
@@ -600,11 +641,12 @@ function cspv_render_stats_page() {
     $ph_log_counts = array();
     if ( ! empty( $ph_top_posts ) ) {
         $ph_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $ph_top_posts ) );
-        $ph_table = $wpdb->prefix . 'cspv_views';
+        $ph_table = cspv_views_table();
+        $ph_cnt   = cspv_count_expr();
         $ph_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ph_table ) );
         if ( $ph_table_exists ) {
             $ph_rows = $wpdb->get_results(
-                "SELECT post_id, COUNT(*) AS cnt FROM `{$ph_table}` WHERE post_id IN ({$ph_ids_str}) GROUP BY post_id" );
+                "SELECT post_id, {$ph_cnt} AS cnt FROM `{$ph_table}` WHERE post_id IN ({$ph_ids_str}) GROUP BY post_id" );
             foreach ( (array) $ph_rows as $pr ) {
                 $ph_log_counts[ (int) $pr->post_id ] = (int) $pr->cnt;
             }
@@ -734,7 +776,14 @@ function cspv_render_stats_page() {
         <div id="cspv-panels-alltime">
             <div class="cspv-panel" style="flex:1;">
                 <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#1a3a8f,#1e6fd9);border-radius:6px 6px 0 0;">
-                    <span>🏆 All Time Top Posts <a class="cspv-info-btn" data-info="all-time" title="Info">i</a></span><span>Total Views</span>
+                    <span>🏆 All Time Top Posts <a class="cspv-info-btn" data-info="all-time" title="Info">i</a></span>
+                    <span style="display:flex;align-items:center;gap:8px;">
+                        <label style="font-size:11px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:5px;opacity:0.9;" title="When enabled, shows only tracked views (excludes imported Jetpack data)">
+                            <input type="checkbox" id="cspv-ignore-jetpack" <?php echo get_option( 'cspv_ignore_jetpack', '0' ) === '1' ? 'checked' : ''; ?> style="cursor:pointer;">
+                            Tracked only
+                        </label>
+                        <span>Total Views</span>
+                    </span>
                 </div>
                 <div id="cspv-lifetime-top"></div>
             </div>
@@ -1264,8 +1313,35 @@ function cspv_render_stats_page() {
             </div>
             <?php endif; ?>
 
+        <!-- Hide/Delete Jetpack data controls -->
+        <div class="cspv-section-header" style="background:linear-gradient(135deg,#4a1a1a,#8b2222);margin-top:0;">
+            <span>🗑 Jetpack Data Management</span>
+        </div>
+        <div style="padding:16px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:#333;cursor:pointer;" title="When enabled, the All Time Top Posts table shows only live-tracked views — imported Jetpack data is excluded">
+                <div id="cspv-jetpack-hide-toggle" style="
+                    position:relative;width:42px;height:24px;border-radius:12px;
+                    cursor:pointer;transition:background 0.2s;flex-shrink:0;
+                    background:<?php echo get_option('cspv_ignore_jetpack','0')==='1' ? '#e02020' : '#ccc'; ?>;"
+                    onclick="cspvToggleJetpackHide(this)">
+                    <div id="cspv-jetpack-hide-knob" style="
+                        position:absolute;top:3px;left:3px;width:18px;height:18px;
+                        background:#fff;border-radius:50%;transition:transform 0.2s;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.3);
+                        transform:<?php echo get_option('cspv_ignore_jetpack','0')==='1' ? 'translateX(18px)' : 'translateX(0)'; ?>;"></div>
+                </div>
+                Hide imported Jetpack data
+            </label>
+            <button id="cspv-btn-delete-jetpack" class="cspv-btn-danger-sm" style="margin-left:auto;">
+                🗑 Delete Jetpack Data
+            </button>
+            <span id="cspv-delete-jetpack-status" style="font-size:12px;font-weight:700;"></span>
+        </div>
+
         </div>
     </div><!-- /migrate tab -->
+
+    <!-- ═══════════════════════ V2 SCHEMA MIGRATION TAB ═════════════ -->
 
     <!-- ═══════════════════════ POST HISTORY TAB ═══════════════════ -->
     <div id="cspv-tab-history" class="cspv-tab-content">
@@ -1343,7 +1419,7 @@ function cspv_render_stats_page() {
                     <div class="cspv-ph-card">
                         <div class="cspv-ph-card-label">Page Views</div>
                         <div class="cspv-ph-card-value" id="cspv-ph-log" style="color:#2e86c1;">0</div>
-                        <div class="cspv-ph-card-sub">wp_cspv_views rows</div>
+                        <div class="cspv-ph-card-sub">wp_cspv_views_v2 tracked rows</div>
                     </div>
                     <div class="cspv-ph-card">
                         <div class="cspv-ph-card-label">Jetpack Imported</div>
@@ -2091,6 +2167,25 @@ function cspv_render_stats_page() {
     });
 
     // ── Load data ──────────────────────────────────────────────────
+    window.loadData = function() { loadData(); }; // expose for external callers
+    // Ignore Jetpack toggle (persisted, refreshes data)
+    document.getElementById('cspv-ignore-jetpack').addEventListener('change', function() {
+        var cb = this;
+        if (cb._suppressChange) return; // fired programmatically — skip
+        cb.disabled = true;
+        fetch(ajaxurl, {
+            method: 'POST',
+            headers: {'Content-Type':'application/x-www-form-urlencoded'},
+            body: 'action=cspv_toggle_ignore_jetpack&nonce=' + nonce + '&value=' + (cb.checked ? '1' : '0')
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            cb.disabled = false;
+            if (r.success) { loadData(); }
+        })
+        .catch(function() { cb.disabled = false; });
+    });
+
     function loadData() {
         var from = document.getElementById('cspv-from').value;
         var to   = document.getElementById('cspv-to').value;
@@ -2888,6 +2983,68 @@ function cspv_render_stats_page() {
                         btn.textContent = '🔓 Reset Lock';
                         alert('Failed to reset lock: ' + (resp.data && resp.data.message ? resp.data.message : 'Unknown error'));
                     }
+                });
+        });
+    }
+
+    // ── Hide Jetpack toggle ────────────────────────────────────────
+    function cspvToggleJetpackHide(el) {
+        var active = el.style.background === 'rgb(224, 32, 32)';
+        active = !active;
+        el.style.background = active ? '#e02020' : '#ccc';
+        document.getElementById('cspv-jetpack-hide-knob').style.transform = active ? 'translateX(18px)' : 'translateX(0)';
+        // Also sync the Tracked Only checkbox in the All Time header (suppress its change listener)
+        var cb = document.getElementById('cspv-ignore-jetpack');
+        if (cb) { cb._suppressChange = true; cb.checked = active; cb._suppressChange = false; }
+        // Save to DB via existing AJAX action — send explicit value, not a blind toggle
+        fetch(ajaxUrl, {
+            method: 'POST',
+            body: new URLSearchParams({ action: 'cspv_toggle_ignore_jetpack', nonce: nonce, value: active ? '1' : '0' })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (resp.success) {
+                if (typeof loadData === 'function') loadData();
+            }
+        });
+    }
+    window.cspvToggleJetpackHide = cspvToggleJetpackHide;
+
+    // ── Delete Jetpack data ───────────────────────────────────────
+    var deleteJetpackBtn = document.getElementById('cspv-btn-delete-jetpack');
+    if (deleteJetpackBtn) {
+        deleteJetpackBtn.addEventListener('click', function() {
+            if (!confirm('Permanently delete all Jetpack-imported rows from the views table?\n\nThis also clears the migration lock and log. This cannot be undone.')) { return; }
+            var btn = this;
+            var status = document.getElementById('cspv-delete-jetpack-status');
+            btn.disabled = true;
+            btn.textContent = '⏳ Deleting…';
+            status.style.color = '#888';
+            status.textContent = 'Working…';
+            var fd = new FormData();
+            fd.append('action', 'cspv_delete_jetpack_data');
+            fd.append('nonce',  migrateNonce);
+            fetch(ajaxUrl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.success) {
+                        status.style.color = '#1a7a3a';
+                        status.textContent = '✅ ' + resp.data.message;
+                        btn.textContent = '🗑 Delete Jetpack Data';
+                        btn.disabled = false;
+                        setTimeout(function() { window.location.reload(); }, 1500);
+                    } else {
+                        status.style.color = '#c0392b';
+                        status.textContent = '✗ ' + (resp.data && resp.data.message ? resp.data.message : 'Error');
+                        btn.textContent = '🗑 Delete Jetpack Data';
+                        btn.disabled = false;
+                    }
+                })
+                .catch(function(err) {
+                    status.style.color = '#c0392b';
+                    status.textContent = '✗ ' + err.message;
+                    btn.textContent = '🗑 Delete Jetpack Data';
+                    btn.disabled = false;
                 });
         });
     }

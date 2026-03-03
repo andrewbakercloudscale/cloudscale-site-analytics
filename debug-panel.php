@@ -39,7 +39,8 @@ function cspv_render_debug_panel() {
 
     global $wpdb;
     $post_id = get_the_ID();
-    $table   = $wpdb->prefix . 'cspv_views';
+    $table   = cspv_views_table();
+    $cnt     = cspv_count_expr();
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 
@@ -51,7 +52,7 @@ function cspv_render_debug_panel() {
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
         $first_log = $wpdb->get_var( $wpdb->prepare(
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
@@ -60,7 +61,7 @@ function cspv_render_debug_panel() {
             "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY day ORDER BY day ASC", $post_id, date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 30 * 86400 ) ) ) );
@@ -313,9 +314,10 @@ function cspv_ajax_resync_meta() {
         return;
     }
 
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $jp_views = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $new_count = $log_count + max( 0, $jp_views );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );

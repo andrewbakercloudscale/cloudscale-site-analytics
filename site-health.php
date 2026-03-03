@@ -39,7 +39,8 @@ function cspv_get_site_health() {
 
 function cspv_compute_site_health() {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
     $today = current_time( 'Y-m-d' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
@@ -82,12 +83,12 @@ function cspv_compute_site_health() {
             } else {
                 $start = date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
                 $current = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s", $start ) );
+                    "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $start ) );
 
                 $prev_end   = $start;
                 $prev_start = date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
                 $previous = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
+                    "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
                     $prev_start, $prev_end ) );
             }
 
@@ -186,8 +187,9 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     $end   = date( 'Y-m-d', strtotime( "-{$offset} days", $today_ts ) ) . ' 23:59:59';
     $start = date( 'Y-m-d', strtotime( "-" . ( $offset + $days ) . " days", $today_ts ) ) . ' 00:00:00';
 
+    $cnt = cspv_count_expr();
     $post_views = $wpdb->get_results( $wpdb->prepare(
-        "SELECT post_id, COUNT(*) AS views FROM `{$table}`
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at >= %s AND viewed_at <= %s
          GROUP BY post_id ORDER BY views DESC", $start, $end ) );
 

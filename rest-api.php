@@ -12,6 +12,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
+/**
+ * Return the view count for a post, respecting the ignore Jetpack toggle.
+ * When the toggle is on, returns tracked-only views from V2.
+ * When off, returns the post meta value (includes Jetpack imported total).
+ */
+function cspv_public_view_count( $post_id ) {
+    if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'cspv_views_v2';
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d AND source = 'tracked'",
+            $post_id
+        ) );
+    }
+    return cspv_public_view_count( $post_id );
+}
+
 function cspv_register_endpoint() {
     register_rest_route(
         'cloudscale-page-views/v1',
@@ -75,7 +92,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     if ( ! empty( $track_types ) && ! in_array( $post->post_type, $track_types, true ) ) {
         return new WP_REST_Response( array(
             'post_id' => $post_id,
-            'views'   => (int) get_post_meta( $post_id, CSPV_META_KEY, true ),
+            'views'   => cspv_public_view_count( $post_id ),
             'logged'  => false,
         ), 200 );
     }
@@ -126,88 +143,65 @@ function cspv_record_view( WP_REST_Request $request ) {
         // Silent accept — attacker gets no signal
         return new WP_REST_Response( array(
             'post_id' => $post_id,
-            'views'   => (int) get_post_meta( $post_id, CSPV_META_KEY, true ),
+            'views'   => cspv_public_view_count( $post_id ),
             'logged'  => false,
         ), 200 );
     }
 
     // --- Write to database -----------------------------------------
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $v2_table    = $wpdb->prefix . 'cspv_views_v2';
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
-    // Confirm table exists before inserting
-    $table_exists = $wpdb->get_var(
-        $wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
-    );
+    // Confirm V2 table exists
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) );
     if ( ! $table_exists ) {
-        // Table missing — try to recreate it
-        if ( function_exists( 'cspv_create_table' ) ) {
-            cspv_create_table();
+        if ( function_exists( 'cspv_create_table_v2' ) ) {
+            cspv_create_table_v2();
         }
-        // Check again
-        $table_exists = $wpdb->get_var(
-            $wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
-        );
+        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) );
         if ( ! $table_exists ) {
             return new WP_REST_Response( array( 'error' => 'Database table unavailable.' ), 500 );
         }
     }
 
-    // --- Server side dedup: same IP + same post within window -------
-    // Catches cross browser/cross app views (e.g. WhatsApp in app
-    // browser then Chrome) where client side localStorage cannot help.
-    $dedup_on     = get_option( 'cspv_dedup_enabled', 'yes' );
-    $dedup_window = (int) get_option( 'cspv_dedup_window', 86400 );
-    if ( $dedup_on !== 'no' && $dedup_window > 0 && ! empty( $ip_hash ) ) {
-        $cutoff   = gmdate( 'Y-m-d H:i:s', time() - $dedup_window );
-        $existing = $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE post_id = %d AND ip_hash = %s AND viewed_at >= %s",
-            $post_id,
-            $ip_hash,
-            $cutoff
-        ) );
-        if ( (int) $existing > 0 ) {
-            return new WP_REST_Response( array(
-                'post_id' => $post_id,
-                'views'   => (int) get_post_meta( $post_id, CSPV_META_KEY, true ),
-                'logged'  => false,
-            ), 200 );
-        }
+    // Upsert hourly view bucket
+    $result = $wpdb->query( $wpdb->prepare(
+        "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count, source)
+         VALUES (%d, %s, 1, 'tracked')
+         ON DUPLICATE KEY UPDATE view_count = view_count + 1",
+        $post_id, $hour_bucket
+    ) );
+
+    if ( $result === false ) {
+        return new WP_REST_Response( array(
+            'post_id'  => $post_id,
+            'views'    => cspv_public_view_count( $post_id ),
+            'logged'   => false,
+            'error'    => 'Insert failed.',
+            'db_error' => $wpdb->last_error,
+        ), 200 );
     }
 
-    $inserted = $wpdb->insert(
-        $table,
-        array(
-            'post_id'    => $post_id,
-            'user_agent' => $ua,
-            'ip_hash'    => $ip_hash,
-            'referrer'   => $referrer,
-            'viewed_at'  => current_time( 'mysql' ),
-        ),
-        array( '%d', '%s', '%s', '%s', '%s' )
-    );
-
-    if ( $inserted === false ) {
-        // DB insert failed — return current count without incrementing meta
-        return new WP_REST_Response( array(
-            'post_id'    => $post_id,
-            'views'      => (int) get_post_meta( $post_id, CSPV_META_KEY, true ),
-            'logged'     => false,
-            'error'      => 'Insert failed.',
-            'db_error'   => $wpdb->last_error,
-            'table'      => $table,
-            'table_ok'   => (bool) $table_exists,
-        ), 200 ); // Still 200 — client should not retry on DB errors
+    // Upsert referrer bucket (only if referrer is non empty)
+    if ( $referrer !== '' ) {
+        $ref_table = $wpdb->prefix . 'cspv_referrers_v2';
+        $wpdb->query( $wpdb->prepare(
+            "INSERT INTO `{$ref_table}` (post_id, viewed_at, referrer, view_count)
+             VALUES (%d, %s, %s, 1)
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
+            $post_id, $hour_bucket, substr( $referrer, 0, 512 )
+        ) );
     }
 
     // Increment denormalised meta counter
-    $current   = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+    $current   = cspv_public_view_count( $post_id );
     $new_count = $current + 1;
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
 
     return new WP_REST_Response( array(
         'post_id' => $post_id,
-        'views'   => $new_count,
+        'views'   => cspv_public_view_count( $post_id ),
         'logged'  => true,
     ), 200 );
 }
@@ -306,7 +300,7 @@ function cspv_get_counts( WP_REST_Request $request ) {
     $counts = array();
 
     foreach ( $ids as $id ) {
-        $counts[ (string) $id ] = (int) get_post_meta( $id, CSPV_META_KEY, true );
+        $counts[ (string) $id ] = cspv_public_view_count( $id );
     }
 
     return new WP_REST_Response( $counts, 200 );

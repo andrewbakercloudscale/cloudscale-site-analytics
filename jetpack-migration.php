@@ -34,7 +34,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'wp_ajax_cspv_jetpack_preflight',   'cspv_ajax_jetpack_preflight' );
 add_action( 'wp_ajax_cspv_jetpack_migrate',      'cspv_ajax_jetpack_migrate' );
-add_action( 'wp_ajax_cspv_migration_reset_lock', 'cspv_ajax_migration_reset_lock' );
+add_action( 'wp_ajax_cspv_migration_reset_lock',  'cspv_ajax_migration_reset_lock' );
+add_action( 'wp_ajax_cspv_delete_jetpack_data',   'cspv_ajax_delete_jetpack_data' );
 add_action( 'wp_ajax_cspv_manual_import',        'cspv_ajax_manual_import' );
 
 // -------------------------------------------------------------------------
@@ -106,10 +107,8 @@ function cspv_ajax_jetpack_migrate() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
-    if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
-        if ( function_exists( 'cspv_create_table' ) ) { cspv_create_table(); }
-    }
+    $table       = $wpdb->prefix . 'cspv_views_v2';
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     $data           = cspv_get_jetpack_data();
     $posts          = $data['posts'];
@@ -135,17 +134,13 @@ function cspv_ajax_jetpack_migrate() {
             $to_insert = $diff;
         }
 
-        // Insert up to 100 synthetic rows to represent the imported views
-        $batch = min( $to_insert, 100 );
-        $ip    = hash( 'sha256', 'jetpack-migration-' . $post_id );
-        for ( $i = 0; $i < $batch; $i++ ) {
-            $wpdb->insert( $table, array(
-                'post_id'    => $post_id,
-                'user_agent' => 'Jetpack Migration v2.0.0',
-                'ip_hash'    => $ip,
-                'viewed_at'  => $import_time,
-            ), array( '%d', '%s', '%s', '%s' ) );
-        }
+        // Upsert a single imported bucket row in V2
+        $wpdb->query( $wpdb->prepare(
+            "INSERT INTO `{$table}` (post_id, viewed_at, view_count, source)
+             VALUES (%d, %s, %d, 'imported')
+             ON DUPLICATE KEY UPDATE view_count = %d",
+            $post_id, $hour_bucket, $to_insert, $to_insert
+        ) );
 
         $migrated++;
         $total_imported += $to_insert;
@@ -201,7 +196,8 @@ function cspv_ajax_manual_import() {
     }
 
     global $wpdb;
-    $table       = $wpdb->prefix . 'cspv_views';
+    $table       = $wpdb->prefix . 'cspv_views_v2';
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
     $migrated    = 0;
     $skipped     = 0;
     $errors      = array();
@@ -235,16 +231,13 @@ function cspv_ajax_manual_import() {
         $current = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
         update_post_meta( $post_id, CSPV_META_KEY, $current + $views );
 
-        $batch = min( $views, 100 );
-        $ip    = hash( 'sha256', 'manual-import-' . $post_id );
-        for ( $i = 0; $i < $batch; $i++ ) {
-            $wpdb->insert( $table, array(
-                'post_id'    => $post_id,
-                'user_agent' => 'Manual Import v2.0.0',
-                'ip_hash'    => $ip,
-                'viewed_at'  => $import_time,
-            ), array( '%d', '%s', '%s', '%s' ) );
-        }
+        // Upsert a single imported bucket row in V2
+        $wpdb->query( $wpdb->prepare(
+            "INSERT INTO `{$table}` (post_id, viewed_at, view_count, source)
+             VALUES (%d, %s, %d, 'imported')
+             ON DUPLICATE KEY UPDATE view_count = view_count + %d",
+            $post_id, $hour_bucket, $views, $views
+        ) );
 
         $migrated++;
         $total_views += $views;
@@ -286,6 +279,37 @@ function cspv_ajax_migration_reset_lock() {
     }
     cspv_migration_clear_lock();
     wp_send_json_success( array( 'message' => 'Lock cleared.' ) );
+}
+
+// -------------------------------------------------------------------------
+// Delete Jetpack imported rows from cspv_views_v2 table
+// -------------------------------------------------------------------------
+
+function cspv_ajax_delete_jetpack_data() {
+    if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );
+        return;
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'cspv_views_v2';
+
+    $deleted = $wpdb->query(
+        "DELETE FROM `{$table}` WHERE source = 'imported'"
+    );
+
+    // Also clear the migration lock and log so the section resets cleanly.
+    cspv_migration_clear_lock();
+    delete_option( 'cspv_migration_log' );
+
+    wp_send_json_success( array(
+        'deleted' => (int) $deleted,
+        'message' => sprintf( '%d imported row(s) deleted. Migration lock and log cleared.', (int) $deleted ),
+    ) );
 }
 
 // -------------------------------------------------------------------------

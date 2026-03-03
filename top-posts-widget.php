@@ -19,7 +19,8 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
     // --- Rank by views ---
     if ( $order_by === 'views' ) {
         global $wpdb;
-        $table = $wpdb->prefix . 'cspv_views';
+        $table = cspv_views_table();
+        $cnt   = cspv_count_expr();
 
         $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
@@ -42,7 +43,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
             $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare(
-                "SELECT post_id, COUNT(*) AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
+                "SELECT post_id, {$cnt} AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
                 $since
             ) ) : array();
 
@@ -110,7 +111,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
             if ( $view_window > 0 ) {
                 $since = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
                 $ranked = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT post_id, COUNT(*) AS view_count
+                    "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      WHERE viewed_at >= %s
                      GROUP BY post_id
@@ -121,7 +122,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                 ) );
             } else {
                 $ranked = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT post_id, COUNT(*) AS view_count
+                    "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      GROUP BY post_id
                      ORDER BY view_count DESC
@@ -216,7 +217,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
     ) );
     $result = array();
     foreach ( $q->posts as $p ) {
-        $result[] = array( 'post' => $p, 'views' => (int) get_post_meta( $p->ID, '_cspv_view_count', true ) );
+        $result[] = array( 'post' => $p, 'views' => cspv_get_view_count( $p->ID ) );
     }
     wp_reset_postdata();
     return $result;
@@ -276,7 +277,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         foreach ( $posts_arr as $item ) {
             $p     = $item['post'];
             $views = $item['views'];
-            $lifetime = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
+            $lifetime = cspv_get_view_count( $p->ID );
 
             $thumb = '';
             if ( $image_width > 0 && has_post_thumbnail( $p->ID ) ) {

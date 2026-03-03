@@ -16,6 +16,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Return the active views table name.
+ * Always uses the V2 hourly bucket schema.
+ */
+function cspv_views_table() {
+    global $wpdb;
+    return $wpdb->prefix . 'cspv_views_v2';
+}
+
+/**
+ * Return the SQL expression that counts views.
+ * V2 schema uses SUM(view_count) over hourly buckets.
+ */
+function cspv_count_expr() {
+    return 'COALESCE(SUM(view_count),0)';
+}
+
+/**
  * Return view counts for the rolling 24-hour window and its prior 24-hour period.
  *
  * Uses WordPress timezone. Results are memoised in a static variable so multiple
@@ -35,7 +52,8 @@ function cspv_rolling_24h_views() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -52,12 +70,12 @@ function cspv_rolling_24h_views() {
     $prior_start = $ago48->format( 'Y-m-d H:i:s' );
 
     $current = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str
     ) );
 
     $prior = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $prior_start, $from_str
     ) );
 
@@ -79,7 +97,8 @@ function cspv_rolling_24h_views() {
  */
 function cspv_rolling_window_views( $seconds ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views';
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -91,7 +110,7 @@ function cspv_rolling_window_views( $seconds ) {
     $from->modify( '-' . (int) $seconds . ' seconds' );
 
     return (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from->format( 'Y-m-d H:i:s' ),
         $now->format( 'Y-m-d H:i:s' )
     ) );

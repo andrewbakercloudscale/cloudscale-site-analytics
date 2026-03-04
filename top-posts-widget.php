@@ -39,6 +39,11 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
             $in_transition = ( $log_days < $view_window );
         }
 
+        // When ignore Jetpack is on, never use transition mode (skip meta blending)
+        if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
+            $in_transition = false;
+        }
+
         // ── Transition period: blend meta + beacon, rank by combined total ──
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );

@@ -16,20 +16,149 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Whether the V2 schema is active.
+ *
+ * @return bool
+ */
+function cspv_use_v2() {
+    return get_option( 'cspv_use_v2', '0' ) === '1';
+}
+
+/**
  * Return the active views table name.
- * Always uses the V2 hourly bucket schema.
+ * Old schema: wp_cspv_views (one row per view).
+ * New schema: wp_cspv_views_v2 (hourly buckets with view_count).
  */
 function cspv_views_table() {
     global $wpdb;
-    return $wpdb->prefix . 'cspv_views_v2';
+    return cspv_use_v2()
+        ? $wpdb->prefix . 'cspv_views_v2'
+        : $wpdb->prefix . 'cspv_views';
 }
 
 /**
  * Return the SQL expression that counts views.
- * V2 schema uses SUM(view_count) over hourly buckets.
+ * Old schema: COUNT(*)
+ * New schema: COALESCE(SUM(view_count),0)
  */
 function cspv_count_expr() {
-    return 'COALESCE(SUM(view_count),0)';
+    return cspv_use_v2() ? 'COALESCE(SUM(view_count),0)' : 'COUNT(*)';
+}
+
+/**
+ * Return the active referrer table and count expression.
+ * V2: wp_cspv_referrers_v2 with SUM(view_count)
+ * V1: wp_cspv_views with COUNT(*)
+ *
+ * @return array { table, cnt }
+ */
+function cspv_referrer_source() {
+    global $wpdb;
+    if ( cspv_use_v2() ) {
+        return array(
+            'table' => $wpdb->prefix . 'cspv_referrers_v2',
+            'cnt'   => 'COALESCE(SUM(view_count),0)',
+        );
+    }
+    return array(
+        'table' => $wpdb->prefix . 'cspv_views',
+        'cnt'   => 'COUNT(*)',
+    );
+}
+
+/**
+ * Return top referrer domains for a date range.
+ *
+ * Shared by stats page and dashboard widget so numbers are always identical.
+ *
+ * @param  string $from_str  Start datetime (Y-m-d H:i:s).
+ * @param  string $to_str    End datetime (Y-m-d H:i:s).
+ * @param  int    $limit     Max domains to return.
+ * @return array  Array of { host, views } sorted by views desc.
+ */
+function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
+    global $wpdb;
+    $src = cspv_referrer_source();
+    $ref_table = $src['table'];
+    $cnt       = $src['cnt'];
+
+    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) );
+    if ( ! $has_referrer ) {
+        return array();
+    }
+
+    $ref_rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
+
+    if ( empty( $ref_rows ) || ! is_array( $ref_rows ) ) {
+        return array();
+    }
+
+    $host_totals = array();
+    $own_host    = wp_parse_url( home_url(), PHP_URL_HOST );
+    foreach ( $ref_rows as $r ) {
+        $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) { continue; }
+        if ( ! isset( $host_totals[ $host ] ) ) { $host_totals[ $host ] = 0; }
+        $host_totals[ $host ] += (int) $r->view_count;
+    }
+    arsort( $host_totals );
+
+    $result = array();
+    $i = 0;
+    foreach ( $host_totals as $host => $views ) {
+        if ( $i >= $limit ) break;
+        $result[] = array( 'host' => esc_html( $host ), 'views' => $views );
+        $i++;
+    }
+    return $result;
+}
+
+/**
+ * Return top referrer pages (full URLs) for a date range.
+ *
+ * @param  string $from_str  Start datetime (Y-m-d H:i:s).
+ * @param  string $to_str    End datetime (Y-m-d H:i:s).
+ * @param  int    $limit     Max pages to return.
+ * @return array  Array of { url, host, views } sorted by views desc.
+ */
+function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
+    global $wpdb;
+    $src = cspv_referrer_source();
+    $ref_table = $src['table'];
+    $cnt       = $src['cnt'];
+
+    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) );
+    if ( ! $has_referrer ) {
+        return array();
+    }
+
+    $ref_rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
+
+    if ( empty( $ref_rows ) || ! is_array( $ref_rows ) ) {
+        return array();
+    }
+
+    $own_host = wp_parse_url( home_url(), PHP_URL_HOST );
+    $pages = array();
+    foreach ( $ref_rows as $r ) {
+        $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) { continue; }
+        $pages[] = array(
+            'url'   => esc_url( $r->referrer ),
+            'host'  => esc_html( $host ),
+            'views' => (int) $r->view_count,
+        );
+    }
+    usort( $pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
+    return array_slice( $pages, 0, $limit );
 }
 
 /**

@@ -70,34 +70,14 @@ function cspv_render_dashboard_widget() {
             "SELECT post_id, {$cnt} AS views FROM `{$table}`
              WHERE viewed_at BETWEEN %s AND %s
              GROUP BY post_id ORDER BY views DESC LIMIT 3",
-            $today_s, $today_e ) );
+            $r24['from_str'], $r24['to_str'] ) );
 
-        // Top 3 referrers today (V2 referrer table)
-        $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
-        $own_host = wp_parse_url( home_url(), PHP_URL_HOST );
-        $ref_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT referrer, COALESCE(SUM(view_count),0) AS view_count FROM `{$ref_src}`
-             WHERE viewed_at BETWEEN %s AND %s AND referrer <> ''
-             GROUP BY referrer ORDER BY view_count DESC LIMIT 30",
-            $today_s, $today_e ) );
-        if ( ! empty( $ref_rows ) && is_array( $ref_rows ) ) {
-            $host_totals = array();
-            foreach ( $ref_rows as $r ) {
-                $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
-                if ( ! $host ) { $host = $r->referrer; }
-                if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) { continue; }
-                if ( ! isset( $host_totals[ $host ] ) ) { $host_totals[ $host ] = 0; }
-                $host_totals[ $host ] += (int) $r->view_count;
-                $top_ref_pages[] = array(
-                    'url'   => $r->referrer,
-                    'views' => (int) $r->view_count,
-                );
-            }
-            arsort( $host_totals );
-            $top_referrers = array_slice( $host_totals, 0, 3, true );
-            usort( $top_ref_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
-            $top_ref_pages = array_slice( $top_ref_pages, 0, 3 );
+        // Top 3 referrers for rolling 24h (same window as the hero number)
+        $top_referrers_arr = cspv_top_referrer_domains( $r24['from_str'], $r24['to_str'], 3 );
+        foreach ( $top_referrers_arr as $rd ) {
+            $top_referrers[ $rd['host'] ] = $rd['views'];
         }
+        $top_ref_pages = cspv_top_referrer_pages( $r24['from_str'], $r24['to_str'], 3 );
     }
 
     // Delta badge placeholder (computed after rolling 24h data is ready)
@@ -421,10 +401,10 @@ function cspv_render_dashboard_widget() {
     <!-- Left: Top 3 posts today -->
     <div class="cspv-dw-list-col">
         <?php if ( empty( $top_today ) ) : ?>
-            <div class="cspv-dw-list-header"><span>Top pages today</span></div>
+            <div class="cspv-dw-list-header"><span>Top pages 24h</span></div>
             <div class="cspv-dw-empty">No views yet.</div>
         <?php else : ?>
-            <div class="cspv-dw-list-header"><span>Top pages today</span><span>Views</span></div>
+            <div class="cspv-dw-list-header"><span>Top pages 24h</span><span>Views</span></div>
             <?php
             $max = (int) $top_today[0]->views;
             foreach ( $top_today as $row ) :
@@ -450,7 +430,7 @@ function cspv_render_dashboard_widget() {
     <!-- Right: Top 3 referrers today (with sites/pages toggle) -->
     <div class="cspv-dw-list-col">
         <div class="cspv-dw-list-header">
-            <span>Top referrers today</span>
+            <span>Top referrers 24h</span>
             <span class="cspv-dw-ref-toggle-wrap">
                 <button class="cspv-dw-ref-toggle active" data-ref-view="sites">Sites</button>
                 <button class="cspv-dw-ref-toggle" data-ref-view="pages">Pages</button>

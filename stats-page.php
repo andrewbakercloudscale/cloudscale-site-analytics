@@ -84,7 +84,7 @@ function cspv_ajax_chart_data() {
     if ( ! $table_exists ) {
         wp_send_json_success( array(
             'chart' => array(), 'label_fmt' => 'day', 'total_views' => 0,
-            'unique_posts' => 0, 'prev_total' => 0, 'diff_days' => $diff_days,
+            'unique_posts' => 0, 'prev_total' => 0, 'prev_posts' => 0, 'diff_days' => $diff_days,
             'top_posts' => array(), 'referrers' => array(),
             'notice' => 'Database table not found. Deactivate and reactivate the plugin.',
         ) );
@@ -235,9 +235,13 @@ function cspv_ajax_chart_data() {
 
     if ( $rolling24h && $diff_days === 0 ) {
         // Rolling 24h: use shared stats library so total matches banner + site health
-        $r24        = cspv_rolling_24h_views();
+        $r24         = cspv_rolling_24h_views();
         $total_views = $r24['current'];  // override the BETWEEN query above
         $prev_total  = $r24['prior'];
+        $prev_posts  = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            ( new DateTime( 'now', wp_timezone() ) )->modify( '-48 hours' )->format( 'Y-m-d H:i:s' ),
+            ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' ) ) );
     } else {
         $period_days = max( 1, $diff_days );
         $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );
@@ -246,53 +250,14 @@ function cspv_ajax_chart_data() {
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
             $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
+        $prev_posts  = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
+            $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
     }
 
-    $referrers      = array();
-    $referrer_pages = array();
-    $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
-    $ref_rows = $wpdb->get_results( $wpdb->prepare(
-        "SELECT referrer, COALESCE(SUM(view_count),0) AS view_count FROM `{$ref_src}`
-         WHERE viewed_at BETWEEN %s AND %s AND referrer <> ''
-         GROUP BY referrer ORDER BY view_count DESC LIMIT 50", $from_str, $to_str ) );
-    if ( ! empty( $ref_rows ) && is_array( $ref_rows ) ) {
-        // Aggregate by domain (host) to avoid duplicates from different URL paths
-        $host_totals = array();
-        $own_host    = wp_parse_url( home_url(), PHP_URL_HOST );
-        foreach ( $ref_rows as $r ) {
-            $host = wp_parse_url( $r->referrer, PHP_URL_HOST );
-            if ( ! $host ) { $host = $r->referrer; }
-            // Skip self referrals from own domain
-            if ( $own_host && strcasecmp( $host, $own_host ) === 0 ) {
-                continue;
-            }
-            if ( ! isset( $host_totals[ $host ] ) ) {
-                $host_totals[ $host ] = 0;
-            }
-            $host_totals[ $host ] += (int) $r->view_count;
-
-            // Also build full page list (skip self referrals)
-            $referrer_pages[] = array(
-                'url'   => esc_url( $r->referrer ),
-                'host'  => esc_html( $host ),
-                'views' => (int) $r->view_count,
-            );
-        }
-        arsort( $host_totals );
-        $i = 0;
-        foreach ( $host_totals as $host => $views ) {
-            if ( $i >= 10 ) break;
-            $referrers[] = array(
-                'host'  => esc_html( $host ),
-                'views' => $views,
-            );
-            $i++;
-        }
-        // Sort pages by views descending (already mostly sorted from SQL, but
-        // re-sort after filtering out self referrals)
-        usort( $referrer_pages, function( $a, $b ) { return $b['views'] - $a['views']; } );
-        $referrer_pages = array_slice( $referrer_pages, 0, 20 );
-    }
+    $referrers      = cspv_top_referrer_domains( $from_str, $to_str, 10 );
+    $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
 
     // ── Lifetime totals from post meta (includes Jetpack imports) ────
     $lifetime_total = (int) $wpdb->get_var(
@@ -348,6 +313,7 @@ function cspv_ajax_chart_data() {
         'total_views'    => $total_views,
         'unique_posts'   => $unique_posts,
         'prev_total'     => $prev_total,
+        'prev_posts'     => $prev_posts,
         'diff_days'      => $diff_days,
         'top_posts'      => $top_posts,
         'referrers'       => $referrers,
@@ -473,11 +439,11 @@ function cspv_ajax_post_history() {
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY day ORDER BY day DESC", $post_id, $wp_180d ) );
 
-        // Top referrer per day (V2 referrer table)
-        $ref_src  = $wpdb->prefix . 'cspv_referrers_v2';
+        // Top referrer per day (uses shared referrer source)
+        $ref_src  = cspv_referrer_source();
         $ref_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE(viewed_at) AS day, referrer, COALESCE(SUM(view_count),0) AS cnt
-             FROM `{$ref_src}`
+            "SELECT DATE(viewed_at) AS day, referrer, {$ref_src['cnt']} AS cnt
+             FROM `{$ref_src['table']}`
              WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
              GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
 
@@ -712,19 +678,15 @@ function cspv_render_stats_page() {
         <div id="cspv-cards">
             <div class="cspv-card" id="cspv-card-views">
                 <div class="cspv-card-icon">👁</div>
-                <div class="cspv-card-value" id="stat-views">—</div>
+                <div class="cspv-card-value" id="stat-delta">—</div>
                 <div class="cspv-card-label">Views</div>
-                <div class="cspv-card-delta" id="stat-delta"></div>
+                <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
             <div class="cspv-card" id="cspv-card-posts">
                 <div class="cspv-card-icon">📄</div>
-                <div class="cspv-card-value" id="stat-posts">—</div>
+                <div class="cspv-card-value" id="stat-posts-delta">—</div>
                 <div class="cspv-card-label">Posts Viewed</div>
-            </div>
-            <div class="cspv-card" id="cspv-card-avg">
-                <div class="cspv-card-icon">📈</div>
-                <div class="cspv-card-value" id="stat-avg">—</div>
-                <div class="cspv-card-label">Avg / Day</div>
+                <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
         </div>
 
@@ -2193,10 +2155,10 @@ function cspv_render_stats_page() {
         // Reset UI
         document.getElementById('cspv-chart-msg').classList.remove('hidden');
         document.getElementById('cspv-chart-msg').textContent = 'Loading…';
-        document.getElementById('stat-views').textContent = '—';
-        document.getElementById('stat-posts').textContent = '—';
-        document.getElementById('stat-avg').textContent   = '—';
-        document.getElementById('stat-delta').textContent = '';
+        document.getElementById('stat-delta').textContent = '—';
+        document.getElementById('stat-views-detail').textContent = '';
+        document.getElementById('stat-posts-delta').textContent = '—';
+        document.getElementById('stat-posts-detail').textContent = '';
         document.getElementById('cspv-top-posts').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-referrers').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-lifetime-top').innerHTML = '<div class="cspv-loading">Loading…</div>';
@@ -2252,21 +2214,37 @@ function cspv_render_stats_page() {
         document.getElementById('cspv-chart-range-label').textContent = lbl;
 
         // Cards
-        document.getElementById('stat-views').textContent = data.total_views.toLocaleString();
-        document.getElementById('stat-posts').textContent = data.unique_posts.toLocaleString();
-        var days = Math.max(1, data.diff_days + 1);
-        var avg = data.total_views / days;
-        var avgStr = Number.isInteger(avg) ? avg.toLocaleString() : avg.toFixed(1);
-        if (avgStr.slice(-2) === '.0') { avgStr = avgStr.slice(0, -2); }
-        document.getElementById('stat-avg').textContent = avgStr;
 
-        var deltaEl = document.getElementById('stat-delta');
+        // Posts Viewed card: percentage as hero, counts as detail line
+        var postsDeltaEl  = document.getElementById('stat-posts-delta');
+        var postsDetailEl = document.getElementById('stat-posts-detail');
+        if (data.prev_posts > 0) {
+            var postsPct   = Math.round(((data.unique_posts - data.prev_posts) / data.prev_posts) * 100);
+            var postsArrow = postsPct > 0 ? '↑' : (postsPct < 0 ? '↓' : '–');
+            var postsCls   = postsPct > 0 ? 'cspv-delta-up' : (postsPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
+            postsDeltaEl.textContent = postsArrow + ' ' + Math.abs(postsPct) + '%';
+            postsDeltaEl.className   = 'cspv-card-value ' + postsCls;
+            postsDetailEl.textContent = data.unique_posts.toLocaleString() + ' vs ' + data.prev_posts.toLocaleString();
+        } else {
+            postsDeltaEl.textContent = data.unique_posts.toLocaleString();
+            postsDeltaEl.className   = 'cspv-card-value';
+            postsDetailEl.textContent = '';
+        }
+
+        // Views card: percentage as hero, counts as detail line
+        var deltaEl  = document.getElementById('stat-delta');
+        var detailEl = document.getElementById('stat-views-detail');
         if (data.prev_total > 0) {
             var pct   = Math.round(((data.total_views - data.prev_total) / data.prev_total) * 100);
             var arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '–');
             var cls   = pct > 0 ? 'cspv-delta-up' : (pct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
-            deltaEl.textContent = arrow + ' ' + Math.abs(pct) + '% vs prev period';
-            deltaEl.className   = 'cspv-card-delta ' + cls;
+            deltaEl.textContent = arrow + ' ' + Math.abs(pct) + '%';
+            deltaEl.className   = 'cspv-card-value ' + cls;
+            detailEl.textContent = data.total_views.toLocaleString() + ' vs ' + data.prev_total.toLocaleString();
+        } else {
+            deltaEl.textContent = data.total_views.toLocaleString();
+            deltaEl.className   = 'cspv-card-value';
+            detailEl.textContent = '';
         }
 
         // Render lists BEFORE chart so they always appear even if Chart.js

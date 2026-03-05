@@ -366,13 +366,8 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
                 img = "<a href=\""+p.url+"\"><img class=\"cspv-tp-thumb\" src=\""+p.thumb+"\" width=\""+imgW+"\" loading=\"lazy\" alt=\"\" style=\"width:"+imgW+"px;max-width:100%;height:auto;\"></a>";
             }
             var views = "";
-            if(p.lifetime>0 || p.views>0){
-                if(p.views>0 && p.lifetime>0 && p.views !== p.lifetime){
-                    views = "<span class=\"cspv-tp-views\">&#128065; "+fmt(p.views)+" trending &middot; "+fmt(p.lifetime)+" total</span>";
-                } else {
-                    var n = p.lifetime>0 ? p.lifetime : p.views;
-                    views = "<span class=\"cspv-tp-views\">&#128065; "+fmt(n)+" views</span>";
-                }
+            if(p.lifetime>0){
+                views = "<span class=\"cspv-tp-views\">&#128065; "+fmt(p.lifetime)+" views</span>";
             }
             html += "<li>"
                   + "<span class=\"cspv-tp-meta\">"

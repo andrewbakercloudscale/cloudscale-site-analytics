@@ -143,13 +143,14 @@ function cspv_render_dashboard_widget() {
     // Rolling 24h values available for JS when switching to 1 Day tab
     $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
     $prev_24h    = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
-    if ( $yest_views > 0 ) {
-        $delta = $today_views - $yest_views;
-        $pct   = round( ( $delta / $yest_views ) * 100 );
+    if ( $prev_24h > 0 ) {
+        $delta = $rolling_24h - $prev_24h;
+        $pct   = round( ( $delta / $prev_24h ) * 100 );
         $arrow = $delta >= 0 ? '↑' : '↓';
         $color = $delta >= 0 ? '#1db954' : '#e53e3e';
-        $delta_html = '<span style="font-size:11px;color:' . $color . ';font-weight:700;margin-left:6px;white-space:nowrap;">'
-                    . $arrow . ' ' . abs( $pct ) . '% vs prior period</span>';
+        $delta_html = '<span style="color:' . $color . ';">' . $arrow . ' ' . abs( $pct ) . '%</span>';
+    } else {
+        $delta_html = number_format( $rolling_24h );
     }
 
     // 7 Days
@@ -267,9 +268,7 @@ function cspv_render_dashboard_widget() {
     text-transform: uppercase; letter-spacing: .06em;
     margin-top: 3px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
 }
-.cspv-dw-week-block { text-align: right; }
-.cspv-dw-week-num   { font-size: 20px; font-weight: 700; color: #0d9488; line-height: 1; }
-.cspv-dw-week-label { font-size: 10px; color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+.cspv-dw-counts { margin-top: 6px; line-height: 1; }
 
 /* Period buttons */
 .cspv-dw-periods {
@@ -369,15 +368,17 @@ function cspv_render_dashboard_widget() {
 <!-- Banner -->
 <div class="cspv-dw-banner">
     <div>
-        <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo number_format( $today_views ); ?></div>
+        <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo $delta_html; ?></div>
         <div class="cspv-dw-today-label">
-            <span id="cspv-dw-main-label">Views today</span>
-            <span id="cspv-dw-delta"><?php echo $delta_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+            <span id="cspv-dw-main-label">Last 24 hours</span>
         </div>
-    </div>
-    <div class="cspv-dw-week-block">
-        <div class="cspv-dw-week-num" id="cspv-dw-side-count"><?php echo number_format( $yest_views ); ?></div>
-        <div class="cspv-dw-week-label" id="cspv-dw-side-label">Yesterday</div>
+        <div class="cspv-dw-counts" id="cspv-dw-counts"><?php
+            echo '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+               . number_format( $rolling_24h ) . '</span>'
+               . '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
+               . '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
+               . number_format( $prev_24h ) . '</span>';
+        ?></div>
     </div>
 </div>
 
@@ -549,37 +550,41 @@ function cspv_render_dashboard_widget() {
         var total = data.total || 0;
         var mainCount = document.getElementById('cspv-dw-main-count');
         var mainLabel = document.getElementById('cspv-dw-main-label');
-        var sideCount = document.getElementById('cspv-dw-side-count');
-        var sideLabel = document.getElementById('cspv-dw-side-label');
-        var deltaEl   = document.getElementById('cspv-dw-delta');
+        var countsEl  = document.getElementById('cspv-dw-counts');
         if (!mainCount) return;
 
-        // Left side: always show the period total with its label
-        mainCount.textContent = total.toLocaleString();
-        mainLabel.textContent = data.summary;
-
-        // Right side + delta: contextual comparison
+        var current = 0, previous = 0, label = '';
         if (period === 'hours') {
-            // 7 Hours: calendar day today vs yesterday
-            sideCount.textContent = yestViews.toLocaleString();
-            sideLabel.textContent = 'Yesterday';
-            if (deltaEl) deltaEl.innerHTML = yestViews > 0 ? formatDelta(total, yestViews) : '';
+            current = total; previous = yestViews; label = 'Last 7 hours';
         } else if (period === 'day') {
-            // 1 Day: rolling 24h vs prior 24h (matches Statistics page)
-            mainCount.textContent = rolling24h.toLocaleString();
-            sideCount.textContent = prevRolling24h.toLocaleString();
-            sideLabel.textContent = 'Prior 24 hours';
-            if (deltaEl) deltaEl.innerHTML = prevRolling24h > 0 ? formatDelta(rolling24h, prevRolling24h) : '';
+            current = rolling24h; previous = prevRolling24h; label = 'Last 24 hours';
         } else if (period === 'days') {
-            // 7 Days: show 7 day total, compare vs previous 7 days
-            sideCount.textContent = prev7Views.toLocaleString();
-            sideLabel.textContent = 'Prior 7 days';
-            if (deltaEl) deltaEl.innerHTML = prev7Views > 0 ? formatDelta(total, prev7Views) : '';
+            current = total; previous = prev7Views; label = 'Last 7 days';
         } else {
-            // Month / 6 Months: just show total, no comparison
-            sideCount.textContent = '';
-            sideLabel.textContent = '';
-            if (deltaEl) deltaEl.innerHTML = '';
+            current = total; previous = 0; label = data.summary;
+        }
+
+        // Hero: percentage or raw count
+        if (previous > 0) {
+            var pct   = Math.round(((current - previous) / previous) * 100);
+            var arrow = pct >= 0 ? '↑' : '↓';
+            var color = pct >= 0 ? '#1db954' : '#e53e3e';
+            mainCount.innerHTML = '<span style="color:' + color + ';">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+        } else {
+            mainCount.textContent = current.toLocaleString();
+        }
+        mainLabel.textContent = label;
+
+        // Counts line: current vs previous
+        if (previous > 0) {
+            countsEl.innerHTML = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+                + current.toLocaleString() + '</span>'
+                + '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
+                + '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
+                + previous.toLocaleString() + '</span>';
+        } else {
+            countsEl.innerHTML = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+                + current.toLocaleString() + ' views</span>';
         }
     }
 

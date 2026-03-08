@@ -194,6 +194,30 @@ function cspv_record_view( WP_REST_Request $request ) {
         ) );
     }
 
+    // Upsert geo bucket (resolve country from CF header or DB-IP mmdb)
+    $geo_source = get_option( 'cspv_geo_source', 'auto' );
+    $country    = '';
+    if ( $geo_source !== 'disabled' ) {
+        // Try CloudFlare header first (unless dbip only)
+        if ( $geo_source !== 'dbip' && isset( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
+            $country = strtoupper( substr( sanitize_text_field( $_SERVER['HTTP_CF_IPCOUNTRY'] ), 0, 2 ) );
+        }
+        // Fall back to DB-IP mmdb lookup (unless cloudflare only)
+        if ( $country === '' && $geo_source !== 'cloudflare' ) {
+            $country = cspv_geo_lookup_dbip( $request->get_header( 'X-Forwarded-For' ) ?: $_SERVER['REMOTE_ADDR'] ?? '' );
+        }
+        // Write to geo table if we resolved a valid country
+        if ( $country !== '' && $country !== 'XX' && $country !== 'T1' ) {
+            $geo_table = $wpdb->prefix . 'cspv_geo_v2';
+            $wpdb->query( $wpdb->prepare(
+                "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
+                 VALUES (%d, %s, %s, 1)
+                 ON DUPLICATE KEY UPDATE view_count = view_count + 1",
+                $post_id, $hour_bucket, $country
+            ) );
+        }
+    }
+
     // Increment denormalised meta counter
     $current   = cspv_public_view_count( $post_id );
     $new_count = $current + 1;

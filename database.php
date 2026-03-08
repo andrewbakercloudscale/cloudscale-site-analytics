@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 function cspv_activate() {
     cspv_create_table_v2();
     cspv_create_table_referrers_v2();
+    cspv_create_table_geo_v2();
     add_option( 'cspv_version', CSPV_VERSION );
 }
 
@@ -70,6 +71,34 @@ function cspv_create_table_referrers_v2() {
         UNIQUE KEY post_hour_ref (post_id, viewed_at, referrer(191)),
         KEY viewed_at (viewed_at),
         KEY post_id   (post_id)
+    ) {$charset_collate};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+}
+
+/**
+ * Create the geo tracking table.
+ *
+ * Stores country code per post per hour bucket. Country is resolved
+ * from the CloudFlare CF-IPCountry header (no raw IP stored).
+ * Later can be extended with city/lat/lng from DB-IP Lite.
+ */
+function cspv_create_table_geo_v2() {
+    global $wpdb;
+    $table           = $wpdb->prefix . 'cspv_geo_v2';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE {$table} (
+        id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        post_id       BIGINT(20) UNSIGNED NOT NULL,
+        viewed_at     DATETIME            NOT NULL COMMENT 'Hour bucket',
+        country_code  CHAR(2)             NOT NULL DEFAULT '',
+        view_count    INT UNSIGNED        NOT NULL DEFAULT 1,
+        PRIMARY KEY (id),
+        UNIQUE KEY post_hour_country (post_id, viewed_at, country_code),
+        KEY country_code (country_code),
+        KEY viewed_at (viewed_at)
     ) {$charset_collate};";
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';

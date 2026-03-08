@@ -45,9 +45,16 @@ function cspv_render_dashboard_widget() {
     $today_views    = 0;
     $yest_views     = 0;
     $week_views     = 0;
-    $top_today      = array();
-    $top_referrers  = array();
-    $top_ref_pages  = array();
+
+
+    // Days of tracking data (used to gate period comparisons)
+    $data_days = 0;
+    if ( $table_exists ) {
+        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" );
+        if ( $earliest ) {
+            $data_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
+        }
+    }
 
     if ( $table_exists ) {
         $today_views = (int) $wpdb->get_var( $wpdb->prepare(
@@ -66,18 +73,7 @@ function cspv_render_dashboard_widget() {
         $rolling_24h_views = $r24['current'];
         $prev_rolling_24h  = $r24['prior'];
 
-        $top_today = $wpdb->get_results( $wpdb->prepare(
-            "SELECT post_id, {$cnt} AS views FROM `{$table}`
-             WHERE viewed_at BETWEEN %s AND %s
-             GROUP BY post_id ORDER BY views DESC LIMIT 3",
-            $r24['from_str'], $r24['to_str'] ) );
-
-        // Top 3 referrers for rolling 24h (same window as the hero number)
-        $top_referrers_arr = cspv_top_referrer_domains( $r24['from_str'], $r24['to_str'], 3 );
-        foreach ( $top_referrers_arr as $rd ) {
-            $top_referrers[ $rd['host'] ] = $rd['views'];
-        }
-        $top_ref_pages = cspv_top_referrer_pages( $r24['from_str'], $r24['to_str'], 3 );
+        // Top pages and referrers are now fetched via AJAX on tab switch
     }
 
     // Delta badge placeholder (computed after rolling 24h data is ready)
@@ -105,6 +101,19 @@ function cspv_render_dashboard_widget() {
                 $hr_s, $hr_e ) );
         } else {
             $hour_values[] = 0;
+        }
+    }
+
+    // Prior 7 hours: same hours yesterday for comparison
+    $prev_7h_views = 0;
+    if ( $table_exists ) {
+        for ( $h = 6; $h >= 0; $h-- ) {
+            $hr = ( $now_hour - $h + 24 ) % 24;
+            $hr_s = $yest . ' ' . sprintf( '%02d:00:00', $hr );
+            $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
+            $prev_7h_views += (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+                $hr_s, $hr_e ) );
         }
     }
 
@@ -143,14 +152,17 @@ function cspv_render_dashboard_widget() {
     // Rolling 24h values available for JS when switching to 1 Day tab
     $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
     $prev_24h    = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
-    if ( $prev_24h > 0 ) {
-        $delta = $rolling_24h - $prev_24h;
-        $pct   = round( ( $delta / $prev_24h ) * 100 );
+    // Initial render is 7 Hours tab, so use 7h values
+    $init_current = array_sum( $hour_values );
+    $init_prev    = $prev_7h_views;
+    if ( $init_prev > 0 && $data_days >= 2 ) {
+        $delta = $init_current - $init_prev;
+        $pct   = round( ( $delta / $init_prev ) * 100 );
         $arrow = $delta >= 0 ? '↑' : '↓';
         $color = $delta >= 0 ? '#1db954' : '#e53e3e';
         $delta_html = '<span style="color:' . $color . ';">' . $arrow . ' ' . abs( $pct ) . '%</span>';
     } else {
-        $delta_html = number_format( $rolling_24h );
+        $delta_html = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
     }
 
     // 7 Days
@@ -370,14 +382,19 @@ function cspv_render_dashboard_widget() {
     <div>
         <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo $delta_html; ?></div>
         <div class="cspv-dw-today-label">
-            <span id="cspv-dw-main-label">Last 24 hours</span>
+            <span id="cspv-dw-main-label">Last 7 hours</span>
         </div>
         <div class="cspv-dw-counts" id="cspv-dw-counts"><?php
-            echo '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
-               . number_format( $rolling_24h ) . '</span>'
-               . '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
-               . '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
-               . number_format( $prev_24h ) . '</span>';
+            if ( $init_prev > 0 ) {
+                echo '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+                   . number_format( $init_current ) . '</span>'
+                   . '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
+                   . '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
+                   . number_format( $init_prev ) . '</span>';
+            } else {
+                echo '<span style="color:rgba(255,255,255,.5);font-size:12px;">'
+                   . number_format( $init_current ) . ' views recorded</span>';
+            }
         ?></div>
     </div>
 </div>
@@ -397,87 +414,27 @@ function cspv_render_dashboard_widget() {
     <canvas id="<?php echo esc_attr( $widget_id ); ?>" class="cspv-dw-canvas"></canvas>
 </div>
 
-<!-- Top posts + Top referrers (side by side) -->
+<!-- Top posts + Top referrers (side by side, JS driven) -->
 <div class="cspv-dw-lists">
-    <!-- Left: Top 3 posts today -->
     <div class="cspv-dw-list-col">
-        <?php if ( empty( $top_today ) ) : ?>
-            <div class="cspv-dw-list-header"><span>Top pages 24h</span></div>
-            <div class="cspv-dw-empty">No views yet.</div>
-        <?php else : ?>
-            <div class="cspv-dw-list-header"><span>Top pages 24h</span><span>Views</span></div>
-            <?php
-            $max = (int) $top_today[0]->views;
-            foreach ( $top_today as $row ) :
-                $pid   = absint( $row->post_id );
-                $post  = get_post( $pid );
-                $title = $post ? $post->post_title : 'Post #' . $pid;
-                $url   = ( $post && 'publish' === $post->post_status ) ? get_permalink( $post ) : '';
-                $pct   = $max > 0 ? round( ( (int) $row->views / $max ) * 100 ) : 0;
-            ?>
-            <div class="cspv-dw-row">
-                <?php if ( $url ) : ?>
-                    <a href="<?php echo esc_url( $url ); ?>" target="_blank" class="cspv-dw-row-title"><?php echo esc_html( $title ); ?></a>
-                <?php else : ?>
-                    <span class="cspv-dw-row-title"><?php echo esc_html( $title ); ?></span>
-                <?php endif; ?>
-                <div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:<?php echo (int) $pct; ?>%"></div></div>
-                <span class="cspv-dw-row-num"><?php echo number_format( (int) $row->views ); ?></span>
-            </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
+        <div class="cspv-dw-list-header"><span id="cspv-dw-pages-header">Top pages 7h</span><span>Views</span></div>
+        <div id="cspv-dw-top-pages">
+            <div class="cspv-dw-empty" style="color:#999;">Loading...</div>
+        </div>
     </div>
-
-    <!-- Right: Top 3 referrers today (with sites/pages toggle) -->
     <div class="cspv-dw-list-col">
         <div class="cspv-dw-list-header">
-            <span>Top referrers 24h</span>
+            <span id="cspv-dw-ref-header-label">Top referrers 7h</span>
             <span class="cspv-dw-ref-toggle-wrap">
                 <button class="cspv-dw-ref-toggle active" data-ref-view="sites">Sites</button>
                 <button class="cspv-dw-ref-toggle" data-ref-view="pages">Pages</button>
             </span>
         </div>
-        <!-- Sites view (default) -->
         <div id="cspv-dw-ref-sites">
-            <?php if ( empty( $top_referrers ) ) : ?>
-                <div class="cspv-dw-empty">No referrers yet.</div>
-            <?php else : ?>
-                <?php
-                $ref_max = reset( $top_referrers );
-                foreach ( $top_referrers as $host => $views ) :
-                    $pct = $ref_max > 0 ? round( ( $views / $ref_max ) * 100 ) : 0;
-                ?>
-                <div class="cspv-dw-row">
-                    <span class="cspv-dw-ref-host"><?php echo esc_html( $host ); ?></span>
-                    <div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:<?php echo (int) $pct; ?>%"></div></div>
-                    <span class="cspv-dw-row-num"><?php echo number_format( $views ); ?></span>
-                </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+            <div class="cspv-dw-empty" style="color:#999;">Loading...</div>
         </div>
-        <!-- Pages view (hidden by default) -->
         <div id="cspv-dw-ref-pages" style="display:none;">
-            <?php if ( empty( $top_ref_pages ) ) : ?>
-                <div class="cspv-dw-empty">No referrer pages yet.</div>
-            <?php else : ?>
-                <?php
-                $rp_max = $top_ref_pages[0]['views'];
-                foreach ( $top_ref_pages as $rp ) :
-                    $pct = $rp_max > 0 ? round( ( $rp['views'] / $rp_max ) * 100 ) : 0;
-                    $display = $rp['url'];
-                    $parsed  = wp_parse_url( $rp['url'] );
-                    if ( ! empty( $parsed['host'] ) ) {
-                        $display = $parsed['host'] . ( isset( $parsed['path'] ) ? $parsed['path'] : '' );
-                        $display = rtrim( $display, '/' );
-                    }
-                ?>
-                <div class="cspv-dw-row">
-                    <a href="<?php echo esc_url( $rp['url'] ); ?>" target="_blank" class="cspv-dw-ref-link" title="<?php echo esc_attr( $rp['url'] ); ?>"><?php echo esc_html( $display ); ?></a>
-                    <div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:<?php echo (int) $pct; ?>%"></div></div>
-                    <span class="cspv-dw-row-num"><?php echo number_format( $rp['views'] ); ?></span>
-                </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+            <div class="cspv-dw-empty" style="color:#999;">Loading...</div>
         </div>
     </div>
 </div>
@@ -527,8 +484,15 @@ function cspv_render_dashboard_widget() {
     }
 
     var currentPeriod = 'hours';
+    var widgetNonce = '<?php echo wp_create_nonce( "cspv_widget_lists" ); ?>';
+    var widgetAjax  = '<?php echo admin_url( "admin-ajax.php" ); ?>';
+    var listsCache  = {};
     var todayViews = <?php echo (int) $today_views; ?>;
     var yestViews  = <?php echo (int) $yest_views; ?>;
+    var prev7hViews = <?php echo (int) $prev_7h_views; ?>;
+    var dataDays    = <?php echo (int) $data_days; ?>;
+    // Minimum data_days needed to show a comparison (same as site-health: days * 2)
+    var requiredDays = { hours: 2, day: 2, days: 14, month: 56, months: 360 };
     var weekViews  = <?php echo (int) $week_views; ?>;
     var prev7Views = <?php echo (int) $prev7_views; ?>;
     var prevDay1Views = <?php echo (int) $prev_day1_views; ?>;
@@ -555,7 +519,7 @@ function cspv_render_dashboard_widget() {
 
         var current = 0, previous = 0, label = '';
         if (period === 'hours') {
-            current = total; previous = yestViews; label = 'Last 7 hours';
+            current = total; previous = prev7hViews; label = 'Last 7 hours';
         } else if (period === 'day') {
             current = rolling24h; previous = prevRolling24h; label = 'Last 24 hours';
         } else if (period === 'days') {
@@ -564,33 +528,126 @@ function cspv_render_dashboard_widget() {
             current = total; previous = 0; label = data.summary;
         }
 
-        // Hero: percentage or raw count
-        if (previous > 0) {
+        // Hero: percentage or insufficient data
+        // Gate: must have enough historical data (same rule as Site Health: days * 2)
+        var hasEnoughData = previous > 0 && dataDays >= (requiredDays[period] || 2);
+        if (hasEnoughData) {
             var pct   = Math.round(((current - previous) / previous) * 100);
             var arrow = pct >= 0 ? '↑' : '↓';
             var color = pct >= 0 ? '#1db954' : '#e53e3e';
             mainCount.innerHTML = '<span style="color:' + color + ';">' + arrow + ' ' + Math.abs(pct) + '%</span>';
-        } else {
-            mainCount.textContent = current.toLocaleString();
-        }
-        mainLabel.textContent = label;
-
-        // Counts line: current vs previous
-        if (previous > 0) {
             countsEl.innerHTML = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
                 + current.toLocaleString() + '</span>'
                 + '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
                 + '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
                 + previous.toLocaleString() + '</span>';
         } else {
-            countsEl.innerHTML = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
-                + current.toLocaleString() + ' views</span>';
+            mainCount.innerHTML = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
+            var needed = (requiredDays[period] || 2);
+            var extra = needed - dataDays;
+            countsEl.innerHTML = '<span style="color:rgba(255,255,255,.5);font-size:12px;">'
+                + current.toLocaleString() + ' views recorded'
+                + (extra > 0 ? ' &middot; need ' + needed + ' days' : '') + '</span>';
         }
+        mainLabel.textContent = label;
+    }
+
+    var periodLabels = { hours: '7h', day: '24h', days: '7 days', month: '30 days', months: '6 months' };
+
+    function renderLists(data, period) {
+        var pLabel = periodLabels[period] || '24h';
+        var pagesEl = document.getElementById('cspv-dw-top-pages');
+        var refSitesEl = document.getElementById('cspv-dw-ref-sites');
+        var refPagesEl = document.getElementById('cspv-dw-ref-pages');
+        var pagesHeaderEl = document.getElementById('cspv-dw-pages-header');
+        var refHeaderEl   = document.getElementById('cspv-dw-ref-header-label');
+
+        // Update headers
+        if (pagesHeaderEl) pagesHeaderEl.textContent = 'Top pages ' + pLabel;
+        if (refHeaderEl)   refHeaderEl.textContent   = 'Top referrers ' + pLabel;
+
+        // Render top pages
+        if (!data.top_pages || data.top_pages.length === 0) {
+            pagesEl.innerHTML = '<div class="cspv-dw-empty">No views yet.</div>';
+        } else {
+            var maxV = data.top_pages[0].views;
+            var h = '';
+            for (var i = 0; i < data.top_pages.length; i++) {
+                var p = data.top_pages[i];
+                var pct = maxV > 0 ? Math.round((p.views / maxV) * 100) : 0;
+                var titleHtml = p.url
+                    ? '<a href="' + p.url + '" target="_blank" class="cspv-dw-row-title">' + p.title + '</a>'
+                    : '<span class="cspv-dw-row-title">' + p.title + '</span>';
+                h += '<div class="cspv-dw-row">' + titleHtml
+                   + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + pct + '%"></div></div>'
+                   + '<span class="cspv-dw-row-num">' + p.views.toLocaleString() + '</span></div>';
+            }
+            pagesEl.innerHTML = h;
+        }
+
+        // Render referrer domains
+        if (!data.ref_domains || data.ref_domains.length === 0) {
+            refSitesEl.innerHTML = '<div class="cspv-dw-empty">No referrers yet.</div>';
+        } else {
+            var maxR = data.ref_domains[0].views;
+            var rh = '';
+            for (var j = 0; j < data.ref_domains.length; j++) {
+                var d = data.ref_domains[j];
+                var rpct = maxR > 0 ? Math.round((d.views / maxR) * 100) : 0;
+                rh += '<div class="cspv-dw-row"><span class="cspv-dw-ref-host">' + d.host + '</span>'
+                    + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + rpct + '%"></div></div>'
+                    + '<span class="cspv-dw-row-num">' + d.views.toLocaleString() + '</span></div>';
+            }
+            refSitesEl.innerHTML = rh;
+        }
+
+        // Render referrer pages
+        if (!data.ref_pages || data.ref_pages.length === 0) {
+            refPagesEl.innerHTML = '<div class="cspv-dw-empty">No referrer pages yet.</div>';
+        } else {
+            var maxP = data.ref_pages[0].views;
+            var ph = '';
+            for (var k = 0; k < data.ref_pages.length; k++) {
+                var rp = data.ref_pages[k];
+                var ppct = maxP > 0 ? Math.round((rp.views / maxP) * 100) : 0;
+                var display = rp.host;
+                try { var u = new URL(rp.url); display = u.hostname + u.pathname.replace(/\/$/, ''); } catch(e) {}
+                ph += '<div class="cspv-dw-row">'
+                    + '<a href="' + rp.url + '" target="_blank" class="cspv-dw-ref-link" title="' + rp.url + '">' + display + '</a>'
+                    + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + ppct + '%"></div></div>'
+                    + '<span class="cspv-dw-row-num">' + rp.views.toLocaleString() + '</span></div>';
+            }
+            refPagesEl.innerHTML = ph;
+        }
+    }
+
+    function fetchLists(period) {
+        if (listsCache[period]) {
+            renderLists(listsCache[period], period);
+            return;
+        }
+        // Show loading state
+        var pagesEl = document.getElementById('cspv-dw-top-pages');
+        if (pagesEl) pagesEl.innerHTML = '<div class="cspv-dw-empty" style="color:#999;">Loading...</div>';
+
+        var fd = new FormData();
+        fd.append('action', 'cspv_widget_lists');
+        fd.append('nonce', widgetNonce);
+        fd.append('period', period);
+        fetch(widgetAjax, { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                if (resp.success && resp.data) {
+                    listsCache[period] = resp.data;
+                    renderLists(resp.data, period);
+                }
+            });
     }
 
     function drawChart(period) {
         currentPeriod = period;
         updateBanner(period);
+        fetchLists(period);
         var canvas = document.getElementById(canvasId);
         if (!canvas || !window.Chart) { return; }
 
@@ -750,4 +807,58 @@ function cspv_render_dashboard_widget() {
 })();
 </script>
     <?php
+}
+
+/* ─── AJAX: fetch top pages + referrers for a period ─────────────── */
+add_action( 'wp_ajax_cspv_widget_lists', 'cspv_ajax_widget_lists' );
+function cspv_ajax_widget_lists() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden' );
+    }
+    check_ajax_referer( 'cspv_widget_lists', 'nonce' );
+
+    $period = sanitize_text_field( $_POST['period'] ?? 'day' );
+
+    // Compute date range based on period
+    $now = new DateTime( 'now', wp_timezone() );
+    switch ( $period ) {
+        case 'hours':
+            $from = clone $now;
+            $from->modify( '-7 hours' );
+            break;
+        case 'day':
+            $from = clone $now;
+            $from->modify( '-24 hours' );
+            break;
+        case 'days':
+            $from = clone $now;
+            $from->modify( '-7 days' );
+            break;
+        case 'month':
+            $from = clone $now;
+            $from->modify( '-30 days' );
+            break;
+        case 'months':
+            $from = clone $now;
+            $from->modify( '-6 months' );
+            break;
+        default:
+            $from = clone $now;
+            $from->modify( '-24 hours' );
+    }
+    $from_str = $from->format( 'Y-m-d H:i:s' );
+    $to_str   = $now->format( 'Y-m-d H:i:s' );
+
+    // Top pages (shared function)
+    $top_pages = cspv_top_pages( $from_str, $to_str, 3 );
+
+    // Referrers (domains + pages)
+    $ref_domains = cspv_top_referrer_domains( $from_str, $to_str, 3 );
+    $ref_pages   = cspv_top_referrer_pages( $from_str, $to_str, 3 );
+
+    wp_send_json_success( array(
+        'top_pages'    => $top_pages,
+        'ref_domains'  => $ref_domains,
+        'ref_pages'    => $ref_pages,
+    ) );
 }

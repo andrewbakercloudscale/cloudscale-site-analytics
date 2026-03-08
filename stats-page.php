@@ -14,6 +14,8 @@ add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
 add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 add_action( 'wp_ajax_cspv_toggle_ignore_jetpack', 'cspv_ajax_toggle_ignore_jetpack' );
+add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
+add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 
 function cspv_add_tools_page() {
     add_management_page(
@@ -30,6 +32,12 @@ function cspv_enqueue_admin_assets( $hook ) {
     wp_enqueue_script( 'chartjs',
         'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
         array(), '2.0.0', true );
+    wp_enqueue_style( 'leaflet-css',
+        'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
+        array(), '1.9.4' );
+    wp_enqueue_script( 'leaflet-js',
+        'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+        array(), '1.9.4', true );
 }
 
 // ---------------------------------------------------------------------------
@@ -92,8 +100,16 @@ function cspv_ajax_chart_data() {
     }
 
     $rolling24h = ! empty( $_POST['rolling24h'] );
+    $rolling7h  = ! empty( $_POST['rolling7h'] );
 
-    if ( $rolling24h && $diff_days === 0 ) {
+    if ( $rolling7h ) {
+        // Rolling 7h: from NOW-7h to NOW, bucketed by hour
+        $now_dt   = new DateTime( 'now', wp_timezone() );
+        $from_7   = clone $now_dt;
+        $from_7->modify( '-7 hours' );
+        $from_str = $from_7->format( 'Y-m-d H:i:s' );
+        $to_str   = $now_dt->format( 'Y-m-d H:i:s' );
+    } elseif ( $rolling24h && $diff_days === 0 ) {
         // Rolling 24h: from NOW-24h to NOW, bucketed by hour
         $now_dt     = new DateTime( 'now', wp_timezone() );
         $from_24    = clone $now_dt;
@@ -106,7 +122,27 @@ function cspv_ajax_chart_data() {
     }
 
     // Grouping: single day = hourly, <=90d = daily, >90d = weekly
-    if ( $diff_days === 0 ) {
+    if ( $rolling7h ) {
+        // ── 7 Hours: build 7 hourly slots ──
+        $label_fmt = 'hour';
+        $raw = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
+              FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+              GROUP BY hr_key ORDER BY hr_key ASC",
+            $from_str, $to_str ) );
+        $by_hour = array();
+        foreach ( (array) $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
+        $chart_rows = array();
+        $cur = clone $from_7;
+        for ( $i = 0; $i < 7; $i++ ) {
+            $key         = $cur->format( 'Y-m-d H' );
+            $obj         = new stdClass();
+            $obj->period = $cur->format( 'H:00' );
+            $obj->views  = isset( $by_hour[ $key ] ) ? $by_hour[ $key ] : 0;
+            $chart_rows[] = $obj;
+            $cur->modify( '+1 hour' );
+        }
+    } elseif ( $diff_days === 0 ) {
         // ── Hourly: build 24 slots from rolling window or calendar day ──
         $label_fmt = 'hour';
 
@@ -194,10 +230,8 @@ function cspv_ajax_chart_data() {
         }
     }
 
-    $total_views  = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s", $from_str, $to_str ) );
-    $unique_posts = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s", $from_str, $to_str ) );
+    $total_views  = cspv_views_for_range( $from_str, $to_str );
+    $unique_posts = cspv_unique_posts_for_range( $from_str, $to_str );
 
     // Transition blending: if log table has fewer days than the selected
     // period, add lifetime meta totals so the cards are not misleadingly low.
@@ -216,48 +250,29 @@ function cspv_ajax_chart_data() {
         $unique_posts = max( $unique_posts, $lt_posts );
     }
 
-    $top_posts     = array();
-    $top_posts_raw = $wpdb->get_results( $wpdb->prepare(
-        "SELECT post_id, {$cnt} AS view_count FROM `{$table}`
-         WHERE viewed_at BETWEEN %s AND %s
-         GROUP BY post_id ORDER BY view_count DESC LIMIT 10", $from_str, $to_str ) );
-    if ( is_array( $top_posts_raw ) ) {
-        foreach ( $top_posts_raw as $row ) {
-            $pid  = absint( $row->post_id );
-            $post = $pid ? get_post( $pid ) : null;
-            $top_posts[] = array(
-                'title' => $post ? esc_html( $post->post_title ) : 'Post #' . $pid,
-                'url'   => ( $post && 'publish' === $post->post_status ) ? esc_url( get_permalink( $post ) ) : '',
-                'views' => (int) $row->view_count,
-            );
-        }
-    }
+    $top_posts = cspv_top_pages( $from_str, $to_str, 10 );
 
     if ( $rolling24h && $diff_days === 0 ) {
         // Rolling 24h: use shared stats library so total matches banner + site health
         $r24         = cspv_rolling_24h_views();
         $total_views = $r24['current'];  // override the BETWEEN query above
         $prev_total  = $r24['prior'];
-        $prev_posts  = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            ( new DateTime( 'now', wp_timezone() ) )->modify( '-48 hours' )->format( 'Y-m-d H:i:s' ),
-            ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' ) ) );
+        $prev_48h    = ( new DateTime( 'now', wp_timezone() ) )->modify( '-48 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_24h_ts = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_posts  = cspv_unique_posts_for_range( $prev_48h, $prev_24h_ts );
     } else {
         $period_days = max( 1, $diff_days );
         $prev_from   = clone $from; $prev_from->modify( '-' . $period_days . ' days' );
         $prev_to     = clone $to;   $prev_to->modify(   '-' . $period_days . ' days' );
-        $prev_total  = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
-            $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
-        $prev_posts  = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
-            $prev_to->format( 'Y-m-d' )   . ' 23:59:59' ) );
+        $prev_from_str = $prev_from->format( 'Y-m-d' ) . ' 00:00:00';
+        $prev_to_str   = $prev_to->format( 'Y-m-d' )   . ' 23:59:59';
+        $prev_total  = cspv_views_for_range( $prev_from_str, $prev_to_str );
+        $prev_posts  = cspv_unique_posts_for_range( $prev_from_str, $prev_to_str );
     }
 
     $referrers      = cspv_top_referrer_domains( $from_str, $to_str, 10 );
     $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
+    $countries      = cspv_top_countries( $from_str, $to_str, 20 );
 
     // ── Lifetime totals from post meta (includes Jetpack imports) ────
     $lifetime_total = (int) $wpdb->get_var(
@@ -318,6 +333,7 @@ function cspv_ajax_chart_data() {
         'top_posts'      => $top_posts,
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
+        'countries'       => $countries,
         'lifetime_total' => $lifetime_total,
         'lifetime_posts' => $lifetime_posts,
         'lifetime_top'      => $lifetime_top,
@@ -536,6 +552,112 @@ function cspv_ajax_toggle_ignore_jetpack() {
     wp_send_json_success( array( 'ignore_jetpack' => $new === '1' ) );
 }
 
+function cspv_ajax_country_drill() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden' );
+    }
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+
+    $country = strtoupper( sanitize_text_field( $_POST['country'] ?? '' ) );
+    $from    = sanitize_text_field( $_POST['from'] ?? '' );
+    $to      = sanitize_text_field( $_POST['to'] ?? '' );
+
+    if ( strlen( $country ) !== 2 || ! $from || ! $to ) {
+        wp_send_json_error( 'Invalid parameters' );
+    }
+
+    $from_str = $from . ' 00:00:00';
+    $to_str   = $to . ' 23:59:59';
+
+    $pages = cspv_top_pages_by_country( $country, $from_str, $to_str, 10 );
+    wp_send_json_success( array( 'pages' => $pages ) );
+}
+
+function cspv_ajax_download_dbip() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden' );
+    }
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+
+    $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
+    $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
+    $gz_path   = $mmdb_dir . '/dbip-city-lite.mmdb.gz';
+
+    // Create directory
+    if ( ! file_exists( $mmdb_dir ) ) {
+        wp_mkdir_p( $mmdb_dir );
+    }
+
+    // DB-IP Lite download URL (current month)
+    $year  = gmdate( 'Y' );
+    $month = gmdate( 'm' );
+    $url   = "https://download.db-ip.com/free/dbip-city-lite-{$year}-{$month}.mmdb.gz";
+
+    // Download the gzipped file
+    $response = wp_remote_get( $url, array(
+        'timeout'  => 120,
+        'stream'   => true,
+        'filename' => $gz_path,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( 'Download failed: ' . $response->get_error_message() );
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    if ( $code !== 200 ) {
+        @unlink( $gz_path );
+        wp_send_json_error( 'Download failed with HTTP ' . $code . '. The file may not be available yet for this month.' );
+    }
+
+    // Decompress gzip
+    $gz = gzopen( $gz_path, 'rb' );
+    if ( ! $gz ) {
+        @unlink( $gz_path );
+        wp_send_json_error( 'Failed to open gzipped file.' );
+    }
+    $out = fopen( $mmdb_path, 'wb' );
+    if ( ! $out ) {
+        gzclose( $gz );
+        @unlink( $gz_path );
+        wp_send_json_error( 'Failed to write mmdb file.' );
+    }
+    while ( ! gzeof( $gz ) ) {
+        fwrite( $out, gzread( $gz, 8192 ) );
+    }
+    gzclose( $gz );
+    fclose( $out );
+    @unlink( $gz_path );
+
+    // Verify the file is valid
+    $size = filesize( $mmdb_path );
+    if ( $size < 1000000 ) {
+        @unlink( $mmdb_path );
+        wp_send_json_error( 'Downloaded file is too small (' . size_format( $size ) . '). May be corrupt.' );
+    }
+
+    // Test the reader can open it
+    try {
+        require_once plugin_dir_path( __FILE__ ) . 'lib/maxmind-db/autoload.php';
+        $reader = new \MaxMind\Db\Reader( $mmdb_path );
+        $meta   = $reader->metadata();
+        $reader->close();
+    } catch ( \Exception $e ) {
+        @unlink( $mmdb_path );
+        wp_send_json_error( 'Database file invalid: ' . $e->getMessage() );
+    }
+
+    $now = current_time( 'mysql' );
+    update_option( 'cspv_dbip_last_updated', $now );
+
+    wp_send_json_success( array(
+        'size'       => size_format( $size ),
+        'updated'    => $now,
+        'ip_version' => $meta->ipVersion,
+        'node_count' => $meta->nodeCount,
+    ) );
+}
+
 // ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
@@ -565,6 +687,11 @@ function cspv_render_stats_page() {
         $valid_colors = array( 'blue', 'pink', 'red', 'purple', 'grey' );
         $col = isset( $_POST['cspv_display_color'] ) ? sanitize_text_field( $_POST['cspv_display_color'] ) : 'blue';
         update_option( 'cspv_display_color', in_array( $col, $valid_colors, true ) ? $col : 'blue' );
+
+        // Geography source
+        $valid_geo = array( 'auto', 'cloudflare', 'dbip', 'disabled' );
+        $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( $_POST['cspv_geo_source'] ) : 'auto';
+        update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
 
         echo '<div class="notice notice-success is-dismissible"><p>Display settings saved.</p></div>';
     }
@@ -640,7 +767,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <span class="cspv-badge cspv-badge-orange"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></span>
+            <a href="https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
         </div>
     </div>
 
@@ -661,6 +788,7 @@ function cspv_render_stats_page() {
         <!-- Date range bar -->
         <div id="cspv-date-bar">
             <div id="cspv-quick-btns">
+                <button class="cspv-quick" data-range="7h">7 Hours</button>
                 <button class="cspv-quick" data-range="today">Last 24h</button>
                 <button class="cspv-quick" data-range="7">1 Week</button>
                 <button class="cspv-quick" data-range="30">1 Month</button>
@@ -731,6 +859,23 @@ function cspv_render_stats_page() {
                     </span>
                 </div>
                 <div id="cspv-referrers"></div>
+            </div>
+        </div>
+
+        <!-- Geography panel -->
+        <div id="cspv-geo-panel" style="margin-top:16px;">
+            <div class="cspv-panel" style="flex:1;">
+                <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:6px 6px 0 0;">
+                    <span>🌍 Geography <span id="cspv-geo-range" style="font-size:11px;font-weight:400;opacity:0.8;"></span></span>
+                    <a href="#" id="cspv-geo-reset" style="font-size:11px;color:rgba(255,255,255,.8);text-decoration:underline;font-weight:400;">Reset Map</a>
+                </div>
+                <div id="cspv-geo-map" style="height:300px;width:100%;background:#f0fdf4;"></div>
+                <div id="cspv-geo-list" style="padding:8px 0;"></div>
+                <div id="cspv-geo-drill" style="display:none;padding:8px 16px 12px;border-top:1px solid #f0f0f0;">
+                    <div id="cspv-geo-drill-header" style="font-size:13px;font-weight:700;color:#0f766e;margin-bottom:8px;"></div>
+                    <div id="cspv-geo-drill-list"></div>
+                    <button id="cspv-geo-drill-back" style="margin-top:8px;font-size:11px;color:#6b7280;cursor:pointer;border:none;background:none;padding:0;text-decoration:underline;">Back to all countries</button>
+                </div>
             </div>
         </div>
 
@@ -893,6 +1038,57 @@ function cspv_render_stats_page() {
                 <h3 style="margin:0 0 10px;font-size:14px;">🔧 Manual Theme Integration</h3>
                 <p style="font-size:12px;color:#666;margin:0 0 8px;">If position is set to <strong>Off</strong>, add this to your theme template:</p>
                 <code style="display:block;background:#1e1e2e;color:#cdd6f4;padding:10px 14px;border-radius:6px;font-size:12px;">&lt;?php cspv_the_views(); ?&gt;</code>
+            </div>
+
+            <!-- Geography Source -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
+                <h3 style="margin:0 0 10px;font-size:14px;">🌍 Geography Source</h3>
+                <p style="font-size:12px;color:#666;margin:0 0 12px;">Choose how visitor country is resolved. CloudFlare provides the <code>CF-IPCountry</code> header automatically. DB-IP Lite uses a local database file for sites not behind CloudFlare.</p>
+                <?php $geo_src = get_option( 'cspv_geo_source', 'auto' ); ?>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+                        <input type="radio" name="cspv_geo_source" value="auto" <?php checked( $geo_src, 'auto' ); ?>>
+                        <strong>Auto</strong> <span style="color:#666;">(try CloudFlare first, fall back to DB-IP)</span>
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+                        <input type="radio" name="cspv_geo_source" value="cloudflare" <?php checked( $geo_src, 'cloudflare' ); ?>>
+                        <strong>CloudFlare Only</strong> <span style="color:#666;">(requires site behind CloudFlare)</span>
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+                        <input type="radio" name="cspv_geo_source" value="dbip" <?php checked( $geo_src, 'dbip' ); ?>>
+                        <strong>DB-IP Only</strong> <span style="color:#666;">(local database lookup)</span>
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+                        <input type="radio" name="cspv_geo_source" value="disabled" <?php checked( $geo_src, 'disabled' ); ?>>
+                        <strong>Disabled</strong> <span style="color:#666;">(no geography tracking)</span>
+                    </label>
+                </div>
+                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px 16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                        <div>
+                            <strong style="font-size:13px;">DB-IP Lite Database</strong><br>
+                            <?php
+                            $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
+                            $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
+                            $mmdb_last = get_option( 'cspv_dbip_last_updated', '' );
+                            if ( file_exists( $mmdb_path ) ) {
+                                $mmdb_size = size_format( filesize( $mmdb_path ) );
+                                echo '<span style="font-size:12px;color:#059669;">✅ Installed (' . esc_html( $mmdb_size ) . ')';
+                                if ( $mmdb_last ) {
+                                    echo ' &mdash; downloaded ' . esc_html( date( 'j M Y H:i', strtotime( $mmdb_last ) ) );
+                                }
+                                echo '</span>';
+                            } else {
+                                echo '<span style="font-size:12px;color:#dc2626;">❌ Not installed</span>';
+                            }
+                            ?>
+                        </div>
+                        <button type="button" id="cspv-download-dbip" style="background:#0f766e;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">
+                            <?php echo file_exists( $mmdb_path ) ? '🔄 Update DB-IP Lite' : '⬇️ Download DB-IP Lite'; ?>
+                        </button>
+                    </div>
+                    <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
+                </div>
             </div>
 
             <p><button type="submit" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button></p>
@@ -2112,7 +2308,11 @@ function cspv_render_stats_page() {
             var r = btn.dataset.range;
             var t = wpToday();
             document.getElementById('cspv-to').value   = t;
-            document.getElementById('cspv-from').value = (r === 'today') ? t : daysAgo(parseInt(r) - 1);
+            if (r === '7h' || r === 'today') {
+                document.getElementById('cspv-from').value = t;
+            } else {
+                document.getElementById('cspv-from').value = daysAgo(parseInt(r) - 1);
+            }
             try { localStorage.setItem('cspv_date_range', r); } catch(e) {}
             loadData();
         });
@@ -2175,6 +2375,11 @@ function cspv_render_stats_page() {
         var todayBtn = document.querySelector('.cspv-quick[data-range="today"]');
         if (todayBtn && todayBtn.classList.contains('active') && from === to) {
             fd.append('rolling24h', '1');
+        }
+        // If "7 Hours" is active, tell the server
+        var sevenHBtn = document.querySelector('.cspv-quick[data-range="7h"]');
+        if (sevenHBtn && sevenHBtn.classList.contains('active')) {
+            fd.append('rolling7h', '1');
         }
 
         fetch(ajaxUrl, { method: 'POST', body: fd })
@@ -2255,6 +2460,9 @@ function cspv_render_stats_page() {
         lastRefSites = data.referrers || [];
         lastRefPages = data.referrer_pages || [];
         renderReferrers();
+
+        // Geography
+        renderGeo(data.countries || [], from, to);
 
         // Lifetime totals (includes Jetpack imports)
         document.getElementById('stat-lifetime-views').textContent =
@@ -2422,6 +2630,191 @@ function cspv_render_stats_page() {
             renderReferrers();
         });
     });
+
+
+    // ── Geography rendering ───────────────────────────────────────
+    var countryNames = {AF:'Afghanistan',AL:'Albania',DZ:'Algeria',AO:'Angola',AR:'Argentina',AT:'Austria',AU:'Australia',BD:'Bangladesh',BE:'Belgium',BG:'Bulgaria',BR:'Brazil',CA:'Canada',CH:'Switzerland',CL:'Chile',CN:'China',CO:'Colombia',CZ:'Czechia',DE:'Germany',DK:'Denmark',EG:'Egypt',ES:'Spain',FI:'Finland',FR:'France',GB:'United Kingdom',GH:'Ghana',GR:'Greece',HK:'Hong Kong',HU:'Hungary',ID:'Indonesia',IE:'Ireland',IL:'Israel',IN:'India',IQ:'Iraq',IR:'Iran',IT:'Italy',JP:'Japan',KE:'Kenya',KR:'South Korea',MA:'Morocco',MX:'Mexico',MY:'Malaysia',NG:'Nigeria',NL:'Netherlands',NO:'Norway',NZ:'New Zealand',PH:'Philippines',PK:'Pakistan',PL:'Poland',PT:'Portugal',RO:'Romania',RU:'Russia',SA:'Saudi Arabia',SE:'Sweden',SG:'Singapore',TH:'Thailand',TR:'Turkey',TW:'Taiwan',TZ:'Tanzania',UA:'Ukraine',US:'United States',VN:'Vietnam',ZA:'South Africa',ZW:'Zimbabwe'};
+    function countryFlag(cc) {
+        if (!cc || cc.length !== 2) return '';
+        return String.fromCodePoint(... Array.from(cc.toUpperCase()).map(function(c){ return 0x1F1E6 - 65 + c.charCodeAt(0); })) + ' ';
+    }
+    function countryName(cc) { return countryNames[cc] || cc; }
+
+    // Country centroids for map markers
+    var countryCentroids = {AF:[33,65],AL:[41,20],DZ:[28,3],AO:[-12.5,18.5],AR:[-34,-64],AT:[47.5,14],AU:[-25,134],BD:[24,90],BE:[50.8,4.5],BG:[43,25],BR:[-10,-55],CA:[56,-96],CH:[47,8],CL:[-35.5,-71],CN:[35,105],CO:[4,-72],CZ:[49.8,15.5],DE:[51,10],DK:[56,10],EG:[27,30],ES:[40,-4],FI:[64,26],FR:[46.5,2.5],GB:[54,-2],GH:[8,-1.5],GR:[39,22],HK:[22.3,114.2],HU:[47,19],ID:[-5,120],IE:[53.5,-8],IL:[31.5,34.8],IN:[22,79],IQ:[33,44],IR:[32,53],IT:[42.5,12.5],JP:[36,138],KE:[-1,38],KR:[36,128],MA:[32,-6],MX:[23,-102],MY:[4.2,101.9],NG:[10,8],NL:[52.5,5.7],NO:[64,12],NZ:[-42,174],PH:[12,122],PK:[30,70],PL:[52,20],PT:[39.5,-8],RO:[46,25],RU:[60,100],SA:[24,45],SE:[63,16],SG:[1.35,103.8],TH:[15.5,101],TR:[39,35],TW:[23.7,121],TZ:[-6.5,35],UA:[49,32],US:[39,-98],VN:[16,106],ZA:[-29,24],ZW:[-19.5,29.8]};
+
+    // Leaflet map instance
+    var geoMap = null;
+    var geoMarkers = [];
+
+    function initGeoMap() {
+        if (geoMap) return;
+        if (typeof L === 'undefined') return;
+        var mapEl = document.getElementById('cspv-geo-map');
+        if (!mapEl) return;
+        geoMap = L.map('cspv-geo-map', {
+            center: [20, 10],
+            zoom: 2,
+            minZoom: 1,
+            maxZoom: 6,
+            scrollWheelZoom: true,
+            attributionControl: false
+        });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(geoMap);
+        L.control.attribution({ prefix: false }).addTo(geoMap);
+        // Fix tiles not loading when container isn't fully laid out yet
+        setTimeout(function() { geoMap.invalidateSize(); }, 200);
+    }
+
+    function updateGeoMap(items) {
+        initGeoMap();
+        if (!geoMap) return;
+        geoMarkers.forEach(function(m) { geoMap.removeLayer(m); });
+        geoMarkers = [];
+        if (!items || items.length === 0) return;
+
+        var maxViews = items[0].views || 1;
+        items.forEach(function(item) {
+            var coords = countryCentroids[item.country_code];
+            if (!coords) return;
+            var ratio = item.views / maxViews;
+            var radius = Math.max(6, Math.min(30, 6 + ratio * 24));
+            var marker = L.circleMarker(coords, {
+                radius: radius,
+                fillColor: '#0f766e',
+                color: '#065f56',
+                weight: 1.5,
+                fillOpacity: 0.3 + ratio * 0.5,
+                opacity: 0.8
+            }).addTo(geoMap);
+            marker.bindTooltip(
+                '<strong>' + countryFlag(item.country_code) + countryName(item.country_code) + '</strong><br>'
+                + item.views.toLocaleString() + ' views',
+                { direction: 'top', offset: [0, -radius] }
+            );
+            marker.on('click', function() { drillCountry(item.country_code); });
+            geoMarkers.push(marker);
+        });
+        setTimeout(function() { geoMap.invalidateSize(); }, 100);
+    }
+
+    function renderGeo(items, from, to) {
+        var el = document.getElementById('cspv-geo-list');
+        var drillEl = document.getElementById('cspv-geo-drill');
+        var rangeEl = document.getElementById('cspv-geo-range');
+        if (drillEl) drillEl.style.display = 'none';
+        if (rangeEl && from && to) {
+            rangeEl.textContent = (from === to) ? fmtDate(from) : fmtDate(from) + ' to ' + fmtDate(to);
+        }
+        updateGeoMap(items);
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="cspv-empty" style="padding:12px 16px;">No geography data yet. Requires CloudFlare.</div>';
+            return;
+        }
+        var max = items[0].views || 1;
+        el.innerHTML = items.map(function(item) {
+            var pct = Math.round((item.views / max) * 100);
+            return '<div class="cspv-row" style="cursor:pointer;" data-country="' + esc(item.country_code) + '">'
+                 + '<div class="cspv-bar-wrap">'
+                 +   '<div class="cspv-bar-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#6ee7b7,#a7f3d0);"></div>'
+                 +   '<span class="cspv-bar-label">' + countryFlag(item.country_code) + esc(countryName(item.country_code)) + '</span>'
+                 + '</div>'
+                 + '<span class="cspv-row-views">' + item.views.toLocaleString() + '</span>'
+                 + '</div>';
+        }).join('');
+        el.querySelectorAll('.cspv-row[data-country]').forEach(function(row) {
+            row.addEventListener('click', function() { drillCountry(this.dataset.country); });
+        });
+    }
+
+    function drillCountry(cc) {
+        var drillEl  = document.getElementById('cspv-geo-drill');
+        var headerEl = document.getElementById('cspv-geo-drill-header');
+        var listEl   = document.getElementById('cspv-geo-drill-list');
+        var fromVal  = document.getElementById('cspv-from').value;
+        var toVal    = document.getElementById('cspv-to').value;
+        headerEl.textContent = countryFlag(cc) + countryName(cc) + ' — Top Pages';
+        listEl.innerHTML = '<div class="cspv-loading">Loading…</div>';
+        drillEl.style.display = 'block';
+        var fd = new FormData();
+        fd.append('action', 'cspv_country_drill');
+        fd.append('nonce', nonce);
+        fd.append('country', cc);
+        fd.append('from', fromVal);
+        fd.append('to', toVal);
+        fetch(ajaxurl, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(resp) {
+                if (resp.success && resp.data && resp.data.pages) {
+                    if (resp.data.pages.length === 0) {
+                        listEl.innerHTML = '<div class="cspv-empty">No page data for this country.</div>';
+                        return;
+                    }
+                    var mx = resp.data.pages[0].views || 1;
+                    listEl.innerHTML = resp.data.pages.map(function(p) {
+                        var pct = Math.round((p.views / mx) * 100);
+                        var link = p.url ? '<a href="' + esc(p.url) + '" target="_blank">' + esc(p.title) + '</a>' : esc(p.title);
+                        return '<div class="cspv-row">'
+                             + '<div class="cspv-bar-wrap">'
+                             +   '<div class="cspv-bar-fill" style="width:' + pct + '%"></div>'
+                             +   '<span class="cspv-bar-label">' + link + '</span>'
+                             + '</div>'
+                             + '<span class="cspv-row-views">' + p.views.toLocaleString() + '</span>'
+                             + '</div>';
+                    }).join('');
+                } else {
+                    listEl.innerHTML = '<div class="cspv-empty">Error loading data.</div>';
+                }
+            });
+    }
+
+    document.getElementById('cspv-geo-drill-back').addEventListener('click', function() {
+        document.getElementById('cspv-geo-drill').style.display = 'none';
+    });
+
+    document.getElementById('cspv-geo-reset').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (geoMap) geoMap.setView([20, 10], 2);
+    });
+
+    // DB-IP download button
+    var dbipBtn = document.getElementById('cspv-download-dbip');
+    if (dbipBtn) {
+        dbipBtn.addEventListener('click', function() {
+            var statusEl = document.getElementById('cspv-dbip-status');
+            dbipBtn.disabled = true;
+            dbipBtn.textContent = 'Downloading...';
+            statusEl.textContent = 'Downloading DB-IP Lite database (~30MB). This may take a minute...';
+            statusEl.style.color = '#666';
+            var fd = new FormData();
+            fd.append('action', 'cspv_download_dbip');
+            fd.append('nonce', nonce);
+            fetch(ajaxurl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.success) {
+                        statusEl.style.color = '#059669';
+                        statusEl.textContent = 'Downloaded successfully (' + resp.data.size + '). Page will reload...';
+                        dbipBtn.textContent = 'Done';
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        statusEl.style.color = '#dc2626';
+                        statusEl.textContent = 'Error: ' + (resp.data || 'Unknown error');
+                        dbipBtn.disabled = false;
+                        dbipBtn.textContent = 'Retry Download';
+                    }
+                })
+                .catch(function(err) {
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = 'Network error: ' + err.message;
+                    dbipBtn.disabled = false;
+                    dbipBtn.textContent = 'Retry Download';
+                });
+        });
+    }
 
     // ── Throttle settings ──────────────────────────────────────────
     var enabledCb = document.getElementById('cspv-throttle-enabled');

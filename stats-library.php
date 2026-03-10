@@ -449,3 +449,57 @@ function cspv_geo_lookup_dbip( $ip ) {
 
     return '';
 }
+
+/**
+ * Return unique visitor count for a date range.
+ *
+ * Counts distinct visitor hashes (SHA256 of IP) from the visitors table.
+ *
+ * @param  string $from_str  Start date (Y-m-d).
+ * @param  string $to_str    End date (Y-m-d).
+ * @return int
+ */
+function cspv_unique_visitors_for_range( $from_str, $to_str ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'cspv_visitors_v2';
+
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    if ( ! $table_exists ) {
+        return 0;
+    }
+
+    // Extract just the date portion in case full datetime is passed
+    $from_date = substr( $from_str, 0, 10 );
+    $to_date   = substr( $to_str, 0, 10 );
+
+    return (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+        $from_date, $to_date
+    ) );
+}
+
+/**
+ * Return unique visitor count per post for a date range.
+ *
+ * @param  int    $post_id   Post ID.
+ * @param  string $from_str  Start date (Y-m-d or Y-m-d H:i:s).
+ * @param  string $to_str    End date (Y-m-d or Y-m-d H:i:s).
+ * @return int
+ */
+function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'cspv_visitors_v2';
+
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    if ( ! $table_exists ) {
+        return 0;
+    }
+
+    $from_date = substr( $from_str, 0, 10 );
+    $to_date   = substr( $to_str, 0, 10 );
+
+    return (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE post_id = %d AND viewed_at BETWEEN %s AND %s",
+        $post_id, $from_date, $to_date
+    ) );
+}

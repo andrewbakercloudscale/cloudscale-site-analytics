@@ -16,6 +16,7 @@ add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 add_action( 'wp_ajax_cspv_toggle_ignore_jetpack', 'cspv_ajax_toggle_ignore_jetpack' );
 add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
+add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 
 function cspv_add_tools_page() {
     add_management_page(
@@ -74,8 +75,10 @@ function cspv_ajax_chart_data() {
         return;
     }
     if ( $from > $to ) {
-        wp_send_json_error( array( 'message' => 'date_from must be on or before date_to.' ), 400 );
-        return;
+        // Auto swap instead of rejecting
+        $tmp  = $from;
+        $from = $to;
+        $to   = $tmp;
     }
 
     $diff_days = (int) date_diff( $from, $to )->days;
@@ -92,7 +95,7 @@ function cspv_ajax_chart_data() {
     if ( ! $table_exists ) {
         wp_send_json_success( array(
             'chart' => array(), 'label_fmt' => 'day', 'total_views' => 0,
-            'unique_posts' => 0, 'prev_total' => 0, 'prev_posts' => 0, 'diff_days' => $diff_days,
+            'unique_posts' => 0, 'prev_total' => 0, 'prev_posts' => 0, 'unique_visitors' => 0, 'prev_visitors' => 0, 'lifetime_visitors' => 0, 'diff_days' => $diff_days,
             'top_posts' => array(), 'referrers' => array(),
             'notice' => 'Database table not found. Deactivate and reactivate the plugin.',
         ) );
@@ -274,6 +277,18 @@ function cspv_ajax_chart_data() {
     $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
     $countries      = cspv_top_countries( $from_str, $to_str, 20 );
 
+    // ── Unique visitors ──────────────────────────────────────────────
+    $unique_visitors      = cspv_unique_visitors_for_range( $from_str, $to_str );
+    $prev_visitors        = 0;
+    if ( $rolling24h && $diff_days === 0 ) {
+        $prev_48h_dt = ( new DateTime( 'now', wp_timezone() ) )->modify( '-48 hours' )->format( 'Y-m-d' );
+        $prev_24h_dt = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d' );
+        $prev_visitors = cspv_unique_visitors_for_range( $prev_48h_dt, $prev_24h_dt );
+    } elseif ( isset( $prev_from_str ) ) {
+        $prev_visitors = cspv_unique_visitors_for_range( $prev_from_str, $prev_to_str );
+    }
+    $lifetime_visitors = cspv_unique_visitors_for_range( '2000-01-01', '2099-12-31' );
+
     // ── Lifetime totals from post meta (includes Jetpack imports) ────
     $lifetime_total = (int) $wpdb->get_var(
         "SELECT SUM(CAST(meta_value AS UNSIGNED)) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
@@ -334,6 +349,9 @@ function cspv_ajax_chart_data() {
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
         'countries'       => $countries,
+        'unique_visitors'    => $unique_visitors,
+        'prev_visitors'      => $prev_visitors,
+        'lifetime_visitors'  => $lifetime_visitors,
         'lifetime_total' => $lifetime_total,
         'lifetime_posts' => $lifetime_posts,
         'lifetime_top'      => $lifetime_top,
@@ -658,6 +676,39 @@ function cspv_ajax_download_dbip() {
     ) );
 }
 
+function cspv_ajax_purge_visitors() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden' );
+    }
+    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'cspv_visitors_v2';
+    $days  = (int) ( $_POST['days'] ?? 90 );
+
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    if ( ! $table_exists ) {
+        wp_send_json_error( 'Visitors table does not exist.' );
+    }
+
+    if ( $days === 0 ) {
+        $deleted = $wpdb->query( "TRUNCATE TABLE `{$table}`" );
+        wp_send_json_success( array( 'deleted' => 'all', 'remaining' => 0 ) );
+    }
+
+    $cutoff = ( new DateTime( 'now', wp_timezone() ) )->modify( '-' . $days . ' days' )->format( 'Y-m-d' );
+    $deleted = $wpdb->query( $wpdb->prepare(
+        "DELETE FROM `{$table}` WHERE viewed_at < %s", $cutoff
+    ) );
+    $remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" );
+
+    wp_send_json_success( array(
+        'deleted'   => (int) $deleted,
+        'cutoff'    => $cutoff,
+        'remaining' => $remaining,
+    ) );
+}
+
 // ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
@@ -816,6 +867,12 @@ function cspv_render_stats_page() {
                 <div class="cspv-card-label">Posts Viewed</div>
                 <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
+            <div class="cspv-card" id="cspv-card-visitors">
+                <div class="cspv-card-icon">👤</div>
+                <div class="cspv-card-value" id="stat-visitors-delta">—</div>
+                <div class="cspv-card-label">Unique Visitors</div>
+                <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+            </div>
         </div>
 
         <!-- Lifetime stats bar (includes imported Jetpack data) -->
@@ -827,6 +884,10 @@ function cspv_render_stats_page() {
             <div class="cspv-lifetime-stat">
                 <span class="cspv-lifetime-label">📚 Posts With Views</span>
                 <span class="cspv-lifetime-value" id="stat-lifetime-posts">—</span>
+            </div>
+            <div class="cspv-lifetime-stat">
+                <span class="cspv-lifetime-label">👤 Unique Visitors</span>
+                <span class="cspv-lifetime-value" id="stat-lifetime-visitors">—</span>
             </div>
         </div>
 
@@ -1093,6 +1154,52 @@ function cspv_render_stats_page() {
 
             <p><button type="submit" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button></p>
         </form>
+
+        <!-- Data Management -->
+        <div style="margin-top:24px;">
+            <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#a855f7);border-radius:6px 6px 0 0;">
+                <span>🗑 Data Management</span>
+            </div>
+            <div style="padding:16px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <strong style="font-size:13px;">Purge Visitor Hashes</strong><br>
+                        <span style="font-size:12px;color:#666;">Remove unique visitor tracking data older than a specified number of days. This frees storage but removes historical unique visitor counts.</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="font-size:12px;color:#666;">Older than</label>
+                        <select id="cspv-purge-days" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                            <option value="30">30 days</option>
+                            <option value="60">60 days</option>
+                            <option value="90" selected>90 days</option>
+                            <option value="180">180 days</option>
+                            <option value="365">1 year</option>
+                            <option value="0">All data</option>
+                        </select>
+                        <button type="button" id="cspv-purge-visitors" style="background:#dc2626;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">🗑 Purge</button>
+                    </div>
+                </div>
+                <div id="cspv-purge-status" style="font-size:11px;color:#666;margin-top:8px;"></div>
+                <?php
+                global $wpdb;
+                $vis_table = $wpdb->prefix . 'cspv_visitors_v2';
+                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) );
+                if ( $vis_exists ) {
+                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" );
+                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" );
+                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" );
+                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" );
+                    echo '<div style="font-size:11px;color:#888;margin-top:4px;">'
+                       . 'Visitor table: ' . number_format( $vis_rows ) . ' rows, '
+                       . number_format( $vis_unique ) . ' unique hashes';
+                    if ( $vis_min ) {
+                        echo ' (' . esc_html( $vis_min ) . ' to ' . esc_html( $vis_max ) . ')';
+                    }
+                    echo '</div>';
+                }
+                ?>
+            </div>
+        </div>
 
     </div><!-- /display tab -->
 
@@ -1842,6 +1949,7 @@ function cspv_render_stats_page() {
 }
 #cspv-card-views::before { background: linear-gradient(90deg,#1a3a8f,#1e6fd9); }
 #cspv-card-posts::before { background: linear-gradient(90deg,#1db954,#0fb8e0); }
+#cspv-card-visitors::before { background: linear-gradient(90deg,#f59e0b,#ef4444); }
 #cspv-card-avg::before   { background: linear-gradient(90deg,#f47c20,#f7b733); }
 .cspv-card-icon  { font-size: 18px; margin-bottom: 6px; }
 .cspv-card-value { font-size: 34px; font-weight: 800; line-height: 1; color: #1a2332; }
@@ -2352,6 +2460,13 @@ function cspv_render_stats_page() {
         var from = document.getElementById('cspv-from').value;
         var to   = document.getElementById('cspv-to').value;
 
+        // Auto swap if from > to
+        if (from > to) {
+            var tmp = from; from = to; to = tmp;
+            document.getElementById('cspv-from').value = from;
+            document.getElementById('cspv-to').value   = to;
+        }
+
         // Reset UI
         document.getElementById('cspv-chart-msg').classList.remove('hidden');
         document.getElementById('cspv-chart-msg').textContent = 'Loading…';
@@ -2359,6 +2474,8 @@ function cspv_render_stats_page() {
         document.getElementById('stat-views-detail').textContent = '';
         document.getElementById('stat-posts-delta').textContent = '—';
         document.getElementById('stat-posts-detail').textContent = '';
+        document.getElementById('stat-visitors-delta').textContent = '—';
+        document.getElementById('stat-visitors-detail').textContent = '';
         document.getElementById('cspv-top-posts').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-referrers').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-lifetime-top').innerHTML = '<div class="cspv-loading">Loading…</div>';
@@ -2436,6 +2553,22 @@ function cspv_render_stats_page() {
             postsDetailEl.textContent = '';
         }
 
+        // Unique Visitors card: percentage as hero, counts as detail line
+        var visDeltaEl  = document.getElementById('stat-visitors-delta');
+        var visDetailEl = document.getElementById('stat-visitors-detail');
+        if (data.prev_visitors > 0) {
+            var visPct   = Math.round(((data.unique_visitors - data.prev_visitors) / data.prev_visitors) * 100);
+            var visArrow = visPct > 0 ? '↑' : (visPct < 0 ? '↓' : '–');
+            var visCls   = visPct > 0 ? 'cspv-delta-up' : (visPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
+            visDeltaEl.textContent = visArrow + ' ' + Math.abs(visPct) + '%';
+            visDeltaEl.className   = 'cspv-card-value ' + visCls;
+            visDetailEl.textContent = data.unique_visitors.toLocaleString() + ' vs ' + data.prev_visitors.toLocaleString();
+        } else {
+            visDeltaEl.textContent = data.unique_visitors.toLocaleString();
+            visDeltaEl.className   = 'cspv-card-value';
+            visDetailEl.textContent = '';
+        }
+
         // Views card: percentage as hero, counts as detail line
         var deltaEl  = document.getElementById('stat-delta');
         var detailEl = document.getElementById('stat-views-detail');
@@ -2469,6 +2602,8 @@ function cspv_render_stats_page() {
             (data.lifetime_total || 0).toLocaleString();
         document.getElementById('stat-lifetime-posts').textContent =
             (data.lifetime_posts || 0).toLocaleString();
+        document.getElementById('stat-lifetime-visitors').textContent =
+            (data.lifetime_visitors || 0).toLocaleString();
         renderList('cspv-lifetime-top', data.lifetime_top || [], true);
 
         // Chart last — wrapped in try/catch so a Chart.js load failure
@@ -2649,24 +2784,33 @@ function cspv_render_stats_page() {
 
     function initGeoMap() {
         if (geoMap) return;
-        if (typeof L === 'undefined') return;
+        if (typeof L === 'undefined') { console.warn('[CSPV Geo] Leaflet not loaded'); return; }
         var mapEl = document.getElementById('cspv-geo-map');
-        if (!mapEl) return;
-        geoMap = L.map('cspv-geo-map', {
-            center: [20, 10],
-            zoom: 2,
-            minZoom: 1,
-            maxZoom: 6,
-            scrollWheelZoom: true,
-            attributionControl: false
-        });
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd',
-            maxZoom: 19
-        }).addTo(geoMap);
-        L.control.attribution({ prefix: false }).addTo(geoMap);
-        // Fix tiles not loading when container isn't fully laid out yet
-        setTimeout(function() { geoMap.invalidateSize(); }, 200);
+        if (!mapEl) { console.warn('[CSPV Geo] Map element not found'); return; }
+        // Guard: if Leaflet already init'd on this element (e.g. from a previous error), remove it
+        if (mapEl._leaflet_id) {
+            try { mapEl._leaflet_id = undefined; mapEl.innerHTML = ''; } catch(e) {}
+        }
+        try {
+            geoMap = L.map('cspv-geo-map', {
+                center: [20, 10],
+                zoom: 2,
+                minZoom: 1,
+                maxZoom: 6,
+                scrollWheelZoom: true,
+                attributionControl: false
+            });
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(geoMap);
+            L.control.attribution({ prefix: false }).addTo(geoMap);
+            setTimeout(function() { if (geoMap) geoMap.invalidateSize(); }, 200);
+            setTimeout(function() { if (geoMap) geoMap.invalidateSize(); }, 1000);
+        } catch(e) {
+            console.error('[CSPV Geo] Map init failed:', e.message);
+            geoMap = null;
+        }
     }
 
     function updateGeoMap(items) {
@@ -2812,6 +2956,41 @@ function cspv_render_stats_page() {
                     statusEl.textContent = 'Network error: ' + err.message;
                     dbipBtn.disabled = false;
                     dbipBtn.textContent = 'Retry Download';
+                });
+        });
+    }
+
+    // ── Purge visitors ─────────────────────────────────────────────
+    var purgeBtn = document.getElementById('cspv-purge-visitors');
+    if (purgeBtn) {
+        purgeBtn.addEventListener('click', function() {
+            var days = document.getElementById('cspv-purge-days').value;
+            var label = days === '0' ? 'ALL visitor data' : 'visitor data older than ' + days + ' days';
+            if (!confirm('Are you sure you want to delete ' + label + '? This cannot be undone.')) return;
+            var statusEl = document.getElementById('cspv-purge-status');
+            purgeBtn.disabled = true;
+            purgeBtn.textContent = 'Purging...';
+            statusEl.textContent = 'Deleting ' + label + '...';
+            statusEl.style.color = '#666';
+            var fd = new FormData();
+            fd.append('action', 'cspv_purge_visitors');
+            fd.append('nonce', nonce);
+            fd.append('days', days);
+            fetch(ajaxurl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.success) {
+                        statusEl.style.color = '#059669';
+                        var msg = resp.data.deleted === 'all' ? 'All data purged.' : resp.data.deleted.toLocaleString() + ' rows deleted.';
+                        statusEl.textContent = msg + ' ' + resp.data.remaining.toLocaleString() + ' rows remaining.';
+                        purgeBtn.disabled = false;
+                        purgeBtn.textContent = '\ud83d\uddd1 Purge';
+                    } else {
+                        statusEl.style.color = '#dc2626';
+                        statusEl.textContent = 'Error: ' + (resp.data || 'Unknown error');
+                        purgeBtn.disabled = false;
+                        purgeBtn.textContent = '\ud83d\uddd1 Purge';
+                    }
                 });
         });
     }

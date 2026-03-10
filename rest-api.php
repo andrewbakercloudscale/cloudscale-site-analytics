@@ -218,6 +218,20 @@ function cspv_record_view( WP_REST_Request $request ) {
         }
     }
 
+    // Track unique visitor (hashed IP, one row per visitor per post per day)
+    $visitor_ip = $request->get_header( 'X-Forwarded-For' ) ?: ( $_SERVER['REMOTE_ADDR'] ?? '' );
+    $visitor_ip = trim( explode( ',', $visitor_ip )[0] );
+    if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
+        $visitor_hash  = hash( 'sha256', $visitor_ip );
+        $visitor_table = $wpdb->prefix . 'cspv_visitors_v2';
+        $visitor_date  = current_time( 'Y-m-d' );
+        $wpdb->query( $wpdb->prepare(
+            "INSERT IGNORE INTO `{$visitor_table}` (visitor_hash, post_id, viewed_at)
+             VALUES (%s, %d, %s)",
+            $visitor_hash, $post_id, $visitor_date
+        ) );
+    }
+
     // Increment denormalised meta counter
     $current   = cspv_public_view_count( $post_id );
     $new_count = $current + 1;

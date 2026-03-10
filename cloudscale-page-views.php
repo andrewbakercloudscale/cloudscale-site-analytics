@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.89' );
+define( 'CSPV_VERSION',    '2.9.94' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -108,6 +108,7 @@ add_action( 'admin_init', function() {
         cspv_create_table_v2();
         cspv_create_table_referrers_v2();
         cspv_create_table_geo_v2();
+        cspv_create_table_visitors_v2();
         update_option( 'cspv_version', CSPV_VERSION );
     }
 } );

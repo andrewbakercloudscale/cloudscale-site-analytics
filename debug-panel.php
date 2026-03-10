@@ -113,7 +113,8 @@ function cspv_render_debug_panel() {
 }
 .cspv-dbg-close {
     background: rgba(255,255,255,.2); border: none; color: #fff; cursor: pointer;
-    width: 24px; height: 24px; border-radius: 50%; font-size: 14px; line-height: 24px; text-align: center;
+    width: 28px; height: 28px; border-radius: 50%; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .cspv-dbg-close:hover { background: rgba(255,255,255,.35); }
 .cspv-dbg-body { padding: 14px 16px; }

@@ -14,6 +14,7 @@ function cspv_activate() {
     cspv_create_table_v2();
     cspv_create_table_referrers_v2();
     cspv_create_table_geo_v2();
+    cspv_create_table_visitors_v2();
     add_option( 'cspv_version', CSPV_VERSION );
 }
 
@@ -99,6 +100,34 @@ function cspv_create_table_geo_v2() {
         UNIQUE KEY post_hour_country (post_id, viewed_at, country_code),
         KEY country_code (country_code),
         KEY viewed_at (viewed_at)
+    ) {$charset_collate};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+}
+
+/**
+ * Create the unique visitors tracking table.
+ *
+ * Stores a SHA256 hash of the visitor IP per post per calendar day.
+ * The unique key ensures the same visitor viewing the same post
+ * on the same day only creates one row (INSERT IGNORE).
+ * No raw IP is ever stored.
+ */
+function cspv_create_table_visitors_v2() {
+    global $wpdb;
+    $table           = $wpdb->prefix . 'cspv_visitors_v2';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE {$table} (
+        id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        visitor_hash  CHAR(64)            NOT NULL,
+        post_id       BIGINT(20) UNSIGNED NOT NULL,
+        viewed_at     DATE                NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY hash_post_day (visitor_hash, post_id, viewed_at),
+        KEY viewed_at (viewed_at),
+        KEY post_id (post_id)
     ) {$charset_collate};";
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';

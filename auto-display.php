@@ -165,9 +165,12 @@ function cspv_auto_display_views( $content ) {
 // -------------------------------------------------------------------------
 // 4. Front end CSS for all three styles
 // -------------------------------------------------------------------------
-add_action( 'wp_head', 'cspv_auto_display_style', 100 );
+add_action( 'wp_enqueue_scripts', 'cspv_auto_display_style', 100 );
 
 function cspv_auto_display_style() {
+    if ( ! is_singular() && ! is_home() && ! is_front_page() && ! is_archive() && ! is_search() ) {
+        return;
+    }
     $position = get_option( 'cspv_auto_display', 'before_content' );
     if ( $position === 'off' ) { return; }
 
@@ -180,55 +183,16 @@ function cspv_auto_display_style() {
         'grey'   => array( 'grad' => '#4b5563, #9ca3af', 'solid' => '#4b5563', 'light_bg' => '#f9fafb', 'light_border' => '#e5e7eb', 'light_text' => '#374151', 'light_suffix' => '#6b7280' ),
     );
     $c = isset( $colors[ $color ] ) ? $colors[ $color ] : $colors['blue'];
-    ?>
-<style id="cspv-auto-display-style">
-.cspv-auto-views { margin: 0 0 0.25em; line-height: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; clear: both; }
 
-/* Badge: gradient background, white text */
-.cspv-ad-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: linear-gradient(135deg, <?php echo $c['grad']; ?>);
-    color: #fff;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: .02em;
-}
-.cspv-ad-badge .cspv-ad-icon   { font-size: 15px; line-height: 1; }
-.cspv-ad-badge .cspv-ad-num    { font-variant-numeric: tabular-nums; }
-.cspv-ad-badge .cspv-ad-suffix { opacity: .85; font-weight: 500; font-size: 12px; }
+    $css  = '.cspv-auto-views{margin:0 0 .25em;line-height:1;display:flex;align-items:center;justify-content:flex-end;gap:8px;clear:both;}' . "\n";
+    $css .= '.cspv-ad-badge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,' . $c['grad'] . ');color:#fff;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:700;letter-spacing:.02em;}' . "\n";
+    $css .= '.cspv-ad-badge .cspv-ad-icon{font-size:15px;line-height:1;}.cspv-ad-badge .cspv-ad-num{font-variant-numeric:tabular-nums;}.cspv-ad-badge .cspv-ad-suffix{opacity:.85;font-weight:500;font-size:12px;}' . "\n";
+    $css .= '.cspv-ad-pill{display:inline-flex;align-items:center;gap:6px;background:' . $c['light_bg'] . ';border:1px solid ' . $c['light_border'] . ';color:' . $c['light_text'] . ';padding:5px 12px;border-radius:16px;font-size:13px;font-weight:600;}' . "\n";
+    $css .= '.cspv-ad-pill .cspv-ad-icon{font-size:14px;line-height:1;}.cspv-ad-pill .cspv-ad-num{font-variant-numeric:tabular-nums;}.cspv-ad-pill .cspv-ad-suffix{color:' . $c['light_suffix'] . ';font-weight:500;font-size:12px;}' . "\n";
+    $css .= '.cspv-ad-minimal{display:inline-flex;align-items:center;gap:5px;color:' . $c['solid'] . ';font-size:13px;}' . "\n";
+    $css .= '.cspv-ad-minimal .cspv-ad-icon{line-height:1;}.cspv-ad-minimal .cspv-ad-num{font-variant-numeric:tabular-nums;}.cspv-ad-minimal .cspv-ad-suffix{font-size:12px;}';
 
-/* Pill: light background, colored text */
-.cspv-ad-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: <?php echo $c['light_bg']; ?>;
-    border: 1px solid <?php echo $c['light_border']; ?>;
-    color: <?php echo $c['light_text']; ?>;
-    padding: 5px 12px;
-    border-radius: 16px;
-    font-size: 13px;
-    font-weight: 600;
-}
-.cspv-ad-pill .cspv-ad-icon   { font-size: 14px; line-height: 1; }
-.cspv-ad-pill .cspv-ad-num    { font-variant-numeric: tabular-nums; }
-.cspv-ad-pill .cspv-ad-suffix { color: <?php echo $c['light_suffix']; ?>; font-weight: 500; font-size: 12px; }
-
-/* Minimal: plain inline text */
-.cspv-ad-minimal {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: <?php echo $c['solid']; ?>;
-    font-size: 13px;
-}
-.cspv-ad-minimal .cspv-ad-icon   { line-height: 1; }
-.cspv-ad-minimal .cspv-ad-num    { font-variant-numeric: tabular-nums; }
-.cspv-ad-minimal .cspv-ad-suffix { font-size: 12px; }
-</style>
-    <?php
+    wp_register_style( 'cspv-auto-display', false );
+    wp_enqueue_style( 'cspv-auto-display' );
+    wp_add_inline_style( 'cspv-auto-display', $css );
 }

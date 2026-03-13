@@ -243,7 +243,7 @@ function cspv_log_block_event( $ip_hash ) {
     array_unshift( $log, array(
         'ip_hash'    => $ip_hash,
         'blocked_at' => current_time( 'mysql' ),
-        'expires_at' => date( 'Y-m-d H:i:s', time() + CSPV_BLOCK_DURATION ),
+        'expires_at' => wp_date( 'Y-m-d H:i:s', time() + CSPV_BLOCK_DURATION ),
     ) );
     update_option( 'cspv_block_log', array_slice( $log, 0, 100 ), false );
 }

@@ -13,6 +13,71 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+add_action( 'admin_enqueue_scripts', 'cspv_dashboard_widget_enqueue' );
+
+function cspv_dashboard_widget_enqueue( $hook ) {
+    if ( 'index.php' !== $hook ) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'cspv-chartjs',
+        CSPV_PLUGIN_URL . 'assets/js/chart.umd.min.js',
+        array(),
+        '4.4.1',
+        true
+    );
+
+    // Script handle for inline JS added in the render callback.
+    wp_register_script( 'cspv-dashboard-widget', false, array( 'cspv-chartjs' ), CSPV_VERSION, true );
+    wp_enqueue_script( 'cspv-dashboard-widget' );
+
+    $css = '#cspv_dashboard_widget .inside{padding:0;margin:0;}'
+         . '.cspv-dw-banner{background:linear-gradient(135deg,#2d1b69 0%,#5b21b6 50%,#7c3aed 100%);padding:14px 16px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}'
+         . '.cspv-dw-today-count{font-size:38px;font-weight:800;color:#1db954;line-height:1;}'
+         . '.cspv-dw-today-label{font-size:10px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;}'
+         . '.cspv-dw-counts{margin-top:6px;line-height:1;}'
+         . '.cspv-dw-periods{display:flex;gap:0;border-bottom:1px solid #eee;background:#fafafa;}'
+         . '.cspv-dw-period-btn{flex:1;padding:7px 4px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:none;background:transparent;color:#999;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap;font-family:inherit;}'
+         . '.cspv-dw-period-btn:hover{color:#059669;}'
+         . '.cspv-dw-period-btn.active{color:#059669;border-bottom-color:#10b981;background:#fff;}'
+         . '.cspv-dw-chart-wrap{padding:8px 14px 0;background:#fff;border-bottom:1px solid #f0f0f0;position:relative;height:120px;}'
+         . '.cspv-dw-canvas{display:block;width:100%;height:110px;}'
+         . '.cspv-dw-list-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#aaa;padding:7px 16px 3px;display:flex;justify-content:space-between;}'
+         . '.cspv-dw-row{display:flex;align-items:center;padding:5px 16px;border-top:1px solid #f5f5f5;font-size:12px;gap:8px;}'
+         . '.cspv-dw-row-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a2332;text-decoration:none;font-weight:600;}'
+         . '.cspv-dw-row-title:hover{text-decoration:underline;color:#059669;}'
+         . '.cspv-dw-row-bar{height:3px;background:#d1fae5;border-radius:2px;flex-shrink:0;width:48px;overflow:hidden;}'
+         . '.cspv-dw-row-fill{height:100%;background:linear-gradient(90deg,#059669,#34d399);border-radius:2px;}'
+         . '.cspv-dw-row-num{font-weight:700;color:#059669;min-width:24px;text-align:right;flex-shrink:0;}'
+         . '.cspv-dw-empty{padding:10px 16px;color:#bbb;font-size:12px;font-style:italic;}'
+         . '.cspv-dw-lists{display:flex;gap:0;border-bottom:1px solid #f0f0f0;}'
+         . '.cspv-dw-list-col{flex:1;min-width:0;}'
+         . '.cspv-dw-list-col+.cspv-dw-list-col{border-left:1px solid #f0f0f0;}'
+         . '.cspv-dw-list-col .cspv-dw-list-header{padding:7px 12px 3px;}'
+         . '.cspv-dw-list-col .cspv-dw-row{padding:4px 12px;}'
+         . '.cspv-dw-list-col .cspv-dw-empty{padding:8px 12px;}'
+         . '.cspv-dw-ref-host{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a2332;font-weight:600;font-size:12px;}'
+         . '.cspv-dw-ref-link{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:12px;color:#1a3a8f;text-decoration:none;}'
+         . '.cspv-dw-ref-link:hover{text-decoration:underline;color:#059669;}'
+         . '.cspv-dw-ref-toggle-wrap{display:inline-flex;gap:0;margin-left:auto;}'
+         . '.cspv-dw-ref-toggle{background:rgba(0,0,0,.08);border:none;color:#999;font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;cursor:pointer;transition:background .15s,color .15s;line-height:1.4;}'
+         . '.cspv-dw-ref-toggle:first-child{border-radius:3px 0 0 3px;}'
+         . '.cspv-dw-ref-toggle:last-child{border-radius:0 3px 3px 0;}'
+         . '.cspv-dw-ref-toggle:hover{background:rgba(0,0,0,.12);}'
+         . '.cspv-dw-ref-toggle.active{background:#059669;color:#fff;font-weight:800;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}'
+         . '.cspv-dw-footer{padding:8px 16px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;}'
+         . '.cspv-dw-link{display:inline-block;padding:5px 12px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:11px;font-weight:700;text-decoration:none;border-radius:20px;letter-spacing:.03em;transition:opacity .15s;}'
+         . '.cspv-dw-link:hover{opacity:.85;color:#fff;text-decoration:none;}'
+         . '.cspv-dw-shield{font-size:11px;}'
+         . '.cspv-dw-shield.on{color:#1db954;font-weight:600;}'
+         . '.cspv-dw-shield.off{color:#e53e3e;}';
+
+    wp_register_style( 'cspv-dashboard-widget', false );
+    wp_enqueue_style( 'cspv-dashboard-widget' );
+    wp_add_inline_style( 'cspv-dashboard-widget', $css );
+}
+
 add_action( 'wp_dashboard_setup', 'cspv_register_dashboard_widget' );
 
 function cspv_register_dashboard_widget() {
@@ -37,10 +102,10 @@ function cspv_render_dashboard_widget() {
     $today   = current_time( 'Y-m-d' );
     $today_s = $today . ' 00:00:00';
     $today_e = $today . ' 23:59:59';
-    $yest    = date( 'Y-m-d', strtotime( '-1 day', strtotime( $today ) ) );
+    $yest    = wp_date( 'Y-m-d', strtotime( '-1 day', strtotime( $today ) ) );
     $yest_s  = $yest . ' 00:00:00';
     $yest_e  = $yest . ' 23:59:59';
-    $week_s  = date( 'Y-m-d', strtotime( '-6 days', strtotime( $today ) ) ) . ' 00:00:00';
+    $week_s  = wp_date( 'Y-m-d', strtotime( '-6 days', strtotime( $today ) ) ) . ' 00:00:00';
 
     $today_views    = 0;
     $yest_views     = 0;
@@ -50,7 +115,7 @@ function cspv_render_dashboard_widget() {
     // Days of tracking data (used to gate period comparisons)
     $data_days = 0;
     if ( $table_exists ) {
-        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" );
+        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
         if ( $earliest ) {
             $data_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
         }
@@ -122,8 +187,8 @@ function cspv_render_dashboard_widget() {
     $day1_values = array();
     for ( $h = 23; $h >= 0; $h-- ) {
         $ts       = strtotime( "-{$h} hours", strtotime( current_time( 'Y-m-d H:00:00' ) ) );
-        $hr       = (int) date( 'G', $ts );
-        $d        = date( 'Y-m-d', $ts );
+        $hr       = (int) wp_date( 'G', $ts );
+        $d        = wp_date( 'Y-m-d', $ts );
         $label    = sprintf( '%02d:00', $hr );
         $day1_labels[] = $label;
         if ( $table_exists ) {
@@ -141,8 +206,8 @@ function cspv_render_dashboard_widget() {
     $prev_day1_views = 0;
     if ( $table_exists ) {
         $day1_end   = current_time( 'Y-m-d H:00:00' );
-        $day1_start = date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end ) ) );
-        $prev_start = date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end ) ) );
+        $day1_start = wp_date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end ) ) );
+        $prev_start = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end ) ) );
         $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_start, $day1_start ) );
@@ -170,8 +235,8 @@ function cspv_render_dashboard_widget() {
     $day7_values = array();
     $prev7_views = 0;
     for ( $i = 6; $i >= 0; $i-- ) {
-        $d = date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
-        $day7_labels[] = date( 'j M', strtotime( $d ) );
+        $d = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
+        $day7_labels[] = wp_date( 'j M', strtotime( $d ) );
         if ( $table_exists ) {
             $day7_values[] = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT {$cnt} FROM `{$table}` WHERE DATE(viewed_at) = %s", $d ) );
@@ -180,8 +245,8 @@ function cspv_render_dashboard_widget() {
         }
     }
     if ( $table_exists ) {
-        $prev7_start = date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
-        $prev7_end   = date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
+        $prev7_start = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
+        $prev7_end   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
         $prev7_views = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev7_start, $prev7_end ) );
@@ -190,7 +255,7 @@ function cspv_render_dashboard_widget() {
     // 1 Month (28 days) — query once, fill array
     $month_labels = array();
     $month_values = array();
-    $m28_s        = date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
+    $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
     $raw_month    = array();
     if ( $table_exists ) {
         $rows = $wpdb->get_results( $wpdb->prepare(
@@ -200,16 +265,16 @@ function cspv_render_dashboard_widget() {
         foreach ( $rows as $r ) { $raw_month[ $r->day ] = (int) $r->views; }
     }
     for ( $i = 27; $i >= 0; $i-- ) {
-        $d              = date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
-        $dow            = (int) date( 'N', strtotime( $d ) );
-        $month_labels[] = $dow === 1 ? date( 'j M', strtotime( $d ) ) : date( 'j', strtotime( $d ) );
+        $d              = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
+        $dow            = (int) wp_date( 'N', strtotime( $d ) );
+        $month_labels[] = $dow === 1 ? wp_date( 'j M', strtotime( $d ) ) : wp_date( 'j', strtotime( $d ) );
         $month_values[] = $raw_month[ $d ] ?? 0;
     }
 
     // 6 Months — group by week (26 weeks)
     $m6_labels = array();
     $m6_values = array();
-    $m6_s      = date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
+    $m6_s      = wp_date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
     $raw_6m    = array();
     if ( $table_exists ) {
         $rows = $wpdb->get_results( $wpdb->prepare(
@@ -222,9 +287,9 @@ function cspv_render_dashboard_widget() {
     }
     // Build 26 week slots
     for ( $i = 25; $i >= 0; $i-- ) {
-        $week_start     = date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
-        $wk             = date( 'Y-W', strtotime( $week_start ) );
-        $m6_labels[]    = date( 'j M', strtotime( $week_start ) );
+        $week_start     = wp_date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
+        $wk             = wp_date( 'Y-W', strtotime( $week_start ) );
+        $m6_labels[]    = wp_date( 'j M', strtotime( $week_start ) );
         $m6_values[]    = isset( $raw_6m[ str_replace( '-', '-', $wk ) ] )
                             ? $raw_6m[ str_replace( '-', '-', $wk ) ]['views'] : 0;
     }
@@ -233,7 +298,7 @@ function cspv_render_dashboard_widget() {
         $m6_labels = array();
         $m6_values = array();
         foreach ( $raw_6m as $wk => $data ) {
-            $m6_labels[] = date( 'j M', strtotime( $data['start'] ) );
+            $m6_labels[] = wp_date( 'j M', strtotime( $data['start'] ) );
             $m6_values[] = $data['views'];
         }
         // Ensure exactly 26 entries, pad front with zeros if needed
@@ -246,8 +311,8 @@ function cspv_render_dashboard_widget() {
         $m6_labels = array();
         $m6_values = array();
         for ( $i = 25; $i >= 0; $i-- ) {
-            $d           = date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
-            $m6_labels[] = date( 'j M', strtotime( $d ) );
+            $d           = wp_date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
+            $m6_labels[] = wp_date( 'j M', strtotime( $d ) );
             $m6_values[] = 0;
         }
     }
@@ -265,117 +330,6 @@ function cspv_render_dashboard_widget() {
         'months' => array( 'label' => '6 Months', 'labels' => $m6_labels,    'values' => $m6_values,    'total' => array_sum( $m6_values ),    'summary' => 'Last 6 months' ),
     );
     ?>
-
-<style>
-#cspv_dashboard_widget .inside { padding: 0; margin: 0; }
-
-.cspv-dw-banner {
-    background: linear-gradient(135deg, #2d1b69 0%, #5b21b6 50%, #7c3aed 100%);
-    padding: 14px 16px 12px;
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
-}
-.cspv-dw-today-count { font-size: 38px; font-weight: 800; color: #1db954; line-height: 1; }
-.cspv-dw-today-label {
-    font-size: 10px; color: rgba(255,255,255,.7);
-    text-transform: uppercase; letter-spacing: .06em;
-    margin-top: 3px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-}
-.cspv-dw-counts { margin-top: 6px; line-height: 1; }
-
-/* Period buttons */
-.cspv-dw-periods {
-    display: flex; gap: 0; border-bottom: 1px solid #eee;
-    background: #fafafa;
-}
-.cspv-dw-period-btn {
-    flex: 1; padding: 7px 4px; font-size: 11px; font-weight: 600;
-    text-align: center; cursor: pointer; border: none; background: transparent;
-    color: #999; border-bottom: 2px solid transparent;
-    transition: color .15s, border-color .15s; white-space: nowrap;
-    font-family: inherit;
-}
-.cspv-dw-period-btn:hover  { color: #059669; }
-.cspv-dw-period-btn.active { color: #059669; border-bottom-color: #10b981; background: #fff; }
-
-/* Chart */
-.cspv-dw-chart-wrap {
-    padding: 8px 14px 0; background: #fff;
-    border-bottom: 1px solid #f0f0f0;
-    position: relative; height: 120px;
-}
-.cspv-dw-canvas { display: block; width: 100%; height: 110px; }
-
-/* Top posts */
-.cspv-dw-list-header {
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: #aaa;
-    padding: 7px 16px 3px; display: flex; justify-content: space-between;
-}
-.cspv-dw-row {
-    display: flex; align-items: center;
-    padding: 5px 16px; border-top: 1px solid #f5f5f5;
-    font-size: 12px; gap: 8px;
-}
-.cspv-dw-row-title {
-    flex: 1; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; color: #1a2332; text-decoration: none; font-weight: 600;
-}
-.cspv-dw-row-title:hover { text-decoration: underline; color: #059669; }
-.cspv-dw-row-bar  { height: 3px; background: #d1fae5; border-radius: 2px; flex-shrink: 0; width: 48px; overflow: hidden; }
-.cspv-dw-row-fill { height: 100%; background: linear-gradient(90deg, #059669, #34d399); border-radius: 2px; }
-.cspv-dw-row-num  { font-weight: 700; color: #059669; min-width: 24px; text-align: right; flex-shrink: 0; }
-.cspv-dw-empty    { padding: 10px 16px; color: #bbb; font-size: 12px; font-style: italic; }
-
-/* Two column lists layout */
-.cspv-dw-lists     { display: flex; gap: 0; border-bottom: 1px solid #f0f0f0; }
-.cspv-dw-list-col  { flex: 1; min-width: 0; }
-.cspv-dw-list-col + .cspv-dw-list-col { border-left: 1px solid #f0f0f0; }
-.cspv-dw-list-col .cspv-dw-list-header { padding: 7px 12px 3px; }
-.cspv-dw-list-col .cspv-dw-row         { padding: 4px 12px; }
-.cspv-dw-list-col .cspv-dw-empty       { padding: 8px 12px; }
-.cspv-dw-ref-host {
-    flex: 1; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; color: #1a2332; font-weight: 600; font-size: 12px;
-}
-.cspv-dw-ref-link {
-    flex: 1; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; font-weight: 600; font-size: 12px;
-    color: #1a3a8f; text-decoration: none;
-}
-.cspv-dw-ref-link:hover { text-decoration: underline; color: #059669; }
-.cspv-dw-ref-toggle-wrap { display: inline-flex; gap: 0; margin-left: auto; }
-.cspv-dw-ref-toggle {
-    background: rgba(0,0,0,.08); border: none; color: #999;
-    font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
-    padding: 2px 7px; cursor: pointer; transition: background .15s, color .15s;
-    line-height: 1.4;
-}
-.cspv-dw-ref-toggle:first-child { border-radius: 3px 0 0 3px; }
-.cspv-dw-ref-toggle:last-child  { border-radius: 0 3px 3px 0; }
-.cspv-dw-ref-toggle:hover { background: rgba(0,0,0,.12); }
-.cspv-dw-ref-toggle.active { background: #059669; color: #fff; font-weight: 800; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-
-.cspv-dw-footer {
-    padding: 8px 16px; border-top: 1px solid #eee;
-    display: flex; justify-content: space-between; align-items: center;
-}
-.cspv-dw-link {
-    display: inline-block;
-    padding: 5px 12px;
-    background: linear-gradient(135deg, #7c3aed, #a855f7);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    text-decoration: none;
-    border-radius: 20px;
-    letter-spacing: .03em;
-    transition: opacity .15s;
-}
-.cspv-dw-link:hover { opacity: .85; color: #fff; text-decoration: none; }
-.cspv-dw-shield     { font-size: 11px; }
-.cspv-dw-shield.on  { color: #1db954; font-weight: 600; }
-.cspv-dw-shield.off { color: #e53e3e; }
-</style>
 
 <!-- Banner -->
 <div class="cspv-dw-banner">
@@ -454,50 +408,70 @@ function cspv_render_dashboard_widget() {
     </span>
 </div>
 
-<script>
-(function() {
-    var canvasId  = <?php echo wp_json_encode( $widget_id ); ?>;
-    var periodsId = <?php echo wp_json_encode( $widget_id . '-periods' ); ?>;
+<?php
+    $js_init = 'var cspvDW=' . wp_json_encode( array(
+        'canvasId'      => $widget_id,
+        'periodsId'     => $widget_id . '-periods',
+        'datasets'      => $periods,
+        'nonce'         => wp_create_nonce( 'cspv_widget_lists' ),
+        'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+        'todayViews'    => (int) $today_views,
+        'yestViews'     => (int) $yest_views,
+        'prev7hViews'   => (int) $prev_7h_views,
+        'dataDays'      => (int) $data_days,
+        'weekViews'     => (int) $week_views,
+        'prev7Views'    => (int) $prev7_views,
+        'prevDay1Views' => (int) $prev_day1_views,
+        'rolling24h'    => (int) $rolling_24h,
+        'prevRolling24h'=> (int) $prev_24h,
+    ) ) . ';';
 
-    var datasets = <?php echo wp_json_encode( $periods ); ?>;
+    wp_add_inline_script( 'cspv-dashboard-widget', $js_init );
+    ob_start();
+    ?>
+(function() {
+    var canvasId  = cspvDW.canvasId;
+    var periodsId = cspvDW.periodsId;
+
+    var datasets = cspvDW.datasets;
     var chartInst = null;
-    var activePeriod = 'hours';
+    var activePeriod = "hours";
 
     function makeColors(values, period) {
         return values.map(function(v, i) {
             var isLast = i === values.length - 1;
-            if (period === 'days' || period === 'hours' || period === 'day') {
-                return isLast ? '#059669' : 'rgba(5,150,105,0.25)';
+            if (period === "days" || period === "hours" || period === "day") {
+                return isLast ? "#059669" : "rgba(5,150,105,0.25)";
             }
-            return 'rgba(5,150,105,0.35)';
+            return "rgba(5,150,105,0.35)";
         });
     }
 
     function makeHoverColors(values, period) {
         return values.map(function(v, i) {
             var isLast = i === values.length - 1;
-            if (period === 'days' || period === 'hours' || period === 'day') {
-                return isLast ? '#10b981' : 'rgba(5,150,105,0.55)';
+            if (period === "days" || period === "hours" || period === "day") {
+                return isLast ? "#10b981" : "rgba(5,150,105,0.55)";
             }
-            return '#10b981';
+            return "#10b981";
         });
     }
 
-    var currentPeriod = 'hours';
-    var widgetNonce = '<?php echo wp_create_nonce( "cspv_widget_lists" ); ?>';
-    var widgetAjax  = '<?php echo admin_url( "admin-ajax.php" ); ?>';
+    var currentPeriod = "hours";
+    var widgetNonce = cspvDW.nonce;
+    var widgetAjax  = cspvDW.ajaxUrl;
     var listsCache  = {};
-    var todayViews = <?php echo (int) $today_views; ?>;
-    var yestViews  = <?php echo (int) $yest_views; ?>;
-    var prev7hViews = <?php echo (int) $prev_7h_views; ?>;
-    var dataDays    = <?php echo (int) $data_days; ?>;
+    var todayViews = cspvDW.todayViews;
+    var yestViews  = cspvDW.yestViews;
+    var prev7hViews = cspvDW.prev7hViews;
+    var dataDays    = cspvDW.dataDays;
     // Minimum data_days needed to show a comparison (same as site-health: days * 2)
     var requiredDays = { hours: 2, day: 2, days: 14, month: 56, months: 360 };
-    var weekViews  = <?php echo (int) $week_views; ?>;
-    var prev7Views = <?php echo (int) $prev7_views; ?>;
-    var prevDay1Views = <?php echo (int) $prev_day1_views; ?>;
-    var rolling24h    = <?php echo (int) $rolling_24h; ?>;
-    var prevRolling24h = <?php echo (int) $prev_24h; ?>;
+    var weekViews  = cspvDW.weekViews;
+    var prev7Views = cspvDW.prev7Views;
+    var prevDay1Views = cspvDW.prevDay1Views;
+    var rolling24h    = cspvDW.rolling24h;
+    var prevRolling24h = cspvDW.prevRolling24h;
 
     function formatDelta(current, previous) {
         if (previous <= 0) return '';
@@ -769,13 +743,9 @@ function cspv_render_dashboard_widget() {
         drawChart(activePeriod);
     }
 
+    // Chart.js is enqueued locally via wp_enqueue_script (cspv-chartjs).
     if (window.Chart) {
         init();
-    } else {
-        var s    = document.createElement('script');
-        s.src    = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-        s.onload = init;
-        document.head.appendChild(s);
     }
 
     // ── Referrer sites/pages toggle ─────────────────────────────
@@ -797,16 +767,16 @@ function cspv_render_dashboard_widget() {
 
     if (savedRefView) { applyRefView(savedRefView); }
 
-    document.querySelectorAll('.cspv-dw-ref-toggle').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+    document.querySelectorAll(".cspv-dw-ref-toggle").forEach(function(btn) {
+        btn.addEventListener("click", function() {
             var mode = btn.dataset.refView;
             applyRefView(mode);
-            try { localStorage.setItem('cspv_dw_ref_view', mode); } catch(e) {}
+            try { localStorage.setItem("cspv_dw_ref_view", mode); } catch(e) {}
         });
     });
 })();
-</script>
     <?php
+    wp_add_inline_script( 'cspv-dashboard-widget', ob_get_clean() );
 }
 
 /* ─── AJAX: fetch top pages + referrers for a period ─────────────── */

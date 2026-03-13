@@ -85,6 +85,85 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
+= 2.9.94 =
+* Unique visitors tracking with SHA-256 hashed IPs (never stored raw)
+* Date range swap fix on Statistics page
+* Geography map robustness improvements
+* WordPress.org submission hardening: all assets bundled locally, inline style/script tags replaced with wp_enqueue APIs, uninstall.php added
+
+= 2.9.12 =
+* Site Health v2: complete rewrite — four time windows (1 Day, 7 Days, 28 Days, 90 Days) each with RAG indicator and prior-period comparison
+* Insufficient Data gating: buckets without enough history show waiting state instead of misleading percentages
+* Site Health results cached in wp_options for 1 hour
+
+= 2.9.11 =
+* Site Health panel on dashboard widget and Statistics page with red/amber/green indicators
+* Traffic Growth and Hot Pages metrics across 7d, 30d, 90d windows
+
+= 2.9.10 =
+* Post History tab on Statistics page: search any post and see full diagnostics including log count, Jetpack imported count, and 90-day chart
+
+= 2.9.9 =
+* View Diagnostics debug panel on singular posts (admin only) with resync button
+
+= 2.9.0 =
+* Flattened plugin structure — all files in plugin root for reliable FTP/cPanel upgrades
+* Deactivation hook cleans stale subdirectories from pre-2.9.0 installs
+
+= 2.8.7 =
+* Dedup toggle persistence fix: switched to yes/no string storage
+
+= 2.8.5 =
+* View Deduplication settings UI with configurable window (1h–48h)
+
+= 2.8.4 =
+* Dashboard widget referrers now has Sites/Pages toggle
+
+= 2.8.3 =
+* Statistics page referrers Sites/Pages toggle with clickable full URLs
+
+= 2.8.2 =
+* Dashboard widget shows top 3 pages and top 3 referrers in side-by-side columns
+
+= 2.8.1 =
+* Referrer tracking fixed: REST API now captures document.referrer from beacon body
+
+= 2.8.0 =
+* Client-side dedup switched to localStorage with 24h TTL
+* Server-side dedup: IP hash + post ID within configurable window
+
+= 2.7.0 =
+* Fixed trending count exceeding lifetime total display bug
+
+= 2.6.9 =
+* Both widgets now have configurable date/view count colours with colour picker
+
+= 2.6.2 =
+* Fail2Ban second-tier protection: permanently blocks IPs exceeding configurable page limit
+
+= 2.4.0 =
+* All Time banner on Statistics page with lifetime totals
+* All Time Top Posts panel
+
+= 2.3.0 =
+* Tracking filter: configurable post type filter for beacon recording
+* Recent Posts widget (CloudScale: Recent Posts)
+
+= 2.2.0 =
+* Auto-display of view counter on single posts with no theme editing required
+* Display settings: position, post type, icon, suffix, style
+
+= 2.1.0 =
+* Top Posts sidebar widget (CloudScale: Top Posts) with pagination and thumbnail support
+
+= 1.1.0 =
+* Live Statistics dashboard under Tools > Page Views
+* SHA-256 + wp_salt IP hashing for privacy
+* Cache-bypass headers on REST endpoint
+
+= 1.0.0 =
+* Initial release: JavaScript beacon, post meta view counter, REST endpoint, admin column
+
 = 2.5.4 =
 * Stats page shows all recorded data regardless of tracking filter
 * REST endpoint enforces post type tracking filter

@@ -203,6 +203,7 @@ function cspv_ajax_manual_import() {
     $errors      = array();
     $import_time = current_time( 'mysql' );
     $total_views = 0;
+    $url_cache   = array();
 
     foreach ( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) as $line ) {
         if ( strpos( $line, ',' ) === false ) { $skipped++; continue; }
@@ -215,10 +216,15 @@ function cspv_ajax_manual_import() {
         if ( is_numeric( $id_or_url ) ) {
             $post_id = (int) $id_or_url;
         } else {
-            $post_id = url_to_postid( $id_or_url );
-            if ( ! $post_id ) {
-                $p = get_page_by_path( basename( rtrim( $id_or_url, '/' ) ), OBJECT, 'post' );
-                if ( $p ) { $post_id = $p->ID; }
+            if ( isset( $url_cache[ $id_or_url ] ) ) {
+                $post_id = $url_cache[ $id_or_url ];
+            } else {
+                $post_id = url_to_postid( $id_or_url );
+                if ( ! $post_id ) {
+                    $p = get_page_by_path( basename( rtrim( $id_or_url, '/' ) ), OBJECT, 'post' );
+                    if ( $p ) { $post_id = $p->ID; }
+                }
+                $url_cache[ $id_or_url ] = $post_id;
             }
         }
 

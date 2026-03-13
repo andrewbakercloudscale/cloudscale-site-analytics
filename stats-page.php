@@ -30,15 +30,21 @@ function cspv_add_tools_page() {
 
 function cspv_enqueue_admin_assets( $hook ) {
     if ( 'tools_page_cloudscale-page-views' !== $hook ) { return; }
-    wp_enqueue_script( 'chartjs',
-        'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
-        array(), '2.0.0', true );
-    wp_enqueue_style( 'leaflet-css',
-        'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
+    wp_enqueue_script( 'cspv-chartjs',
+        CSPV_PLUGIN_URL . 'assets/js/chart.umd.min.js',
+        array(), '4.4.1', true );
+    wp_enqueue_style( 'cspv-leaflet-css',
+        CSPV_PLUGIN_URL . 'assets/css/leaflet.min.css',
         array(), '1.9.4' );
-    wp_enqueue_script( 'leaflet-js',
-        'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+    wp_enqueue_script( 'cspv-leaflet-js',
+        CSPV_PLUGIN_URL . 'assets/js/leaflet.min.js',
         array(), '1.9.4', true );
+    wp_enqueue_style( 'cspv-stats-page',
+        CSPV_PLUGIN_URL . 'assets/css/stats-page.css',
+        array(), CSPV_VERSION );
+    wp_register_script( 'cspv-stats-page', false,
+        array( 'cspv-chartjs', 'cspv-leaflet-js' ), CSPV_VERSION, true );
+    wp_enqueue_script( 'cspv-stats-page' );
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +244,7 @@ function cspv_ajax_chart_data() {
 
     // Transition blending: if log table has fewer days than the selected
     // period, add lifetime meta totals so the cards are not misleadingly low.
-    $earliest_log = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" );
+    $earliest_log = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
     $log_age_days = $earliest_log ? (int) floor( ( time() - strtotime( $earliest_log ) ) / 86400 ) : 0;
     $in_transition = ( $log_age_days < max( 1, $diff_days ) );
 
@@ -433,8 +439,8 @@ function cspv_ajax_post_history() {
     $hourly     = array();
     // WordPress timezone timestamps for queries (viewed_at is stored in WP timezone)
     $wp_now    = current_time( 'mysql' );
-    $wp_180d   = date( 'Y-m-d H:i:s', strtotime( $wp_now ) - ( 180 * 86400 ) );
-    $wp_48h    = date( 'Y-m-d H:i:s', strtotime( $wp_now ) - 172800 );
+    $wp_180d   = wp_date( 'Y-m-d H:i:s', strtotime( $wp_now ) - ( 180 * 86400 ) );
+    $wp_48h    = wp_date( 'Y-m-d H:i:s', strtotime( $wp_now ) - 172800 );
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare(
@@ -624,20 +630,20 @@ function cspv_ajax_download_dbip() {
 
     $code = wp_remote_retrieve_response_code( $response );
     if ( $code !== 200 ) {
-        @unlink( $gz_path );
+        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
         wp_send_json_error( 'Download failed with HTTP ' . $code . '. The file may not be available yet for this month.' );
     }
 
     // Decompress gzip
     $gz = gzopen( $gz_path, 'rb' );
     if ( ! $gz ) {
-        @unlink( $gz_path );
+        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
         wp_send_json_error( 'Failed to open gzipped file.' );
     }
     $out = fopen( $mmdb_path, 'wb' );
     if ( ! $out ) {
         gzclose( $gz );
-        @unlink( $gz_path );
+        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
         wp_send_json_error( 'Failed to write mmdb file.' );
     }
     while ( ! gzeof( $gz ) ) {
@@ -645,12 +651,12 @@ function cspv_ajax_download_dbip() {
     }
     gzclose( $gz );
     fclose( $out );
-    @unlink( $gz_path );
+    if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
 
     // Verify the file is valid
     $size = filesize( $mmdb_path );
     if ( $size < 1000000 ) {
-        @unlink( $mmdb_path );
+        if ( file_exists( $mmdb_path ) ) { unlink( $mmdb_path ); }
         wp_send_json_error( 'Downloaded file is too small (' . size_format( $size ) . '). May be corrupt.' );
     }
 
@@ -661,7 +667,7 @@ function cspv_ajax_download_dbip() {
         $meta   = $reader->metadata();
         $reader->close();
     } catch ( \Exception $e ) {
-        @unlink( $mmdb_path );
+        if ( file_exists( $mmdb_path ) ) { unlink( $mmdb_path ); }
         wp_send_json_error( 'Database file invalid: ' . $e->getMessage() );
     }
 
@@ -1136,7 +1142,7 @@ function cspv_render_stats_page() {
                                 $mmdb_size = size_format( filesize( $mmdb_path ) );
                                 echo '<span style="font-size:12px;color:#059669;">✅ Installed (' . esc_html( $mmdb_size ) . ')';
                                 if ( $mmdb_last ) {
-                                    echo ' &mdash; downloaded ' . esc_html( date( 'j M Y H:i', strtotime( $mmdb_last ) ) );
+                                    echo ' &mdash; downloaded ' . esc_html( wp_date( 'j M Y H:i', strtotime( $mmdb_last ) ) );
                                 }
                                 echo '</span>';
                             } else {
@@ -1757,615 +1763,21 @@ function cspv_render_stats_page() {
 
 </div><!-- /#cspv-app -->
 
-<style>
-/* ============================================================
-   CloudScale Page Views — Admin UI  v2.0.0
-   Colour palette mirrors CloudScale: electric blue, bright green,
-   vivid orange, deep navy, white.
-   ============================================================ */
-
-/* Reset within wrap */
-#cspv-app * { box-sizing: border-box; }
-#cspv-app {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 13px;
-    color: #1a2332;
-    max-width: 1200px;
-    margin-top: 10px;
-}
-
-/* ── Banner ─────────────────────────────────────── */
-#cspv-banner {
-    background: linear-gradient(135deg, #1a3a8f 0%, #1e6fd9 60%, #0fb8e0 100%);
-    border-radius: 8px 8px 0 0;
-    padding: 20px 28px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-#cspv-banner-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: -.3px;
-}
-#cspv-banner-sub {
-    font-size: 12px;
-    color: rgba(255,255,255,.75);
-    margin-top: 3px;
-}
-#cspv-banner-right { display: flex; gap: 10px; align-items: center; }
-.cspv-badge {
-    display: inline-block;
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-.cspv-badge-green  { background: #1db954; color: #fff; }
-.cspv-badge-orange { background: #f47c20; color: #fff; }
-
-/* ── Tab bar ─────────────────────────────────────── */
-#cspv-tab-bar {
-    background: #1a2d6b;
-    display: flex;
-    gap: 0;
-    padding: 0 20px;
-}
-.cspv-tab {
-    background: transparent;
-    border: none;
-    color: rgba(255,255,255,.6);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 12px 20px;
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    transition: all .15s;
-}
-.cspv-tab:hover { color: #fff; }
-.cspv-tab.active { color: #fff; border-bottom-color: #f47c20; }
-
-/* ── Tab content ─────────────────────────────────── */
-.cspv-tab-content { display: none; padding: 20px 0 0; }
-.cspv-tab-content.active { display: block; }
-
-/* ── Display tab ─────────────────────────────────── */
-.cspv-dsp-radios { display: flex; flex-direction: column; gap: 8px; }
-.cspv-dsp-radios label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; transition: background .1s; }
-.cspv-dsp-radios label:hover { background: #f5f3ff; }
-.cspv-dsp-radios input[type="radio"]:checked + * { font-weight: 600; }
-.cspv-dsp-styles { display: flex; gap: 12px; flex-wrap: wrap; }
-.cspv-dsp-style-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: border-color .15s; }
-.cspv-dsp-style-card:hover { border-color: #a78bfa; }
-.cspv-dsp-style-card.active { border-color: #7c3aed; background: #faf5ff; }
-.cspv-dsp-style-card input { display: none; }
-.cspv-dsp-style-name { font-size: 11px; font-weight: 600; color: #666; }
-.cspv-dsp-checks { display: flex; gap: 12px; flex-wrap: wrap; }
-.cspv-dsp-checks label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-
-/* ── Date bar ────────────────────────────────────── */
-#cspv-date-bar {
-    background: #fff;
-    border: 1px solid #dce3ef;
-    border-radius: 6px;
-    padding: 12px 18px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 18px;
-}
-#cspv-quick-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.cspv-quick {
-    background: #f0f4ff;
-    border: 1.5px solid #c5d2f0;
-    border-radius: 5px;
-    padding: 5px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #1a3a8f;
-    cursor: pointer;
-    transition: all .15s;
-}
-.cspv-quick:hover { background: #dce6ff; border-color: #1a3a8f; }
-.cspv-quick.active {
-    background: #1a3a8f;
-    border-color: #1a3a8f;
-    color: #fff;
-}
-#cspv-date-inputs { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #555; }
-#cspv-date-inputs input[type="date"] {
-    border: 1.5px solid #dce3ef;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
-    color: #1a2332;
-}
-
-/* ── Buttons ─────────────────────────────────────── */
-.cspv-btn-primary {
-    background: linear-gradient(135deg, #1a3a8f, #1e6fd9);
-    border: none;
-    border-radius: 5px;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 6px 16px;
-    cursor: pointer;
-    transition: opacity .15s;
-}
-.cspv-btn-primary:hover { opacity: .88; }
-.cspv-btn-danger-sm {
-    background: #e53e3e;
-    border: none;
-    border-radius: 4px;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 10px;
-    cursor: pointer;
-}
-.cspv-btn-unblock {
-    background: transparent;
-    border: 1.5px solid #e53e3e;
-    border-radius: 4px;
-    color: #e53e3e;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 10px;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-.cspv-btn-unblock:hover { background: #e53e3e; color: #fff; }
-
-/* ── Summary cards ───────────────────────────────── */
-#cspv-cards {
-    display: flex;
-    gap: 14px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
-}
-.cspv-card {
-    flex: 1;
-    min-width: 150px;
-    background: #fff;
-    border: 1.5px solid #dce3ef;
-    border-radius: 8px;
-    padding: 18px 22px;
-    position: relative;
-    overflow: hidden;
-}
-.cspv-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 4px;
-}
-#cspv-card-views::before { background: linear-gradient(90deg,#1a3a8f,#1e6fd9); }
-#cspv-card-posts::before { background: linear-gradient(90deg,#1db954,#0fb8e0); }
-#cspv-card-visitors::before { background: linear-gradient(90deg,#f59e0b,#ef4444); }
-#cspv-card-avg::before   { background: linear-gradient(90deg,#f47c20,#f7b733); }
-.cspv-card-icon  { font-size: 18px; margin-bottom: 6px; }
-.cspv-card-value { font-size: 34px; font-weight: 800; line-height: 1; color: #1a2332; }
-.cspv-card-label { font-size: 12px; color: #7a8aaa; margin-top: 4px; font-weight: 500; }
-.cspv-card-delta { font-size: 11px; margin-top: 6px; font-weight: 700; }
-.cspv-delta-up   { color: #059669; }
-.cspv-delta-down { color: #e53e3e; }
-.cspv-delta-same { color: #aaa; }
-
-/* ── Chart ───────────────────────────────────────── */
-#cspv-chart-box {
-    background: #fff;
-    border: 1.5px solid #dce3ef;
-    border-radius: 8px;
-    margin-bottom: 18px;
-    overflow: hidden;
-}
-#cspv-chart-wrap {
-    position: relative;
-    height: 220px;
-    padding: 16px 16px 4px;
-}
-#cspv-chart { width: 100% !important; height: 100% !important; }
-#cspv-chart-msg {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    color: #aaa;
-    background: #fff;
-    border-radius: 0 0 8px 8px;
-}
-#cspv-chart-msg.hidden { display: none; }
-
-/* ── Section headers ─────────────────────────────── */
-.cspv-section-header {
-    background: linear-gradient(135deg, #1a3a8f, #1e6fd9);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    padding: 10px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.cspv-section-header-green  { background: linear-gradient(135deg, #1a7a3a, #1db954); }
-.cspv-section-header-orange { background: linear-gradient(135deg, #c45c00, #f47c20); }
-.cspv-ref-toggle-wrap { display: flex; gap: 0; }
-.cspv-ref-toggle {
-    background: rgba(255,255,255,.2); border: none; color: rgba(255,255,255,.7);
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-    padding: 3px 10px; cursor: pointer; transition: background .15s, color .15s;
-}
-.cspv-ref-toggle:first-child { border-radius: 3px 0 0 3px; }
-.cspv-ref-toggle:last-child  { border-radius: 0 3px 3px 0; }
-.cspv-ref-toggle:hover { background: rgba(255,255,255,.3); }
-.cspv-ref-toggle.active { background: rgba(255,255,255,.95); color: #c45c00; }
-.cspv-section-header-red    { background: linear-gradient(135deg, #8b1a1a, #e53e3e); }
-.cspv-range-label { font-size: 11px; font-weight: 400; opacity: .85; }
-
-/* ── Panels ──────────────────────────────────────── */
-#cspv-panels {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    margin-bottom: 18px;
-}
-@media (max-width: 782px) { #cspv-panels { grid-template-columns: 1fr; } }
-#cspv-panels-alltime { margin-bottom: 18px; display: flex; gap: 18px; }
-.cspv-panel { background: #fff; border: 1.5px solid #dce3ef; border-radius: 8px; overflow: hidden; }
-
-#cspv-lifetime-bar {
-    display: flex;
-    gap: 18px;
-    margin-bottom: 18px;
-    background: linear-gradient(135deg, #0d2147 0%, #1a3a8f 60%, #1e6fd9 100%);
-    border-radius: 8px;
-    padding: 14px 20px;
-}
-.cspv-lifetime-stat {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.cspv-lifetime-label {
-    color: rgba(255,255,255,.75);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-}
-.cspv-lifetime-value {
-    color: #fff;
-    font-size: 22px;
-    font-weight: 800;
-}
-.cspv-lifetime-stat + .cspv-lifetime-stat {
-    margin-left: 24px;
-    padding-left: 24px;
-    border-left: 1px solid rgba(255,255,255,.2);
-}
-
-.cspv-row {
-    display: flex;
-    align-items: center;
-    padding: 9px 14px;
-    border-bottom: 1px solid #f0f4ff;
-    gap: 10px;
-    font-size: 13px;
-}
-.cspv-row:last-child { border-bottom: none; }
-.cspv-bar-wrap { flex: 1; position: relative; min-width: 0; }
-.cspv-bar-fill {
-    position: absolute; left: -6px; top: -5px; bottom: -5px;
-    border-radius: 2px; z-index: 0; transition: width .35s ease;
-}
-.cspv-panel:first-child .cspv-bar-fill { background: #e8f5ff; }
-.cspv-panel:last-child  .cspv-bar-fill { background: #fff3e8; }
-.cspv-bar-label {
-    position: relative; z-index: 1;
-    font-size: 13px; color: #1a2332;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    display: block; max-width: 100%;
-}
-.cspv-bar-label a { color: #1a3a8f; text-decoration: none; }
-.cspv-bar-label a:hover { text-decoration: underline; }
-.cspv-row-views { font-size: 13px; font-weight: 700; color: #1a2332; min-width: 36px; text-align: right; flex-shrink: 0; }
-.cspv-empty { padding: 18px 14px; color: #aaa; font-size: 13px; font-style: italic; }
-.cspv-loading { padding: 18px 14px; color: #bbb; font-size: 13px; }
-
-/* ── CF cache bypass test ────────────────────────── */
-#cspv-cf-notice {
-    background: #fffbeb;
-    border-left: 4px solid #f47c20;
-    border-radius: 0 6px 6px 0;
-    padding: 12px 16px;
-    font-size: 12px;
-    color: #6b4c00;
-    margin-bottom: 18px;
-}
-#cspv-cf-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
-}
-#cspv-cf-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-}
-#cspv-cf-rule {
-    font-size: 12px;
-    color: #92660a;
-    margin-bottom: 4px;
-}
-#cspv-cf-notice code {
-    background: #fef3c7;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-#cspv-cf-status-badge {
-    display: none;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 700;
-}
-#cspv-cf-status-badge.pass { display:inline-block; background:#1db954; color:#fff; }
-#cspv-cf-status-badge.fail { display:inline-block; background:#e53e3e; color:#fff; }
-#cspv-cf-status-badge.testing { display:inline-block; background:#aaa; color:#fff; }
-#cspv-cf-test-log {
-    margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.9;
-    color: #555;
-    display: none;
-}
-#cspv-cf-test-log.visible { display: block; }
-.cspv-cf-step { display: flex; align-items: baseline; gap: 6px; }
-.cspv-cf-step-icon { flex-shrink: 0; width: 16px; text-align: center; }
-.cspv-cf-step.pending .cspv-cf-step-icon::before { content: '⏳'; }
-.cspv-cf-step.ok      .cspv-cf-step-icon::before { content: '✅'; }
-.cspv-cf-step.fail    .cspv-cf-step-icon::before { content: '❌'; }
-
-/* ── Throttle tab ────────────────────────────────── */
-#cspv-throttle-inner {
-    background: #fff;
-    border: 1.5px solid #dce3ef;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 20px;
-}
-#cspv-throttle-body { padding: 20px 24px; }
-.cspv-throttle-desc { font-size: 13px; color: #555; margin: 0 0 20px; line-height: 1.6; }
-.cspv-throttle-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f4ff;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-.cspv-throttle-row:last-of-type { border-bottom: none; }
-.cspv-throttle-label { font-size: 13px; color: #1a2332; font-weight: 600; line-height: 1.5; }
-.cspv-throttle-label small { font-weight: 400; color: #888; font-size: 11px; display: block; }
-.cspv-throttle-control { display: flex; align-items: center; gap: 8px; }
-.cspv-throttle-control input[type="number"] {
-    width: 80px; border: 1.5px solid #dce3ef;
-    border-radius: 4px; padding: 5px 8px; font-size: 13px;
-}
-.cspv-throttle-control select {
-    border: 1.5px solid #dce3ef; border-radius: 4px; padding: 5px 8px; font-size: 13px;
-}
-.cspv-unit { font-size: 12px; color: #888; }
-.cspv-throttle-actions { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
-#cspv-save-status { font-size: 12px; font-weight: 700; }
-#cspv-save-status.ok  { color: #1db954; }
-#cspv-save-status.err { color: #e53e3e; }
-
-/* Toggle */
-.cspv-toggle-wrap { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.cspv-toggle-wrap input { position: absolute; opacity: 0; width: 0; height: 0; }
-.cspv-toggle {
-    position: relative; display: inline-block;
-    width: 44px; height: 24px;
-    background: #ccc; border-radius: 12px; flex-shrink: 0;
-    transition: background .2s;
-}
-.cspv-toggle::after {
-    content: ''; position: absolute; top: 3px; left: 3px;
-    width: 18px; height: 18px; background: #fff; border-radius: 50%;
-    transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3);
-}
-.cspv-toggle-wrap input:checked + .cspv-toggle { background: #1db954; }
-.cspv-toggle-wrap input:checked + .cspv-toggle::after { transform: translateX(20px); }
-.cspv-toggle-text { font-size: 12px; font-weight: 700; color: #888; min-width: 55px; }
-.cspv-toggle-wrap input:checked ~ .cspv-toggle-text { color: #1db954; }
-
-/* Blocklist */
-#cspv-blocklist-body { padding: 16px 24px; }
-.cspv-blocklist-note { font-size: 11px; color: #aaa; margin-bottom: 12px; }
-.cspv-block-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 8px 0; border-bottom: 1px solid #f0f4ff; font-size: 12px;
-}
-.cspv-block-row:last-child { border-bottom: none; }
-.cspv-hash { font-family: monospace; color: #555; flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cspv-block-at { color: #aaa; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
-.cspv-badge-count {
-    display: inline-flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,.25); border-radius: 10px;
-    font-size: 11px; font-weight: 700; min-width: 20px; height: 20px;
-    padding: 0 6px; margin-left: 6px;
-}
-
-/* Fail2Ban */
-#cspv-ftb-inner {
-    background: #fff;
-    border: 1.5px solid #dce3ef;
-    border-radius: 8px;
-    overflow: hidden;
-}
-#cspv-ftb-body { padding: 20px 24px; }
-#cspv-ftb-blocklist-body { padding: 16px 24px; }
-.cspv-ftb-rule-card {
-    background: #fefce8; border: 1.5px solid #fde68a; border-radius: 6px;
-    padding: 14px 18px;
-}
-.cspv-ftb-rule-status {
-    font-size: 12px; font-weight: 700; margin-bottom: 6px;
-}
-.cspv-ftb-active { color: #dc2626; }
-.cspv-ftb-inactive { color: #9ca3af; }
-.cspv-ftb-rule-summary {
-    font-size: 14px; font-weight: 600; color: #1a2332; margin-bottom: 8px;
-}
-.cspv-ftb-rule-details {
-    display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #666;
-}
-.cspv-ftb-rule-details strong { color: #1a2332; }
-.cspv-btn-danger {
-    background: linear-gradient(135deg, #b91c1c, #dc2626); color: #fff;
-    border: none; border-radius: 6px; font-weight: 700; cursor: pointer;
-    transition: opacity .15s;
-}
-.cspv-btn-danger:hover { opacity: .85; }
-
-/* ── Info / Explain buttons and modal ────────────── */
-.cspv-info-btn {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 22px; height: 22px; border-radius: 50%;
-    background: rgba(255,255,255,.25); border: 1.5px solid rgba(255,255,255,.5);
-    color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
-    margin-left: 8px; line-height: 1; transition: background .15s;
-    font-family: Georgia, serif; font-style: italic; vertical-align: middle;
-    text-decoration: none;
-}
-.cspv-info-btn:hover { background: rgba(255,255,255,.45); }
-/* Dark variant for white-bg sections */
-.cspv-info-btn-dark {
-    background: #e5e7eb; border-color: #d1d5db; color: #374151;
-}
-.cspv-info-btn-dark:hover { background: #d1d5db; }
-
-.cspv-modal-overlay {
-    display: none; position: fixed; inset: 0; z-index: 100000;
-    background: rgba(0,0,0,.5); align-items: center; justify-content: center;
-    padding: 20px;
-}
-.cspv-modal-overlay.active { display: flex; }
-.cspv-modal {
-    background: #fff; border-radius: 12px; max-width: 560px; width: 100%;
-    max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3);
-}
-.cspv-modal-header {
-    padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
-    display: flex; align-items: center; justify-content: space-between;
-}
-.cspv-modal-header h3 { margin: 0; font-size: 16px; color: #1a2332; }
-.cspv-modal-close {
-    background: none; border: none; font-size: 22px; color: #999;
-    cursor: pointer; padding: 0 4px; line-height: 1;
-}
-.cspv-modal-close:hover { color: #333; }
-.cspv-modal-body {
-    padding: 20px; font-size: 13px; line-height: 1.7; color: #374151;
-}
-.cspv-modal-body p { margin: 0 0 12px; }
-.cspv-modal-body p:last-child { margin-bottom: 0; }
-.cspv-modal-body strong { color: #1a2332; }
-.cspv-modal-body code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-
-/* Help button in tab bar */
-.cspv-tab-spacer { flex: 1; }
-.cspv-tab-help {
-    background: #1a2332; color: #fff; border: none; border-radius: 6px;
-    font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer;
-    transition: background .15s; white-space: nowrap;
-}
-.cspv-tab-help:hover { background: #2d3f5e; }
-
-/* FTB status pill in section header */
-.cspv-ftb-status-pill {
-    display: inline-block; padding: 3px 12px; border-radius: 12px;
-    font-size: 11px; font-weight: 700; letter-spacing: .3px;
-}
-.cspv-ftb-on  { background: rgba(255,255,255,.2); color: #fff; }
-.cspv-ftb-off { background: rgba(0,0,0,.15); color: rgba(255,255,255,.6); }
-
-/* Help modal cards */
-.cspv-help-card {
-    border: 1.5px solid #dce3ef; border-radius: 8px; padding: 16px 20px;
-    margin-bottom: 14px;
-}
-.cspv-help-card:last-child { margin-bottom: 0; }
-.cspv-help-card-header {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
-}
-.cspv-help-card-title {
-    font-size: 13px; font-weight: 700; color: #1a2332; text-transform: uppercase;
-    letter-spacing: .3px;
-}
-.cspv-help-card-badge {
-    display: inline-block; padding: 2px 10px; border-radius: 4px;
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-}
-.cspv-help-badge-info { background: #dbeafe; color: #1e40af; }
-.cspv-help-badge-optional { background: #e5e7eb; color: #6b7280; }
-.cspv-help-badge-required { background: #fee2e2; color: #991b1b; }
-.cspv-help-badge-tip { background: #d1fae5; color: #065f46; }
-.cspv-help-card-body {
-    font-size: 13px; color: #555; line-height: 1.7;
-}
-.cspv-help-card-body strong { color: #1a2332; }
-
-/* ── Post History tab ──────────────────────────────────── */
-.cspv-ph-card {
-    background: #f8f9fa; border: 1px solid #e8ecf0; border-radius: 8px;
-    padding: 14px 16px; text-align: center;
-}
-.cspv-ph-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #888; margin-bottom: 4px; }
-.cspv-ph-card-value { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.cspv-ph-card-sub { font-size: 10px; color: #aaa; margin-top: 2px; }
-.cspv-ph-period {
-    background: rgba(0,0,0,.06); border: none; color: #666; font-size: 12px; font-weight: 600;
-    padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: background .15s, color .15s;
-}
-.cspv-ph-period:hover { background: rgba(0,0,0,.1); }
-.cspv-ph-period.active { background: #2e86c1; color: #fff; }
-#cspv-ph-results .cspv-ph-result {
-    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
-    transition: background .1s;
-}
-#cspv-ph-results .cspv-ph-result:hover { background: #f0f7ff; }
-#cspv-ph-results .cspv-ph-result:last-child { border-bottom: none; }
-#cspv-ph-search:focus { border-color: #2e86c1; outline: none; }
-.cspv-ph-row:hover { background: #e8f4fd !important; }
-.cspv-ph-row.active { background: #d0ebff !important; border-left: 3px solid #2e86c1; }
-</style>
-
-<script>
+<?php
+// CSS is enqueued via cspv_enqueue_admin_assets() → assets/css/stats-page.css
+wp_add_inline_script( 'cspv-stats-page', 'var cspvStats=' . wp_json_encode( array(
+    'ajaxUrl'       => $ajax_url,
+    'nonce'         => $ajax_nonce,
+    'throttleNonce' => $throttle_nonce,
+) ) . ';' );
+ob_start();
+?>
 (function () {
     'use strict';
 
-    var ajaxUrl      = <?php echo wp_json_encode( $ajax_url ); ?>;
-    var nonce        = <?php echo wp_json_encode( $ajax_nonce ); ?>;
-    var throttleNonce = <?php echo wp_json_encode( $throttle_nonce ); ?>;
+    var ajaxUrl      = cspvStats.ajaxUrl;
+    var nonce        = cspvStats.nonce;
+    var throttleNonce = cspvStats.throttleNonce;
     var chartInst    = null;
 
     // ── Tab switching ──────────────────────────────────────────────
@@ -4248,6 +3660,6 @@ function cspv_render_stats_page() {
     })();
 
 })();
-</script>
-    <?php
+<?php
+wp_add_inline_script( 'cspv-stats-page', ob_get_clean() );
 }

@@ -14,8 +14,14 @@ add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
 /**
  * Return the view count for a post, respecting the ignore Jetpack toggle.
- * When the toggle is on, returns tracked-only views from V2.
- * When off, returns the post meta value (includes Jetpack imported total).
+ *
+ * When the toggle is on, returns tracked-only views from the V2 table.
+ * When off, returns the denormalised post meta value which includes any
+ * Jetpack-imported lifetime total.
+ *
+ * @since  1.0.0
+ * @param  int $post_id  Post ID.
+ * @return int           View count.
  */
 function cspv_public_view_count( $post_id ) {
     if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
@@ -26,9 +32,17 @@ function cspv_public_view_count( $post_id ) {
             $post_id
         ) );
     }
-    return cspv_public_view_count( $post_id );
+    return (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 }
 
+/**
+ * Register the record and ping REST API routes.
+ *
+ * Hooked to rest_api_init.
+ *
+ * @since  1.0.0
+ * @return void
+ */
 function cspv_register_endpoint() {
     register_rest_route(
         'cloudscale-page-views/v1',
@@ -60,6 +74,17 @@ function cspv_register_endpoint() {
     );
 }
 
+/**
+ * REST callback for POST /cloudscale-page-views/v1/record/{id}.
+ *
+ * Validates the post, checks the IP throttle, writes the hourly view bucket,
+ * referrer, geo, and unique-visitor rows, then increments the denormalised
+ * post meta counter.
+ *
+ * @since  1.0.0
+ * @param  WP_REST_Request $request  Incoming REST request.
+ * @return WP_REST_Response          JSON response with post_id, views, logged.
+ */
 function cspv_record_view( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
 
@@ -222,7 +247,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     $visitor_ip = $request->get_header( 'X-Forwarded-For' ) ?: ( $_SERVER['REMOTE_ADDR'] ?? '' );
     $visitor_ip = trim( explode( ',', $visitor_ip )[0] );
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
-        $visitor_hash  = hash( 'sha256', $visitor_ip );
+        $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
         $visitor_table = $wpdb->prefix . 'cspv_visitors_v2';
         $visitor_date  = current_time( 'Y-m-d' );
         $wpdb->query( $wpdb->prepare(
@@ -245,6 +270,16 @@ function cspv_record_view( WP_REST_Request $request ) {
 }
 
 
+/**
+ * REST callback for GET /cloudscale-page-views/v1/ping.
+ *
+ * Returns plugin version and current server time. Used by the Statistics page
+ * to confirm the REST endpoint is reachable and not cached by the CDN.
+ *
+ * @since  1.1.0
+ * @param  WP_REST_Request $request  Incoming REST request (unused).
+ * @return WP_REST_Response          JSON response with status, version, time.
+ */
 function cspv_ping( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
     return new WP_REST_Response(
@@ -258,9 +293,14 @@ function cspv_ping( WP_REST_Request $request ) {
 }
 
 /**
- * Send headers that tell Cloudflare and every other CDN/proxy never to
- * cache this response. Called before WP_REST_Response is returned so the
- * headers arrive before PHP output buffering flushes.
+ * Send cache-bypass headers before returning any REST response.
+ *
+ * Sets Cache-Control, Pragma, and CDN-specific no-store directives so that
+ * Cloudflare, Fastly, CloudFront, Varnish, and other intermediaries never
+ * cache this response. Must be called before PHP output buffering flushes.
+ *
+ * @since  1.1.0
+ * @return void
  */
 function cspv_send_nocache_headers() {
     if ( headers_sent() ) {
@@ -289,6 +329,14 @@ function cspv_send_nocache_headers() {
 // -------------------------------------------------------------------------
 add_action( 'rest_api_init', 'cspv_register_counts_endpoint' );
 
+/**
+ * Register the public counts GET route.
+ *
+ * Hooked to rest_api_init.
+ *
+ * @since  2.0.0
+ * @return void
+ */
 function cspv_register_counts_endpoint() {
     register_rest_route(
         'cloudscale-page-views/v1',
@@ -313,6 +361,17 @@ function cspv_register_counts_endpoint() {
     );
 }
 
+/**
+ * REST callback for GET /cloudscale-page-views/v1/counts?ids=1,2,3.
+ *
+ * Returns a map of post ID → view count for up to 50 IDs per request.
+ * Used by the archive/home page beacon to refresh counts on Cloudflare-cached
+ * HTML without requiring a full page reload.
+ *
+ * @since  2.0.0
+ * @param  WP_REST_Request $request  Incoming REST request; ids param is sanitised array of int.
+ * @return WP_REST_Response          JSON object keyed by string post ID.
+ */
 function cspv_get_counts( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
 
@@ -359,6 +418,14 @@ function cspv_get_counts( WP_REST_Request $request ) {
 // -------------------------------------------------------------------------
 add_action( 'rest_api_init', 'cspv_register_cache_test_endpoint' );
 
+/**
+ * Register the cache-bypass test GET/POST routes.
+ *
+ * Hooked to rest_api_init.
+ *
+ * @since  2.6.4
+ * @return void
+ */
 function cspv_register_cache_test_endpoint() {
     register_rest_route( 'cloudscale-page-views/v1', '/cache-test', array(
         array(
@@ -376,6 +443,17 @@ function cspv_register_cache_test_endpoint() {
     ) );
 }
 
+/**
+ * REST callback for GET /cloudscale-page-views/v1/cache-test.
+ *
+ * Returns the current in-memory counter value. If Cloudflare caches this
+ * response the counter will never change and the bypass test will correctly
+ * report a failure.
+ *
+ * @since  2.6.4
+ * @param  WP_REST_Request $request  Incoming REST request (unused).
+ * @return WP_REST_Response          JSON with counter and unix timestamp.
+ */
 function cspv_cache_test_get( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
     $val = (int) get_transient( 'cspv_cache_test_counter' );
@@ -385,6 +463,16 @@ function cspv_cache_test_get( WP_REST_Request $request ) {
     ), 200 );
 }
 
+/**
+ * REST callback for POST /cloudscale-page-views/v1/cache-test.
+ *
+ * Increments the counter transient (5 min TTL) and returns the new value.
+ * Requires manage_options capability.
+ *
+ * @since  2.6.4
+ * @param  WP_REST_Request $request  Incoming REST request (unused).
+ * @return WP_REST_Response          JSON with updated counter and unix timestamp.
+ */
 function cspv_cache_test_post( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
     $val = (int) get_transient( 'cspv_cache_test_counter' );

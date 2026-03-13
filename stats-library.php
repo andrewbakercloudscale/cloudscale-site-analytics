@@ -16,53 +16,54 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Whether the V2 schema is active.
+ * Whether the V2 hourly-bucket schema is active.
  *
- * @return bool
+ * V2 has been the only schema since v2.9.0. This function always returns
+ * true and exists only to avoid breaking any third-party code that may call
+ * it. The cspv_use_v2 option is no longer consulted.
+ *
+ * @since  1.0.0
+ * @return bool Always true.
  */
 function cspv_use_v2() {
-    return get_option( 'cspv_use_v2', '0' ) === '1';
+    return true;
 }
 
 /**
- * Return the active views table name.
- * Old schema: wp_cspv_views (one row per view).
- * New schema: wp_cspv_views_v2 (hourly buckets with view_count).
+ * Return the active views table name (always the V2 hourly-bucket table).
+ *
+ * @since  1.0.0
+ * @return string Fully-qualified table name, e.g. wp_cspv_views_v2.
  */
 function cspv_views_table() {
     global $wpdb;
-    return cspv_use_v2()
-        ? $wpdb->prefix . 'cspv_views_v2'
-        : $wpdb->prefix . 'cspv_views';
+    return $wpdb->prefix . 'cspv_views_v2';
 }
 
 /**
- * Return the SQL expression that counts views.
- * Old schema: COUNT(*)
- * New schema: COALESCE(SUM(view_count),0)
+ * Return the SQL aggregate expression that counts views for the active schema.
+ *
+ * V2 stores one row per post per hour with a view_count column, so a SUM is
+ * required rather than COUNT(*).
+ *
+ * @since  1.0.0
+ * @return string SQL expression, e.g. COALESCE(SUM(view_count),0).
  */
 function cspv_count_expr() {
-    return cspv_use_v2() ? 'COALESCE(SUM(view_count),0)' : 'COUNT(*)';
+    return 'COALESCE(SUM(view_count),0)';
 }
 
 /**
- * Return the active referrer table and count expression.
- * V2: wp_cspv_referrers_v2 with SUM(view_count)
- * V1: wp_cspv_views with COUNT(*)
+ * Return the referrer table name and aggregate count expression.
  *
- * @return array { table, cnt }
+ * @since  1.0.0
+ * @return array { string $table, string $cnt }
  */
 function cspv_referrer_source() {
     global $wpdb;
-    if ( cspv_use_v2() ) {
-        return array(
-            'table' => $wpdb->prefix . 'cspv_referrers_v2',
-            'cnt'   => 'COALESCE(SUM(view_count),0)',
-        );
-    }
     return array(
-        'table' => $wpdb->prefix . 'cspv_views',
-        'cnt'   => 'COUNT(*)',
+        'table' => $wpdb->prefix . 'cspv_referrers_v2',
+        'cnt'   => 'COALESCE(SUM(view_count),0)',
     );
 }
 

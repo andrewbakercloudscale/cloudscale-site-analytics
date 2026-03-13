@@ -18,6 +18,15 @@ add_action( 'widgets_init', function () {
     register_widget( 'CSPV_Recent_Posts_Widget' );
 } );
 
+// Enqueue widget CSS once per page via wp_enqueue_scripts.
+add_action( 'wp_enqueue_scripts', 'cspv_recent_posts_widget_enqueue' );
+
+function cspv_recent_posts_widget_enqueue() {
+    wp_register_style( 'cspv-recent-posts-widget', false );
+    wp_enqueue_style( 'cspv-recent-posts-widget' );
+    wp_add_inline_style( 'cspv-recent-posts-widget', cspv_recent_posts_widget_css() );
+}
+
 // -------------------------------------------------------------------------
 // 2. Widget class
 // -------------------------------------------------------------------------
@@ -79,22 +88,8 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         }
 
         if ( $query->have_posts() ) {
-            // Output CSS once per page
-            static $css_done = false;
-            if ( ! $css_done ) {
-                echo '<style>' . cspv_recent_posts_widget_css() . '</style>';
-                $css_done = true;
-            }
-
-            // Per-instance colour overrides
-            echo '<style>'
-                . '#' . $safe_id . ' .cspv-rp-date,'
-                . '#' . $safe_id . ' .cspv-rp-views{color:' . esc_attr( $meta_color ) . ';transition:color .15s;}'
-                . '#' . $safe_id . ' .cspv-rp-meta:hover .cspv-rp-date,'
-                . '#' . $safe_id . ' .cspv-rp-meta:hover .cspv-rp-views{color:' . esc_attr( $meta_hover ) . ';}'
-                . '</style>';
-
-            echo '<ul class="cspv-rp-list">';
+            // CSS is enqueued via cspv_recent_posts_widget_enqueue(); per-instance colours use CSS custom properties.
+            echo '<ul class="cspv-rp-list" style="--cspv-meta-color:' . esc_attr( $meta_color ) . ';--cspv-meta-hover:' . esc_attr( $meta_hover ) . ';">';
             while ( $query->have_posts() ) {
                 $query->the_post();
                 $post_id = get_the_ID();
@@ -259,8 +254,9 @@ function cspv_recent_posts_widget_css() {
 .cspv-rp-title{font-size:16px;line-height:1.4;text-decoration:none;font-weight:600;color:#1a2332;word-break:break-word;}
 .cspv-rp-title:hover{text-decoration:underline;color:#e8491d;}
 .cspv-rp-meta{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:14px;}
-.cspv-rp-date{display:inline-flex;align-items:center;}
-.cspv-rp-views{display:inline-flex;align-items:center;gap:3px;margin-left:auto;}
+.cspv-rp-date{display:inline-flex;align-items:center;color:var(--cspv-meta-color,#c2410c);transition:color .15s;}
+.cspv-rp-views{display:inline-flex;align-items:center;gap:3px;margin-left:auto;color:var(--cspv-meta-color,#c2410c);transition:color .15s;}
+.cspv-rp-meta:hover .cspv-rp-date,.cspv-rp-meta:hover .cspv-rp-views{color:var(--cspv-meta-hover,#ea580c);}
 .cspv-rp-pagination{margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
 .cspv-rp-page{display:inline-block;padding:5px 10px;border:1px solid #ddd;text-decoration:none;color:#333;font-size:13px;border-radius:4px;line-height:1;transition:all .15s;}
 .cspv-rp-current{background:linear-gradient(135deg,#e8491d,#f27c1a);color:#fff!important;border-color:#e8491d;font-weight:bold;}

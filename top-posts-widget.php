@@ -11,6 +11,18 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// Enqueue widget CSS once per page via wp_enqueue_scripts.
+add_action( 'wp_enqueue_scripts', 'cspv_top_posts_widget_enqueue' );
+
+function cspv_top_posts_widget_enqueue() {
+    wp_register_style( 'cspv-top-posts-widget', false );
+    wp_enqueue_style( 'cspv-top-posts-widget' );
+    wp_add_inline_style( 'cspv-top-posts-widget', cspv_top_posts_widget_css() );
+
+    wp_register_script( 'cspv-top-posts-widget', false, array(), CSPV_VERSION, true );
+    wp_enqueue_script( 'cspv-top-posts-widget' );
+}
+
 // -------------------------------------------------------------------------
 // 1. Query helper: get top posts ranked by CloudScale view data
 // -------------------------------------------------------------------------
@@ -30,7 +42,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         $in_transition = false;
 
         if ( $table_exists && $view_window > 0 ) {
-            $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" );
+            $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
             if ( $earliest ) {
                 $log_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
             } else {
@@ -301,22 +313,10 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
             );
         }
 
-        // Output CSS once per page
-        static $css_done = false;
-        if ( ! $css_done ) {
-            echo '<style>' . cspv_top_posts_widget_css() . '</style>';
-            $css_done = true;
-        }
-
-        // Per-instance colour overrides
-        echo '<style>'
-            . '#' . $safe_wid . ' .cspv-tp-info-row,'
-            . '#' . $safe_wid . ' .cspv-tp-views{color:' . esc_attr( $meta_color ) . ';transition:color .15s;}'
-            . '#' . $safe_wid . ' .cspv-tp-info-row:hover,'
-            . '#' . $safe_wid . ' .cspv-tp-info-row:hover .cspv-tp-views{color:' . esc_attr( $meta_hover ) . ';}'
-            . '</style>';
-
-        echo '<div class="cspv-tp-widget" id="' . esc_attr( $uid ) . '" data-per-page="' . esc_attr( $posts_per_pg ) . '" data-img-width="' . esc_attr( $image_width ) . '">';
+        // CSS is enqueued via cspv_top_posts_widget_enqueue(); per-instance colours use CSS custom properties.
+        echo '<div class="cspv-tp-widget" id="' . esc_attr( $uid ) . '"'
+            . ' style="--cspv-meta-color:' . esc_attr( $meta_color ) . ';--cspv-meta-hover:' . esc_attr( $meta_hover ) . ';"'
+            . ' data-per-page="' . esc_attr( $posts_per_pg ) . '" data-img-width="' . esc_attr( $image_width ) . '">';
         echo '<ul class="cspv-tp-list" id="' . esc_attr( $uid ) . '_list"></ul>';
         if ( $pages_cnt > 1 ) {
             echo '<div class="cspv-tp-pager" id="' . esc_attr( $uid ) . '_pager">';
@@ -333,9 +333,8 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $per_page  = (int) $posts_per_pg;
         $img_width = (int) $image_width;
 
-        echo '<script>
-(function(){
-    var uid      = ' . json_encode( $uid ) . ';
+        $js = '(function(){
+    var uid      = ' . wp_json_encode( $uid ) . ';
     var el      = document.getElementById(uid);
     var posts    = ' . $json . ';
     var perPage  = el ? parseInt(el.getAttribute("data-per-page"), 10) : ' . $per_page . ';
@@ -413,9 +412,9 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
     } else {
         init();
     }
-})();
-</script>';
+})();';
 
+        wp_add_inline_script( 'cspv-top-posts-widget', $js );
         echo $args['after_widget'];
     }
 
@@ -518,8 +517,9 @@ function cspv_top_posts_widget_css() {
 .cspv-tp-meta{display:flex;flex-direction:column;gap:5px;min-width:0;width:100%;}
 .cspv-tp-meta>a{font-size:16px;line-height:1.4;text-decoration:none;font-weight:700;word-break:break-word;color:#1a2332;}
 .cspv-tp-meta>a:hover{text-decoration:underline;color:#e8491d;}
-.cspv-tp-info-row{display:flex;align-items:center;gap:10px;font-size:14px;flex-wrap:wrap;}
-.cspv-tp-views{display:inline-flex;align-items:center;gap:3px;}
+.cspv-tp-info-row{display:flex;align-items:center;gap:10px;font-size:14px;flex-wrap:wrap;color:var(--cspv-meta-color,#c2410c);transition:color .15s;}
+.cspv-tp-info-row:hover,.cspv-tp-info-row:hover .cspv-tp-views{color:var(--cspv-meta-hover,#ea580c);}
+.cspv-tp-views{display:inline-flex;align-items:center;gap:3px;color:var(--cspv-meta-color,#c2410c);}
 .cspv-tp-pager{display:flex;align-items:center;gap:4px;margin-top:10px;flex-wrap:wrap;}
 .cspv-tp-btn{background:linear-gradient(135deg,#e8491d,#f27c1a);border:none;border-radius:4px;padding:4px 11px;cursor:pointer;font-size:14px;line-height:1.7;color:#fff;font-weight:600;transition:opacity .15s;}
 .cspv-tp-btn:hover:not(:disabled){opacity:.85;}

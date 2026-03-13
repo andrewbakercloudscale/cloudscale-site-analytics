@@ -16,6 +16,48 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// Enqueue styles for the debug panel (admin-only, singular only).
+add_action( 'wp_enqueue_scripts', 'cspv_debug_panel_enqueue' );
+
+function cspv_debug_panel_enqueue() {
+    if ( ! is_singular() || ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+
+    $css = '#cspv-debug-toggle{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#db2777,#f472b6);color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:700;line-height:1;padding:7px 14px;border-radius:20px;box-shadow:0 2px 8px rgba(219,39,119,.3);transition:transform .15s,box-shadow .15s;vertical-align:middle;margin-left:8px;letter-spacing:.02em;}'
+         . '#cspv-debug-toggle:hover{transform:scale(1.05);box-shadow:0 3px 12px rgba(219,39,119,.4);}'
+         . '#cspv-debug-panel{display:none;position:fixed;bottom:16px;right:16px;z-index:99999;width:400px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.2);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;color:#1a2332;}'
+         . '#cspv-debug-panel.open{display:block;}'
+         . '.cspv-dbg-header{background:linear-gradient(135deg,#db2777 0%,#f472b6 100%);color:#fff;padding:12px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center;}'
+         . '.cspv-dbg-header small{display:block;font-weight:400;opacity:.75;text-transform:none;letter-spacing:0;margin-top:2px;font-size:11px;}'
+         . '.cspv-dbg-close{background:rgba(255,255,255,.2);border:none;color:#fff;cursor:pointer;width:28px;height:28px;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;padding:0;}'
+         . '.cspv-dbg-close:hover{background:rgba(255,255,255,.35);}'
+         . '.cspv-dbg-body{padding:14px 16px;}'
+         . '.cspv-dbg-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f0;}'
+         . '.cspv-dbg-row:last-child{border-bottom:none;}'
+         . '.cspv-dbg-label{color:#666;font-size:12px;}'
+         . '.cspv-dbg-value{font-weight:700;font-variant-numeric:tabular-nums;}'
+         . '.cspv-dbg-value.green{color:#059669;}.cspv-dbg-value.blue{color:#1e6fd9;}.cspv-dbg-value.orange{color:#f47c20;}.cspv-dbg-value.red{color:#e53e3e;}'
+         . '.cspv-dbg-section{font-size:11px;font-weight:700;text-transform:uppercase;color:#aaa;letter-spacing:.04em;margin:10px 0 4px;padding-top:6px;border-top:1px solid #eee;}'
+         . '.cspv-dbg-section:first-child{border-top:none;margin-top:0;padding-top:0;}'
+         . '.cspv-dbg-chart{height:80px;display:flex;align-items:flex-end;gap:2px;margin-top:8px;}'
+         . '.cspv-dbg-bar{flex:1;background:linear-gradient(180deg,#db2777,#f9a8d4);border-radius:2px 2px 0 0;min-height:2px;position:relative;cursor:default;}'
+         . '.cspv-dbg-bar:hover{opacity:.8;}'
+         . '.cspv-dbg-bar-tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a2332;color:#fff;font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;}'
+         . '.cspv-dbg-bar:hover .cspv-dbg-bar-tip{display:block;}'
+         . '.cspv-dbg-chart-labels{display:flex;justify-content:space-between;font-size:10px;color:#aaa;margin-top:2px;}'
+         . '.cspv-dbg-warn{background:#fef3cd;border:1px solid #f0d060;border-radius:4px;padding:8px 10px;font-size:12px;margin-top:10px;color:#856404;}'
+         . '.cspv-dbg-fix-btn{display:inline-block;margin-top:6px;padding:4px 12px;background:#e53e3e;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;}'
+         . '.cspv-dbg-fix-btn:hover{background:#c53030;}';
+
+    wp_register_style( 'cspv-debug-panel', false );
+    wp_enqueue_style( 'cspv-debug-panel' );
+    wp_add_inline_style( 'cspv-debug-panel', $css );
+
+    wp_register_script( 'cspv-debug-panel', false, array(), CSPV_VERSION, true );
+    wp_enqueue_script( 'cspv-debug-panel' );
+}
+
 // Inject the debug button right after the auto-display counter
 add_filter( 'the_content', 'cspv_inject_debug_button', 100 );
 
@@ -64,7 +106,7 @@ function cspv_render_debug_panel() {
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
-             GROUP BY day ORDER BY day ASC", $post_id, date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 30 * 86400 ) ) ) );
+             GROUP BY day ORDER BY day ASC", $post_id, wp_date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 30 * 86400 ) ) ) );
         if ( is_array( $rows ) ) {
             foreach ( $rows as $r ) {
                 $daily_data[] = array( 'day' => $r->day, 'views' => (int) $r->views );
@@ -78,88 +120,6 @@ function cspv_render_debug_panel() {
     $jp_views         = $jp_meta ? (int) $jp_meta : null;
 
     ?>
-<style id="cspv-debug-style">
-#cspv-debug-toggle {
-    display: inline-flex; align-items: center; gap: 5px;
-    background: linear-gradient(135deg, #db2777, #f472b6);
-    color: #fff; border: none; cursor: pointer;
-    font-size: 13px; font-weight: 700; line-height: 1;
-    padding: 7px 14px; border-radius: 20px;
-    box-shadow: 0 2px 8px rgba(219,39,119,.3);
-    transition: transform .15s, box-shadow .15s;
-    vertical-align: middle; margin-left: 8px;
-    letter-spacing: .02em;
-}
-#cspv-debug-toggle:hover { transform: scale(1.05); box-shadow: 0 3px 12px rgba(219,39,119,.4); }
-#cspv-debug-panel {
-    display: none;
-    position: fixed; bottom: 16px; right: 16px; z-index: 99999;
-    width: 400px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto;
-    background: #fff; border-radius: 10px;
-    box-shadow: 0 4px 24px rgba(0,0,0,.2);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 13px; color: #1a2332;
-}
-#cspv-debug-panel.open { display: block; }
-.cspv-dbg-header {
-    background: linear-gradient(135deg, #db2777 0%, #f472b6 100%);
-    color: #fff; padding: 12px 16px;
-    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-    display: flex; justify-content: space-between; align-items: center;
-}
-.cspv-dbg-header small {
-    display: block; font-weight: 400; opacity: .75; text-transform: none;
-    letter-spacing: 0; margin-top: 2px; font-size: 11px;
-}
-.cspv-dbg-close {
-    background: rgba(255,255,255,.2); border: none; color: #fff; cursor: pointer;
-    width: 28px; height: 28px; border-radius: 50%; font-size: 14px;
-    display: flex; align-items: center; justify-content: center; padding: 0;
-}
-.cspv-dbg-close:hover { background: rgba(255,255,255,.35); }
-.cspv-dbg-body { padding: 14px 16px; }
-.cspv-dbg-row {
-    display: flex; justify-content: space-between; align-items: baseline;
-    padding: 5px 0; border-bottom: 1px solid #f0f0f0;
-}
-.cspv-dbg-row:last-child { border-bottom: none; }
-.cspv-dbg-label { color: #666; font-size: 12px; }
-.cspv-dbg-value { font-weight: 700; font-variant-numeric: tabular-nums; }
-.cspv-dbg-value.green { color: #059669; }
-.cspv-dbg-value.blue  { color: #1e6fd9; }
-.cspv-dbg-value.orange { color: #f47c20; }
-.cspv-dbg-value.red   { color: #e53e3e; }
-.cspv-dbg-section {
-    font-size: 11px; font-weight: 700; text-transform: uppercase;
-    color: #aaa; letter-spacing: .04em; margin: 10px 0 4px; padding-top: 6px;
-    border-top: 1px solid #eee;
-}
-.cspv-dbg-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
-.cspv-dbg-chart { height: 80px; display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; }
-.cspv-dbg-bar {
-    flex: 1; background: linear-gradient(180deg, #db2777, #f9a8d4);
-    border-radius: 2px 2px 0 0; min-height: 2px; position: relative; cursor: default;
-}
-.cspv-dbg-bar:hover { opacity: .8; }
-.cspv-dbg-bar-tip {
-    display: none; position: absolute; bottom: 100%; left: 50%;
-    transform: translateX(-50%); background: #1a2332; color: #fff;
-    font-size: 10px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; pointer-events: none;
-}
-.cspv-dbg-bar:hover .cspv-dbg-bar-tip { display: block; }
-.cspv-dbg-chart-labels { display: flex; justify-content: space-between; font-size: 10px; color: #aaa; margin-top: 2px; }
-.cspv-dbg-warn {
-    background: #fef3cd; border: 1px solid #f0d060; border-radius: 4px;
-    padding: 8px 10px; font-size: 12px; margin-top: 10px; color: #856404;
-}
-.cspv-dbg-fix-btn {
-    display: inline-block; margin-top: 6px; padding: 4px 12px;
-    background: #e53e3e; color: #fff; border: none; border-radius: 4px;
-    font-size: 11px; font-weight: 700; cursor: pointer;
-}
-.cspv-dbg-fix-btn:hover { background: #c53030; }
-</style>
-
 <div id="cspv-debug-panel">
     <div class="cspv-dbg-header">
         <div>🐛 View Diagnostics — Post #<?php echo (int) $post_id; ?>
@@ -209,13 +169,13 @@ function cspv_render_debug_panel() {
                 $pct = round( ( $d['views'] / $max_v ) * 100 );
             ?>
             <div class="cspv-dbg-bar" style="height:<?php echo max( 2, $pct ); ?>%">
-                <span class="cspv-dbg-bar-tip"><?php echo esc_html( date( 'j M', strtotime( $d['day'] ) ) . ': ' . number_format( $d['views'] ) ); ?></span>
+                <span class="cspv-dbg-bar-tip"><?php echo esc_html( wp_date( 'j M', strtotime( $d['day'] ) ) . ': ' . number_format( $d['views'] ) ); ?></span>
             </div>
             <?php endforeach; ?>
         </div>
         <div class="cspv-dbg-chart-labels">
-            <span><?php echo esc_html( date( 'j M', strtotime( $daily_data[0]['day'] ) ) ); ?></span>
-            <span><?php echo esc_html( date( 'j M', strtotime( end( $daily_data )['day'] ) ) ); ?></span>
+            <span><?php echo esc_html( wp_date( 'j M', strtotime( $daily_data[0]['day'] ) ) ); ?></span>
+            <span><?php echo esc_html( wp_date( 'j M', strtotime( end( $daily_data )['day'] ) ) ); ?></span>
         </div>
         <?php endif; ?>
 
@@ -250,49 +210,45 @@ function cspv_render_debug_panel() {
     </div>
 </div>
 
-<script>
-(function() {
-    var toggle = document.getElementById('cspv-debug-toggle');
-    var panel  = document.getElementById('cspv-debug-panel');
-    var close  = document.getElementById('cspv-dbg-close');
-    if (!toggle || !panel) return;
+<?php
+    $js_data = 'var cspvDebug=' . wp_json_encode( array(
+        'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+        'nonce'   => wp_create_nonce( 'cspv_resync' ),
+        'postId'  => $post_id,
+    ) ) . ';';
 
-    // Relocate button into the auto-display container so they sit side by side
-    var container = document.querySelector('.cspv-auto-views');
-    if (container && toggle.parentElement !== container) {
-        container.appendChild(toggle);
-    }
-    toggle.style.display = '';
-
-    toggle.addEventListener('click', function() { panel.classList.toggle('open'); });
-    if (close) close.addEventListener('click', function() { panel.classList.remove('open'); });
-
-    var resync = document.getElementById('cspv-dbg-resync');
-    if (resync) {
-        resync.addEventListener('click', function() {
-            resync.disabled = true;
-            resync.textContent = 'Resyncing…';
-            fetch(<?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=cspv_resync_meta&nonce=' + encodeURIComponent(<?php echo wp_json_encode( wp_create_nonce( 'cspv_resync' ) ); ?>) + '&post_id=' + <?php echo (int) $post_id; ?>
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(resp) {
-                if (resp.success) {
-                    resync.textContent = '✓ Resynced to ' + resp.data.new_count.toLocaleString();
-                    resync.style.background = '#059669';
-                } else {
-                    resync.textContent = '✗ Failed';
-                }
-            })
-            .catch(function() { resync.textContent = '✗ Error'; });
+    $js = $js_data . '
+(function(){
+    var toggle=document.getElementById("cspv-debug-toggle");
+    var panel=document.getElementById("cspv-debug-panel");
+    var close=document.getElementById("cspv-dbg-close");
+    if(!toggle||!panel)return;
+    var container=document.querySelector(".cspv-auto-views");
+    if(container&&toggle.parentElement!==container){container.appendChild(toggle);}
+    toggle.style.display="";
+    toggle.addEventListener("click",function(){panel.classList.toggle("open");});
+    if(close)close.addEventListener("click",function(){panel.classList.remove("open");});
+    var resync=document.getElementById("cspv-dbg-resync");
+    if(resync){
+        resync.addEventListener("click",function(){
+            resync.disabled=true;
+            resync.textContent="Resyncing\u2026";
+            fetch(cspvDebug.ajaxUrl,{
+                method:"POST",credentials:"same-origin",
+                headers:{"Content-Type":"application/x-www-form-urlencoded"},
+                body:"action=cspv_resync_meta&nonce="+encodeURIComponent(cspvDebug.nonce)+"&post_id="+cspvDebug.postId
+            }).then(function(r){return r.json();})
+            .then(function(resp){
+                if(resp.success){
+                    resync.textContent="\u2713 Resynced to "+resp.data.new_count.toLocaleString();
+                    resync.style.background="#059669";
+                }else{resync.textContent="\u2717 Failed";}
+            }).catch(function(){resync.textContent="\u2717 Error";});
         });
     }
-})();
-</script>
-<?php
+})();';
+
+    wp_add_inline_script( 'cspv-debug-panel', $js );
 }
 
 // AJAX handler for resync (from front end debug panel)

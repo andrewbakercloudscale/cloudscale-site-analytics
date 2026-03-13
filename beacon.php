@@ -21,6 +21,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'wp_enqueue_scripts', 'cspv_enqueue_beacon' );
 
+/**
+ * Enqueue the beacon script and pass localised data to it.
+ *
+ * On singular tracked post types the beacon fires in record mode: it POSTs
+ * to the record endpoint and updates the live count element. On archive,
+ * home, front page, and search pages it runs in fetch mode: it collects all
+ * [data-cspv-id] post IDs from the DOM and fetches their counts in one
+ * request so cached listing pages always show fresh numbers.
+ *
+ * @since  1.0.0
+ * @return void
+ */
 function cspv_enqueue_beacon() {
     // Emergency kill switch — stop all tracking
     if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {

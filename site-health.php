@@ -48,7 +48,7 @@ function cspv_compute_site_health() {
     $earliest  = null;
     $data_days = 0;
     if ( $table_exists ) {
-        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" );
+        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
     }
     $today_ts = strtotime( $today );
     if ( $earliest ) {
@@ -81,12 +81,12 @@ function cspv_compute_site_health() {
                 $current  = $r24['current'];
                 $previous = $r24['prior'];
             } else {
-                $start = date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
+                $start = wp_date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
                 $current = (int) $wpdb->get_var( $wpdb->prepare(
                     "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $start ) );
 
                 $prev_end   = $start;
-                $prev_start = date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
+                $prev_start = wp_date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
                 $previous = (int) $wpdb->get_var( $wpdb->prepare(
                     "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
                     $prev_start, $prev_end ) );
@@ -184,8 +184,8 @@ function cspv_compute_site_health() {
 function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     global $wpdb;
 
-    $end   = date( 'Y-m-d', strtotime( "-{$offset} days", $today_ts ) ) . ' 23:59:59';
-    $start = date( 'Y-m-d', strtotime( "-" . ( $offset + $days ) . " days", $today_ts ) ) . ' 00:00:00';
+    $end   = wp_date( 'Y-m-d', strtotime( "-{$offset} days", $today_ts ) ) . ' 23:59:59';
+    $start = wp_date( 'Y-m-d', strtotime( "-" . ( $offset + $days ) . " days", $today_ts ) ) . ' 00:00:00';
 
     $cnt = cspv_count_expr();
     $post_views = $wpdb->get_results( $wpdb->prepare(

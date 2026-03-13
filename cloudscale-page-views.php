@@ -3,7 +3,7 @@
  * Plugin Name:  CloudScale Page Views
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
-  * Version:      2.9.53
+  * Version:      2.9.94
  * Author:       Andrew Baker
  * Author URI:   https://andrewbaker.ninja
  * License:      GPL-2.0+
@@ -52,28 +52,28 @@ register_activation_hook( __FILE__, 'cspv_activate' );
 register_deactivation_hook( __FILE__, function() {
     $dir = plugin_dir_path( __FILE__ );
     foreach ( glob( $dir . '*.{js,css}', GLOB_BRACE ) as $f ) {
-        if ( is_file( $f ) ) { @unlink( $f ); }
+        if ( is_file( $f ) ) { unlink( $f ); }
     }
     $assets = $dir . 'assets/';
     if ( is_dir( $assets ) ) {
         foreach ( glob( $assets . '*' ) as $f ) {
-            if ( is_file( $f ) ) { @unlink( $f ); }
+            if ( is_file( $f ) ) { unlink( $f ); }
         }
-        @rmdir( $assets );
+        rmdir( $assets );
     }
     $admin = $dir . 'admin/';
     if ( is_dir( $admin ) ) {
         foreach ( glob( $admin . '*' ) as $f ) {
-            if ( is_file( $f ) ) { @unlink( $f ); }
+            if ( is_file( $f ) ) { unlink( $f ); }
         }
-        @rmdir( $admin );
+        rmdir( $admin );
     }
     $inc = $dir . 'includes/';
     if ( is_dir( $inc ) ) {
         foreach ( glob( $inc . '*' ) as $f ) {
-            if ( is_file( $f ) ) { @unlink( $f ); }
+            if ( is_file( $f ) ) { unlink( $f ); }
         }
-        @rmdir( $inc );
+        rmdir( $inc );
     }
 } );
 
@@ -86,23 +86,23 @@ add_action( 'admin_init', function() {
         $assets = $dir . 'assets/';
         if ( is_dir( $assets ) ) {
             foreach ( glob( $assets . '*' ) as $f ) {
-                if ( is_file( $f ) ) { @unlink( $f ); }
+                if ( is_file( $f ) ) { unlink( $f ); }
             }
-            @rmdir( $assets );
+            rmdir( $assets );
         }
         $admin = $dir . 'admin/';
         if ( is_dir( $admin ) ) {
             foreach ( glob( $admin . '*' ) as $f ) {
-                if ( is_file( $f ) ) { @unlink( $f ); }
+                if ( is_file( $f ) ) { unlink( $f ); }
             }
-            @rmdir( $admin );
+            rmdir( $admin );
         }
         $inc = $dir . 'includes/';
         if ( is_dir( $inc ) ) {
             foreach ( glob( $inc . '*' ) as $f ) {
-                if ( is_file( $f ) ) { @unlink( $f ); }
+                if ( is_file( $f ) ) { unlink( $f ); }
             }
-            @rmdir( $inc );
+            rmdir( $inc );
         }
 
         cspv_create_table_v2();

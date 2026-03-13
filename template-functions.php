@@ -146,22 +146,18 @@ function cspv_get_views_html( $args = array() ) {
 
 // Output a small stylesheet once per page so the icon and number
 // sit neatly together without the theme needing any CSS changes.
-add_action( 'wp_head', 'cspv_views_inline_style', 99 );
+add_action( 'wp_enqueue_scripts', 'cspv_views_inline_style', 99 );
 
 function cspv_views_inline_style() {
-    ?>
-<style id="cspv-views-style">
-.cspv-views-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: .875em;
-    color: #6b7280;
-    white-space: nowrap;
-}
-.cspv-views-icon  { line-height: 1; font-style: normal; }
-.cspv-views-number { font-variant-numeric: tabular-nums; }
-.cspv-views-suffix { font-size: .9em; }
-</style>
-    <?php
+    // Only enqueue where the counter is likely displayed.
+    if ( ! is_singular() && ! is_home() && ! is_front_page() && ! is_archive() && ! is_search() ) {
+        return;
+    }
+    $css = '.cspv-views-count{display:inline-flex;align-items:center;gap:4px;font-size:.875em;color:#6b7280;white-space:nowrap;}'
+         . '.cspv-views-icon{line-height:1;font-style:normal;}'
+         . '.cspv-views-number{font-variant-numeric:tabular-nums;}'
+         . '.cspv-views-suffix{font-size:.9em;}';
+    wp_register_style( 'cspv-views', false );
+    wp_enqueue_style( 'cspv-views' );
+    wp_add_inline_style( 'cspv-views', $css );
 }

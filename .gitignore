@@ -18,5 +18,6 @@ rollback-wordpress.sh
 .claude/
 .claude-flow/
 crash-remove.sh
+crash-logs/
 _archive/
 WORKING-NOTES.md

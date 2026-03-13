@@ -15,7 +15,6 @@ deploy-wordpress.sh
 backup-s3.sh
 purge-cloudflare.sh
 rollback-wordpress.sh
-repo/
 .claude/
 .claude-flow/
 crash-remove.sh

@@ -2,10 +2,10 @@
 Contributors: andrewbaker
 Tags: page views, analytics, cloudflare, view counter, jetpack migration
 Requires at least: 6.0
-Tested up to: 6.7
+Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 2.9.94
-License: GPLv2 or later
+License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Accurate page view tracking for WordPress sites behind Cloudflare and other CDNs. Counts every view even when HTML is served from cache.

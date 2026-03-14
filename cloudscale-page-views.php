@@ -3,10 +3,10 @@
  * Plugin Name:  CloudScale Page Views
  * Plugin URI:   https://your-wordpress-site.example.com
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
-  * Version:      2.9.94
+ * Version:      2.9.94
  * Author:       Andrew Baker
  * Author URI:   https://your-wordpress-site.example.com
- * License:      GPL-2.0+
+ * License:      GPL-2.0-or-later
  * License URI:  https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:  cloudscale-page-views
  * Requires PHP: 7.4

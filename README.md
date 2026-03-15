@@ -1,4 +1,4 @@
-# CloudScale Page Views
+# WordPress Page Views for Cloudflare
 
 ![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.0-orange)
 

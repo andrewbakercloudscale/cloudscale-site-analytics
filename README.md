@@ -1,6 +1,6 @@
 # WordPress Page Views for Cloudflare
 
-![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.0-orange)
+![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.94-orange)
 
 WordPress analytics that actually work behind Cloudflare. Every other page view counter counts on the server. When Cloudflare serves a cached page, WordPress never executes and the counter never increments. On a site with 85 to 95 percent cache hit rate, server side counters undercount by 5x to 10x.
 

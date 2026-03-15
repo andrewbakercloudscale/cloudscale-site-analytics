@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - IP Throttling + Fail2Ban  v3.1.0
+ * Lightweight Analytics - IP Throttling + Fail2Ban  v3.1.0
  *
  * Two tier IP protection:
  *

@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Top Posts Widget
+ * Lightweight Analytics - Top Posts Widget
  *
  * Sidebar widget that displays a paginated list of top posts ranked by
  * view count from the cspv_views log table, with thumbnail, date and

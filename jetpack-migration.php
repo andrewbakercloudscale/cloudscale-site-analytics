@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Jetpack Migration  v2.0.0
+ * Lightweight Analytics - Jetpack Migration  v2.0.0
  *
  * Migrates historical post view counts from Jetpack into CloudScale.
  *

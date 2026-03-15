@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Site Health Metrics  v4.0.0
+ * Lightweight Analytics - Site Health Metrics  v4.0.0
  *
  * Computes two metric groups across 4 time windows (1 Day, 7 Days, 28 Days, 3 Months)
  * compared against the prior equivalent period:

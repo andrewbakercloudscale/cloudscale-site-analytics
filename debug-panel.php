@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - View Diagnostics Panel  v2.0.0
+ * Lightweight Analytics - View Diagnostics Panel  v2.0.0
  *
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number

@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Admin Columns
+ * Lightweight Analytics - Admin Columns
  *
  * Adds a sortable Views column to the Posts list table in wp-admin.
  *

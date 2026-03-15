@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Shared Stats Library  v1.0.0
+ * Lightweight Analytics - Shared Stats Library  v1.0.0
  *
  * Single source of truth for all rolling time window calculations.
  * Every consumer (dashboard widget, statistics page, site health) calls

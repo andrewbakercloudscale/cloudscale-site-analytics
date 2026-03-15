@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Database
+ * Lightweight Analytics - Database
  *
  * Creates the wp_cspv_views_v2 and wp_cspv_referrers_v2 tables.
  * Plugin uses V2 hourly bucket schema exclusively.

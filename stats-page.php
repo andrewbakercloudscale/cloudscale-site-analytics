@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Statistics Dashboard
+ * Lightweight Analytics - Statistics Dashboard
  *
  * @package Lightweight_WordPress_Free_Analytics
  * @since   1.0.0
@@ -1027,7 +1027,7 @@ function cspv_render_stats_page() {
         </div>
 
         <!-- 404 Tracking -->
-        <div style="margin-top:24px;">
+        <div class="cspv-panel" style="margin-top:24px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
                 <span>🚫 404 Error Log</span>
             </div>
@@ -1037,7 +1037,7 @@ function cspv_render_stats_page() {
         </div>
 
         <!-- Site Health -->
-        <div style="margin-top:24px;">
+        <div class="cspv-panel" style="margin-top:24px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#065f46,#059669);">
                 <span>🏥 Site Health</span>
             </div>
@@ -2233,9 +2233,13 @@ ob_start();
                 zoom: 2,
                 minZoom: 1,
                 maxZoom: 6,
-                scrollWheelZoom: true,
+                scrollWheelZoom: false,
                 attributionControl: false
             });
+            // Enable scroll-to-zoom only while the map has focus (click to engage,
+            // click/scroll outside to release) so two-finger page scrolling still works.
+            geoMap.on('click', function() { geoMap.scrollWheelZoom.enable(); });
+            mapEl.addEventListener('mouseleave', function() { geoMap.scrollWheelZoom.disable(); });
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
                 subdomains: 'abcd',
                 maxZoom: 19

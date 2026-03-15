@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Uninstall
+ * Lightweight Analytics - Uninstall
  *
  * Runs when the plugin is deleted via Plugins > Delete.
  * Removes all plugin data: custom database tables and wp_options entries.

@@ -12,7 +12,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+    exit;
 }
 
 // -------------------------------------------------------------------------
@@ -124,7 +124,7 @@ function cspv_track_404() {
 // 3. AJAX — purge log
 // -------------------------------------------------------------------------
 add_action( 'wp_ajax_cspv_purge_404_log', 'cspv_ajax_purge_404_log' );
-add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script' );
+add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script', 20 );
 
 /**
  * Enqueue the 404 purge button script via wp_add_inline_script.
@@ -140,7 +140,7 @@ function cspv_404_enqueue_purge_script( $hook ) {
 	if ( 'tools_page_lightweight-wordpress-free-analytics' !== $hook ) {
 		return;
 	}
-	$nonce = wp_json_encode( wp_create_nonce( 'cspv_chart_data' ) );
+	$nonce = wp_json_encode( wp_create_nonce( 'cspv_404_data' ) );
 	$js    = '(function(){var btn=document.getElementById("cspv-purge-404-btn");if(!btn)return;'
 		. 'btn.addEventListener("click",function(){'
 		. 'if(!confirm("Clear the entire 404 log? This cannot be undone."))return;'
@@ -163,7 +163,7 @@ function cspv_404_enqueue_purge_script( $hook ) {
  * @return void
  */
 function cspv_ajax_purge_404_log() {
-	if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+	if ( ! check_ajax_referer( 'cspv_404_data', 'nonce', false ) ) {
 		wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
 		return;
 	}

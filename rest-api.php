@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - REST API
+ * Lightweight Analytics - REST API
  *
  * Registers the POST endpoint that the beacon calls.
  * Multiple cache-bypass headers ensure Cloudflare never caches this route.

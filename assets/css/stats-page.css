@@ -238,6 +238,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-radius: 7px 7px 0 0;
 }
 .cspv-section-header-green  { background: linear-gradient(135deg, #1a7a3a, #1db954); }
 .cspv-section-header-orange { background: linear-gradient(135deg, #c45c00, #f47c20); }
@@ -263,7 +264,7 @@
 }
 @media (max-width: 782px) { #cspv-panels { grid-template-columns: 1fr; } }
 #cspv-panels-alltime { margin-bottom: 18px; display: flex; gap: 18px; }
-.cspv-panel { background: #fff; border: 1.5px solid #dce3ef; border-radius: 8px; overflow: hidden; }
+.cspv-panel { background: #fff; border: 1.5px solid #dce3ef; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 6px 20px rgba(0,0,0,.12); }
 
 #cspv-lifetime-bar {
     display: flex;

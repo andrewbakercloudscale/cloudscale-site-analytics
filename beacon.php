@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Beacon Loader  v2.0.0
+ * Lightweight Analytics - Beacon Loader  v2.0.0
  *
  * Two modes:
  *

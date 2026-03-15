@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Page Views - Template Functions  v2.0.0
+ * Lightweight Analytics - Template Functions  v2.0.0
  *
  * USAGE GUIDE
  * ===========

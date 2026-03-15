@@ -5,6 +5,8 @@
  * Paginated recent posts widget with CloudScale view counts.
  * Replaces the standalone CloudScale Paginated Recent Posts plugin
  * that previously used Jetpack stats.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -18,10 +20,22 @@ add_action( 'widgets_init', function () {
     register_widget( 'CSPV_Recent_Posts_Widget' );
 } );
 
-// Enqueue widget CSS once per page via wp_enqueue_scripts.
+// Enqueue widget CSS only on pages where the widget is active.
 add_action( 'wp_enqueue_scripts', 'cspv_recent_posts_widget_enqueue' );
 
+/**
+ * Enqueue inline CSS for the Recent Posts widget.
+ *
+ * Only fires when the widget is active in at least one sidebar to avoid
+ * injecting styles on every frontend page (PCP global-enqueue rule).
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_recent_posts_widget_enqueue() {
+    if ( ! is_active_widget( false, false, 'cspv_recent_posts_widget' ) ) {
+        return;
+    }
     wp_register_style( 'cspv-recent-posts-widget', false );
     wp_enqueue_style( 'cspv-recent-posts-widget' );
     wp_add_inline_style( 'cspv-recent-posts-widget', cspv_recent_posts_widget_css() );
@@ -32,19 +46,27 @@ function cspv_recent_posts_widget_enqueue() {
 // -------------------------------------------------------------------------
 class CSPV_Recent_Posts_Widget extends WP_Widget {
 
+    /**
+     * Register the widget with WordPress.
+     *
+     * @since 1.0.0 */
     public function __construct() {
         parent::__construct(
             'cspv_recent_posts_widget',
-            'CloudScale: Recent Posts',
+            __( 'Lightweight Analytics: Recent Posts', 'lightweight-wordpress-free-analytics' ),
             array(
-                'description'            => 'Shows your latest posts with publication dates and view counts. Paginated with configurable post count.',
+                'description'            => __( 'Shows your latest posts with publication dates and view counts. Paginated with configurable post count.', 'lightweight-wordpress-free-analytics' ),
                 'show_instance_in_rest'  => true,
             )
         );
     }
 
     /**
-     * Format a raw integer view count into a human readable string.
+     * Format a raw integer view count into a human-readable abbreviated string.
+     *
+     * @since 1.0.0
+     * @param int $views Raw view count.
+     * @return string Formatted string (e.g. "1.2k", "3.4M") or empty string for zero.
      */
     private function format_views( $views ) {
         $views = intval( $views );
@@ -60,8 +82,16 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         return number_format( $views );
     }
 
+    /**
+     * Output the widget HTML on the frontend.
+     *
+     * @since 1.0.0
+     * @param array $args     Widget display arguments (before/after widget/title).
+     * @param array $instance Saved widget settings.
+     * @return void
+     */
     public function widget( $args, $instance ) {
-        $title          = apply_filters( 'widget_title', $instance['title'] ?? 'Most Recent Posts' );
+        $title          = apply_filters( 'widget_title', $instance['title'] ?? __( 'Most Recent Posts', 'lightweight-wordpress-free-analytics' ) );
         $posts_per_page = intval( $instance['posts_per_page'] ?? 10 );
         $show_date      = ! empty( $instance['show_date'] );
         $show_views     = ! empty( $instance['show_views'] );
@@ -71,7 +101,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         $param_key      = 'cspv_rp_' . sanitize_key( $widget_id );
         $safe_id        = esc_attr( $widget_id );
 
-        $page = isset( $_GET[ $param_key ] ) ? max( 1, intval( $_GET[ $param_key ] ) ) : 1;
+        $page = isset( $_GET[ $param_key ] ) ? max( 1, absint( wp_unslash( $_GET[ $param_key ] ) ) ) : 1;
 
         $query = new WP_Query( array(
             'posts_per_page' => $posts_per_page,
@@ -166,14 +196,21 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
 
             wp_reset_postdata();
         } else {
-            echo '<p style="font-size:0.85em;color:#888;">No posts found.</p>';
+            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No posts found.', 'lightweight-wordpress-free-analytics' ) . '</p>';
         }
 
         echo $args['after_widget'];
     }
 
+    /**
+     * Render the widget settings form in the Widgets admin screen.
+     *
+     * @since 1.0.0
+     * @param array $instance Current saved widget settings.
+     * @return void
+     */
     public function form( $instance ) {
-        $title          = $instance['title'] ?? 'Most Recent Posts';
+        $title          = $instance['title'] ?? __( 'Most Recent Posts', 'lightweight-wordpress-free-analytics' );
         $posts_per_page = $instance['posts_per_page'] ?? 10;
         $show_date      = ! empty( $instance['show_date'] );
         $show_views     = isset( $instance['show_views'] ) ? (bool) $instance['show_views'] : true;
@@ -181,48 +218,48 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         $meta_hover     = $instance['meta_hover'] ?? '#ea580c';
         ?>
         <p>
-            <label for="<?php echo $this->get_field_id('title'); ?>">Title:</label>
+            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Title:', 'lightweight-wordpress-free-analytics' ); ?></label>
             <input class="widefat"
-                   id="<?php echo $this->get_field_id('title'); ?>"
-                   name="<?php echo $this->get_field_name('title'); ?>"
+                   id="<?php echo esc_attr( $this->get_field_id('title') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('title') ); ?>"
                    type="text"
                    value="<?php echo esc_attr( $title ); ?>">
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('posts_per_page'); ?>">Posts per page:</label>
+            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page:', 'lightweight-wordpress-free-analytics' ); ?></label>
             <input class="tiny-text"
-                   id="<?php echo $this->get_field_id('posts_per_page'); ?>"
-                   name="<?php echo $this->get_field_name('posts_per_page'); ?>"
+                   id="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('posts_per_page') ); ?>"
                    type="number" min="1" max="50"
                    value="<?php echo esc_attr( $posts_per_page ); ?>">
         </p>
         <p>
             <input type="checkbox"
-                   id="<?php echo $this->get_field_id('show_date'); ?>"
-                   name="<?php echo $this->get_field_name('show_date'); ?>"
+                   id="<?php echo esc_attr( $this->get_field_id('show_date') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('show_date') ); ?>"
                    <?php checked( $show_date ); ?>>
-            <label for="<?php echo $this->get_field_id('show_date'); ?>">Display post date</label>
+            <label for="<?php echo esc_attr( $this->get_field_id('show_date') ); ?>"><?php esc_html_e( 'Display post date', 'lightweight-wordpress-free-analytics' ); ?></label>
         </p>
         <p>
             <input type="checkbox"
-                   id="<?php echo $this->get_field_id('show_views'); ?>"
-                   name="<?php echo $this->get_field_name('show_views'); ?>"
+                   id="<?php echo esc_attr( $this->get_field_id('show_views') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('show_views') ); ?>"
                    <?php checked( $show_views ); ?>>
-            <label for="<?php echo $this->get_field_id('show_views'); ?>">Display view count</label>
+            <label for="<?php echo esc_attr( $this->get_field_id('show_views') ); ?>"><?php esc_html_e( 'Display view count', 'lightweight-wordpress-free-analytics' ); ?></label>
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('meta_color'); ?>">Date &amp; views colour:</label><br>
-            <input id="<?php echo $this->get_field_id('meta_color'); ?>"
-                   name="<?php echo $this->get_field_name('meta_color'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+            <input id="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('meta_color') ); ?>"
                    type="color"
                    value="<?php echo esc_attr( $meta_color ); ?>"
                    style="width:50px;height:30px;padding:0;border:1px solid #ccc;border-radius:3px;cursor:pointer;vertical-align:middle;">
             <code style="font-size:11px;color:#666;"><?php echo esc_html( $meta_color ); ?></code>
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('meta_hover'); ?>">Date &amp; views hover colour:</label><br>
-            <input id="<?php echo $this->get_field_id('meta_hover'); ?>"
-                   name="<?php echo $this->get_field_name('meta_hover'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+            <input id="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('meta_hover') ); ?>"
                    type="color"
                    value="<?php echo esc_attr( $meta_hover ); ?>"
                    style="width:50px;height:30px;padding:0;border:1px solid #ccc;border-radius:3px;cursor:pointer;vertical-align:middle;">
@@ -231,6 +268,14 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         <?php
     }
 
+    /**
+     * Sanitise and save widget settings submitted from the form.
+     *
+     * @since 1.0.0
+     * @param array $new_instance New settings submitted by the user.
+     * @param array $old_instance Previous saved settings.
+     * @return array Sanitised settings to persist.
+     */
     public function update( $new_instance, $old_instance ) {
         return array(
             'title'          => sanitize_text_field( $new_instance['title'] ),

@@ -1,6 +1,9 @@
 <?php
 /**
- * CloudScale Page Views - Statistics Dashboard  v2.0.0
+ * CloudScale Page Views - Statistics Dashboard
+ *
+ * @package Lightweight_WordPress_Free_Analytics
+ * @since   1.0.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -18,18 +21,31 @@ add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 
+/**
+ * Register the plugin stats page under Tools.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_add_tools_page() {
     add_management_page(
-        'CloudScale Page Views',
-        'CloudScale Page Views',
+        'Lightweight WordPress Free Analytics',
+        'Lightweight Analytics',
         'manage_options',
-        'cloudscale-page-views',
+        'lightweight-wordpress-free-analytics',
         'cspv_render_stats_page'
     );
 }
 
+/**
+ * Enqueue Chart.js, Leaflet and plugin CSS/JS on the stats page.
+ *
+ * @since 1.0.0
+ * @param string $hook Current admin page hook.
+ * @return void
+ */
 function cspv_enqueue_admin_assets( $hook ) {
-    if ( 'tools_page_cloudscale-page-views' !== $hook ) { return; }
+    if ( 'tools_page_lightweight-wordpress-free-analytics' !== $hook ) { return; }
     wp_enqueue_script( 'cspv-chartjs',
         CSPV_PLUGIN_URL . 'assets/js/chart.umd.min.js',
         array(), '4.4.1', true );
@@ -50,6 +66,12 @@ function cspv_enqueue_admin_assets( $hook ) {
 // ---------------------------------------------------------------------------
 // AJAX — chart data
 // ---------------------------------------------------------------------------
+/**
+ * AJAX handler: return chart data for the stats dashboard.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_chart_data() {
     if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
@@ -108,8 +130,8 @@ function cspv_ajax_chart_data() {
         return;
     }
 
-    $rolling24h = ! empty( $_POST['rolling24h'] );
-    $rolling7h  = ! empty( $_POST['rolling7h'] );
+    $rolling24h = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
+    $rolling7h  = ! empty( $_POST['rolling7h'] )  && '1' === sanitize_text_field( wp_unslash( $_POST['rolling7h'] ) );
 
     if ( $rolling7h ) {
         // Rolling 7h: from NOW-7h to NOW, bucketed by hour
@@ -134,7 +156,7 @@ function cspv_ajax_chart_data() {
     if ( $rolling7h ) {
         // ── 7 Hours: build 7 hourly slots ──
         $label_fmt = 'hour';
-        $raw = $wpdb->get_results( $wpdb->prepare(
+        $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
               FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
               GROUP BY hr_key ORDER BY hr_key ASC",
@@ -157,7 +179,7 @@ function cspv_ajax_chart_data() {
 
         if ( $rolling24h ) {
             // Rolling: bucket by hour across the 24h window
-            $raw = $wpdb->get_results( $wpdb->prepare(
+            $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
                   FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
                   GROUP BY hr_key ORDER BY hr_key ASC",
@@ -176,7 +198,7 @@ function cspv_ajax_chart_data() {
                 $cur->modify( '+1 hour' );
             }
         } else {
-            $raw = $wpdb->get_results( $wpdb->prepare(
+            $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, {$cnt} AS views
                   FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
                   GROUP BY hr",
@@ -194,7 +216,7 @@ function cspv_ajax_chart_data() {
     } elseif ( $diff_days <= 90 ) {
         // ── Daily: build every date in range, fill from DB ────────────
         $label_fmt = 'day';
-        $raw = $wpdb->get_results( $wpdb->prepare(
+        $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS ymd, {$cnt} AS views
               FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
               GROUP BY ymd",
@@ -249,10 +271,10 @@ function cspv_ajax_chart_data() {
     $in_transition = ( $log_age_days < max( 1, $diff_days ) );
 
     if ( $in_transition ) {
-        $lt_total = (int) $wpdb->get_var(
+        $lt_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT SUM(CAST(meta_value AS UNSIGNED)) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
         );
-        $lt_posts = (int) $wpdb->get_var(
+        $lt_posts = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
         );
         $total_views  = max( $total_views, $lt_total );
@@ -296,10 +318,10 @@ function cspv_ajax_chart_data() {
     $lifetime_visitors = cspv_unique_visitors_for_range( '2000-01-01', '2099-12-31' );
 
     // ── Lifetime totals from post meta (includes Jetpack imports) ────
-    $lifetime_total = (int) $wpdb->get_var(
+    $lifetime_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT SUM(CAST(meta_value AS UNSIGNED)) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
     );
-    $lifetime_posts = (int) $wpdb->get_var(
+    $lifetime_posts = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
     );
 
@@ -311,7 +333,7 @@ function cspv_ajax_chart_data() {
         // Exclude Jetpack/imported rows — V2 schema uses source column
         $jp_where      = "v.source != 'imported'";
         $jp_where_bare = "source != 'imported'";
-        $lifetime_top_raw = $wpdb->get_results(
+        $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT v.post_id, {$cnt} AS total_views
              FROM `{$table}` v
              INNER JOIN {$wpdb->posts} p ON p.ID = v.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
@@ -319,11 +341,11 @@ function cspv_ajax_chart_data() {
              GROUP BY v.post_id
              ORDER BY total_views DESC LIMIT 10"
         );
-        $lifetime_total = (int) $wpdb->get_var( "SELECT {$cnt} FROM `{$table}` WHERE {$jp_where_bare}" );
-        $lifetime_posts = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE {$jp_where_bare}" );
+        $lifetime_total = (int) $wpdb->get_var( "SELECT {$cnt} FROM `{$table}` WHERE {$jp_where_bare}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $lifetime_posts = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE {$jp_where_bare}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
     } else {
         // Meta (includes Jetpack imported)
-        $lifetime_top_raw = $wpdb->get_results(
+        $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
              FROM {$wpdb->postmeta} pm
              INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
@@ -368,12 +390,21 @@ function cspv_ajax_chart_data() {
 // ---------------------------------------------------------------------------
 // Post search AJAX (for post history tab)
 // ---------------------------------------------------------------------------
+/**
+ * AJAX handler: search for posts by title for the post-history lookup.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_post_search() {
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
 
     global $wpdb;
-    $q = isset( $_POST['q'] ) ? sanitize_text_field( $_POST['q'] ) : '';
+    $q = isset( $_POST['q'] ) ? sanitize_text_field( wp_unslash( $_POST['q'] ) ) : '';
     if ( strlen( $q ) < 2 ) { wp_send_json_success( array() ); }
 
     $args = array(
@@ -392,7 +423,7 @@ function cspv_ajax_post_search() {
         $s_cnt   = cspv_count_expr();
         $s_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $s_table ) );
         if ( $s_table_exists ) {
-            $s_rows = $wpdb->get_results(
+            $s_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT post_id, {$s_cnt} AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" );
             foreach ( (array) $s_rows as $sr ) {
                 $search_log_counts[ (int) $sr->post_id ] = (int) $sr->cnt;
@@ -418,9 +449,18 @@ function cspv_ajax_post_search() {
 // ---------------------------------------------------------------------------
 // Post history AJAX
 // ---------------------------------------------------------------------------
+/**
+ * AJAX handler: return view history for a single post.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_post_history() {
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
 
     global $wpdb;
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
@@ -443,17 +483,17 @@ function cspv_ajax_post_history() {
     $wp_48h    = wp_date( 'Y-m-d H:i:s', strtotime( $wp_now ) - 172800 );
 
     if ( $table_exists ) {
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d AND source = 'tracked'", $post_id ) );
 
-        $first_log = $wpdb->get_var( $wpdb->prepare(
+        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $last_log = $wpdb->get_var( $wpdb->prepare(
+        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
         // Daily views for last 180 days
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
@@ -463,7 +503,7 @@ function cspv_ajax_post_history() {
         }
 
         // Hourly views for last 48 hours
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
@@ -473,7 +513,7 @@ function cspv_ajax_post_history() {
         }
 
         // 180 day daily timeline with top referrer per day
-        $timeline_rows = $wpdb->get_results( $wpdb->prepare(
+        $timeline_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
@@ -481,7 +521,7 @@ function cspv_ajax_post_history() {
 
         // Top referrer per day (uses shared referrer source)
         $ref_src  = cspv_referrer_source();
-        $ref_rows = $wpdb->get_results( $wpdb->prepare(
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, referrer, {$ref_src['cnt']} AS cnt
              FROM `{$ref_src['table']}`
              WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
@@ -532,9 +572,18 @@ function cspv_ajax_post_history() {
 // ---------------------------------------------------------------------------
 // Resync meta from stats page
 // ---------------------------------------------------------------------------
+/**
+ * AJAX handler: re-sync post meta view counts from the beacon log.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_resync_meta_from_stats() {
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
 
     global $wpdb;
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
@@ -542,7 +591,7 @@ function cspv_ajax_resync_meta_from_stats() {
 
     $table     = cspv_views_table();
     $cnt       = cspv_count_expr();
-    $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+    $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $new_count = $log_count + max( 0, $jp_views );
@@ -560,13 +609,22 @@ function cspv_ajax_resync_meta_from_stats() {
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * AJAX handler: toggle the ignore-Jetpack-views option.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_toggle_ignore_jetpack() {
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
 
     // Accept explicit value if sent, otherwise toggle
     if ( isset( $_POST['value'] ) ) {
-        $new = $_POST['value'] === '1' ? '1' : '0';
+        $new = ( isset( $_POST['value'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['value'] ) ) ) ? '1' : '0';
     } else {
         $current = get_option( 'cspv_ignore_jetpack', '0' );
         $new     = ( $current === '1' ) ? '0' : '1';
@@ -576,15 +634,25 @@ function cspv_ajax_toggle_ignore_jetpack() {
     wp_send_json_success( array( 'ignore_jetpack' => $new === '1' ) );
 }
 
+/**
+ * AJAX handler: return per-post breakdown for a selected country.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_country_drill() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Forbidden' );
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
     }
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
 
-    $country = strtoupper( sanitize_text_field( $_POST['country'] ?? '' ) );
-    $from    = sanitize_text_field( $_POST['from'] ?? '' );
-    $to      = sanitize_text_field( $_POST['to'] ?? '' );
+    $country = strtoupper( sanitize_text_field( wp_unslash( $_POST['country'] ?? '' ) ) );
+    $from    = sanitize_text_field( wp_unslash( $_POST['from'] ?? '' ) );
+    $to      = sanitize_text_field( wp_unslash( $_POST['to'] ?? '' ) );
 
     if ( strlen( $country ) !== 2 || ! $from || ! $to ) {
         wp_send_json_error( 'Invalid parameters' );
@@ -597,11 +665,21 @@ function cspv_ajax_country_drill() {
     wp_send_json_success( array( 'pages' => $pages ) );
 }
 
+/**
+ * AJAX handler: download and install the DB-IP Lite geolocation database.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_download_dbip() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Forbidden' );
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
     }
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
 
     $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
     $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
@@ -682,15 +760,25 @@ function cspv_ajax_download_dbip() {
     ) );
 }
 
+/**
+ * AJAX handler: purge the unique-visitors table.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_ajax_purge_visitors() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Forbidden' );
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
     }
-    check_ajax_referer( 'cspv_chart_data', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
 
     global $wpdb;
     $table = $wpdb->prefix . 'cspv_visitors_v2';
-    $days  = (int) ( $_POST['days'] ?? 90 );
+    $days  = absint( wp_unslash( $_POST['days'] ?? 90 ) );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -698,15 +786,15 @@ function cspv_ajax_purge_visitors() {
     }
 
     if ( $days === 0 ) {
-        $deleted = $wpdb->query( "TRUNCATE TABLE `{$table}`" );
+        $deleted = $wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         wp_send_json_success( array( 'deleted' => 'all', 'remaining' => 0 ) );
     }
 
     $cutoff = ( new DateTime( 'now', wp_timezone() ) )->modify( '-' . $days . ' days' )->format( 'Y-m-d' );
-    $deleted = $wpdb->query( $wpdb->prepare(
+    $deleted = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "DELETE FROM `{$table}` WHERE viewed_at < %s", $cutoff
     ) );
-    $remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" );
+    $remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
 
     wp_send_json_success( array(
         'deleted'   => (int) $deleted,
@@ -718,6 +806,12 @@ function cspv_ajax_purge_visitors() {
 // ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
+/**
+ * Render the full stats page HTML.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_render_stats_page() {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     global $wpdb;
@@ -725,15 +819,15 @@ function cspv_render_stats_page() {
     // Handle display settings save
     if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( $_POST['cspv_display_nonce'], 'cspv_display_save' ) ) {
         $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
-        $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( $_POST['cspv_auto_display'] ) : 'before_content';
+        $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
         update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );
 
         $valid_styles = array( 'badge', 'pill', 'minimal' );
-        $sty = isset( $_POST['cspv_display_style'] ) ? sanitize_text_field( $_POST['cspv_display_style'] ) : 'badge';
+        $sty = isset( $_POST['cspv_display_style'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_style'] ) ) : 'badge';
         update_option( 'cspv_display_style', in_array( $sty, $valid_styles, true ) ? $sty : 'badge' );
 
-        update_option( 'cspv_display_icon', isset( $_POST['cspv_display_icon'] ) ? sanitize_text_field( $_POST['cspv_display_icon'] ) : '👁' );
-        update_option( 'cspv_display_suffix', isset( $_POST['cspv_display_suffix'] ) ? sanitize_text_field( $_POST['cspv_display_suffix'] ) : ' views' );
+        update_option( 'cspv_display_icon', isset( $_POST['cspv_display_icon'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_icon'] ) ) : '👁' );
+        update_option( 'cspv_display_suffix', isset( $_POST['cspv_display_suffix'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_suffix'] ) ) : ' views' );
 
         $pt = isset( $_POST['cspv_display_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_display_post_types'] ) : array( 'post' );
         update_option( 'cspv_display_post_types', $pt );
@@ -742,15 +836,18 @@ function cspv_render_stats_page() {
         update_option( 'cspv_track_post_types', $tpt );
 
         $valid_colors = array( 'blue', 'pink', 'red', 'purple', 'grey' );
-        $col = isset( $_POST['cspv_display_color'] ) ? sanitize_text_field( $_POST['cspv_display_color'] ) : 'blue';
+        $col = isset( $_POST['cspv_display_color'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_color'] ) ) : 'blue';
         update_option( 'cspv_display_color', in_array( $col, $valid_colors, true ) ? $col : 'blue' );
 
         // Geography source
         $valid_geo = array( 'auto', 'cloudflare', 'dbip', 'disabled' );
-        $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( $_POST['cspv_geo_source'] ) : 'auto';
+        $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_geo_source'] ) ) : 'auto';
         update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
 
-        echo '<div class="notice notice-success is-dismissible"><p>Display settings saved.</p></div>';
+        printf(
+            '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+            esc_html__( 'Display settings saved.', 'lightweight-wordpress-free-analytics' )
+        );
     }
 
     $ajax_url        = admin_url( 'admin-ajax.php' );
@@ -795,7 +892,7 @@ function cspv_render_stats_page() {
         $ph_cnt   = cspv_count_expr();
         $ph_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ph_table ) );
         if ( $ph_table_exists ) {
-            $ph_rows = $wpdb->get_results(
+            $ph_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT post_id, {$ph_cnt} AS cnt FROM `{$ph_table}` WHERE post_id IN ({$ph_ids_str}) GROUP BY post_id" );
             foreach ( (array) $ph_rows as $pr ) {
                 $ph_log_counts[ (int) $pr->post_id ] = (int) $pr->cnt;
@@ -976,9 +1073,19 @@ function cspv_render_stats_page() {
             </div>
             <div id="cspv-cf-rule">
                 Required Cache Rule: URI Path <code>contains</code>
-                <code>/wp-json/cloudscale-page-views/</code> → Cache Status: <strong>Bypass</strong>
+                <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Cache Status: <strong>Bypass</strong>
             </div>
             <div id="cspv-cf-test-log"></div>
+        </div>
+
+        <!-- 404 Tracking -->
+        <div style="margin-top:24px;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
+                <span>🚫 404 Error Log</span>
+            </div>
+            <div id="cspv-404-inner" style="padding:20px 24px;">
+                <?php cspv_render_404_html(); ?>
+            </div>
         </div>
 
         <!-- Site Health -->
@@ -1051,7 +1158,7 @@ function cspv_render_stats_page() {
                     foreach ( $color_map as $ckey => $cval ) : ?>
                     <label class="cspv-dsp-style-card<?php echo $dsp_color === $ckey ? ' active' : ''; ?>">
                         <input type="radio" name="cspv_display_color" value="<?php echo esc_attr( $ckey ); ?>" <?php checked( $dsp_color, $ckey ); ?>>
-                        <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;background:<?php echo $cval['grad']; ?>;color:<?php echo $cval['text']; ?>;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:700;">👁 1,234 <span style="opacity:.8;font-size:11px;">views</span></span>
+                        <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;background:<?php echo esc_attr( $cval['grad'] ); ?>;color:<?php echo esc_attr( $cval['text'] ); ?>;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:700;">👁 1,234 <span style="opacity:.8;font-size:11px;">views</span></span>
                         <span class="cspv-dsp-style-name"><?php echo esc_html( $cval['label'] ); ?></span>
                     </label>
                     <?php endforeach; ?>
@@ -1189,12 +1296,12 @@ function cspv_render_stats_page() {
                 <?php
                 global $wpdb;
                 $vis_table = $wpdb->prefix . 'cspv_visitors_v2';
-                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) );
+                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 if ( $vis_exists ) {
-                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" );
-                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" );
-                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" );
-                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" );
+                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                     echo '<div style="font-size:11px;color:#888;margin-top:4px;">'
                        . 'Visitor table: ' . number_format( $vis_rows ) . ' rows, '
                        . number_format( $vis_unique ) . ' unique hashes';
@@ -1651,13 +1758,13 @@ function cspv_render_stats_page() {
                     ?>
                     <div class="cspv-ph-row" data-id="<?php echo $p->ID; ?>"
                          data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
-                         data-views="<?php echo $views; ?>"
-                         data-pageviews="<?php echo $ph_logged; ?>"
-                         data-jetpack="<?php echo $jetpack; ?>"
+                         data-views="<?php echo esc_attr( (int) $views ); ?>"
+                         data-pageviews="<?php echo esc_attr( (int) $ph_logged ); ?>"
+                         data-jetpack="<?php echo esc_attr( (int) $jetpack ); ?>"
                          style="display:flex;align-items:center;
                         padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
                         <div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                            <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo $p->post_type; ?></span>
+                            <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo esc_html( $p->post_type ); ?></span>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
                             <?php echo number_format( $views ); ?>
@@ -2698,7 +2805,7 @@ ob_start();
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here (not imported Jetpack totals). Click any title to visit the post.' },
                 { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
-                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-page-views/</code> → Bypass Cache.' },
+                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Bypass Cache.' },
                 { title: 'Installation', badge: 'required', body: 'No additional installation required. The plugin creates its database table automatically on activation. Ensure your Cloudflare Cache Rule is set up (see Cache Bypass above) for accurate counting behind a CDN.' }
             ]
         },
@@ -2810,7 +2917,7 @@ ob_start();
 
     // ── Cache bypass test ──────────────────────────────────────────
     (function() {
-        var testUrl  = <?php echo wp_json_encode( rest_url( 'cloudscale-page-views/v1/cache-test' ) ); ?>;
+        var testUrl  = <?php echo wp_json_encode( rest_url( 'lightweight-wordpress-free-analytics/v1/cache-test' ) ); ?>;
         var wpNonce  = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
         var badge    = document.getElementById('cspv-cf-status-badge');
         var log      = document.getElementById('cspv-cf-test-log');
@@ -3232,7 +3339,7 @@ ob_start();
         },
         'cache-test': {
             title: '☁ Cloudflare Cache Test',
-            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/cloudscale-page-views/</code> → Bypass Cache.</p>'
+            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Bypass Cache.</p>'
         },
         'display-position': {
             title: '📍 Display Position',

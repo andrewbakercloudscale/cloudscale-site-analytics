@@ -7,6 +7,8 @@
  *   - Last 7 days total
  *   - Time-period chart: 7 Hours / 1 Day / 7 Days / 1 Month / 6 Months
  *   - Top 3 posts and top 3 referrers for today (side by side)
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,6 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'admin_enqueue_scripts', 'cspv_dashboard_widget_enqueue' );
 
+/**
+ * Enqueue Chart.js and widget scripts on the WordPress dashboard only.
+ *
+ * @since 1.0.0
+ * @param string $hook Current admin page hook suffix.
+ * @return void
+ */
 function cspv_dashboard_widget_enqueue( $hook ) {
     if ( 'index.php' !== $hook ) {
         return;
@@ -80,6 +89,12 @@ function cspv_dashboard_widget_enqueue( $hook ) {
 
 add_action( 'wp_dashboard_setup', 'cspv_register_dashboard_widget' );
 
+/**
+ * Register the CloudScale Page Views dashboard widget.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_register_dashboard_widget() {
     wp_add_dashboard_widget(
         'cspv_dashboard_widget',
@@ -92,6 +107,12 @@ function cspv_register_dashboard_widget() {
     );
 }
 
+/**
+ * Render the dashboard widget HTML including the chart and summary stats.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_render_dashboard_widget() {
     global $wpdb;
     $table = cspv_views_table();
@@ -122,15 +143,15 @@ function cspv_render_dashboard_widget() {
     }
 
     if ( $table_exists ) {
-        $today_views = (int) $wpdb->get_var( $wpdb->prepare(
+        $today_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $today_s, $today_e ) );
 
-        $yest_views = (int) $wpdb->get_var( $wpdb->prepare(
+        $yest_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $yest_s, $yest_e ) );
 
-        $week_views = (int) $wpdb->get_var( $wpdb->prepare(
+        $week_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
 
         // Rolling 24h: shared stats library (single source of truth)
@@ -161,7 +182,7 @@ function cspv_render_dashboard_widget() {
                 $hr_s = $yest . ' ' . sprintf( '%02d:00:00', $hr );
                 $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
             }
-            $hour_values[] = (int) $wpdb->get_var( $wpdb->prepare(
+            $hour_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
                 $hr_s, $hr_e ) );
         } else {
@@ -176,7 +197,7 @@ function cspv_render_dashboard_widget() {
             $hr = ( $now_hour - $h + 24 ) % 24;
             $hr_s = $yest . ' ' . sprintf( '%02d:00:00', $hr );
             $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
-            $prev_7h_views += (int) $wpdb->get_var( $wpdb->prepare(
+            $prev_7h_views += (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
                 $hr_s, $hr_e ) );
         }
@@ -194,7 +215,7 @@ function cspv_render_dashboard_widget() {
         if ( $table_exists ) {
             $hr_s = $d . ' ' . sprintf( '%02d:00:00', $hr );
             $hr_e = $d . ' ' . sprintf( '%02d:59:59', $hr );
-            $day1_values[] = (int) $wpdb->get_var( $wpdb->prepare(
+            $day1_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
                 $hr_s, $hr_e ) );
         } else {
@@ -208,7 +229,7 @@ function cspv_render_dashboard_widget() {
         $day1_end   = current_time( 'Y-m-d H:00:00' );
         $day1_start = wp_date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end ) ) );
         $prev_start = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end ) ) );
-        $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare(
+        $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev_start, $day1_start ) );
     }
@@ -225,7 +246,7 @@ function cspv_render_dashboard_widget() {
         $pct   = round( ( $delta / $init_prev ) * 100 );
         $arrow = $delta >= 0 ? '↑' : '↓';
         $color = $delta >= 0 ? '#1db954' : '#e53e3e';
-        $delta_html = '<span style="color:' . $color . ';">' . $arrow . ' ' . abs( $pct ) . '%</span>';
+        $delta_html = '<span style="color:' . esc_attr( $color ) . ';">' . esc_html( $arrow ) . ' ' . absint( $pct ) . '%</span>';
     } else {
         $delta_html = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
     }
@@ -238,7 +259,7 @@ function cspv_render_dashboard_widget() {
         $d = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
         $day7_labels[] = wp_date( 'j M', strtotime( $d ) );
         if ( $table_exists ) {
-            $day7_values[] = (int) $wpdb->get_var( $wpdb->prepare(
+            $day7_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT {$cnt} FROM `{$table}` WHERE DATE(viewed_at) = %s", $d ) );
         } else {
             $day7_values[] = 0;
@@ -247,7 +268,7 @@ function cspv_render_dashboard_widget() {
     if ( $table_exists ) {
         $prev7_start = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
         $prev7_end   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
-        $prev7_views = (int) $wpdb->get_var( $wpdb->prepare(
+        $prev7_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
             $prev7_start, $prev7_end ) );
     }
@@ -258,7 +279,7 @@ function cspv_render_dashboard_widget() {
     $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
     $raw_month    = array();
     if ( $table_exists ) {
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}` WHERE viewed_at >= %s
              GROUP BY day", $m28_s ) );
@@ -317,7 +338,7 @@ function cspv_render_dashboard_widget() {
         }
     }
 
-    $stats_url   = admin_url( 'tools.php?page=cloudscale-page-views' );
+    $stats_url   = admin_url( 'tools.php?page=lightweight-wordpress-free-analytics' );
     $throttle_on = cspv_throttle_enabled();
     $blocked     = count( cspv_get_blocklist() );
     $widget_id   = 'cspv-dw-' . substr( md5( uniqid() ), 0, 6 );
@@ -528,6 +549,10 @@ function cspv_render_dashboard_widget() {
 
     var periodLabels = { hours: '7h', day: '24h', days: '7 days', month: '30 days', months: '6 months' };
 
+    function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
     function renderLists(data, period) {
         var pLabel = periodLabels[period] || '24h';
         var pagesEl = document.getElementById('cspv-dw-top-pages');
@@ -550,8 +575,8 @@ function cspv_render_dashboard_widget() {
                 var p = data.top_pages[i];
                 var pct = maxV > 0 ? Math.round((p.views / maxV) * 100) : 0;
                 var titleHtml = p.url
-                    ? '<a href="' + p.url + '" target="_blank" class="cspv-dw-row-title">' + p.title + '</a>'
-                    : '<span class="cspv-dw-row-title">' + p.title + '</span>';
+                    ? '<a href="' + esc(p.url) + '" target="_blank" class="cspv-dw-row-title">' + esc(p.title) + '</a>'
+                    : '<span class="cspv-dw-row-title">' + esc(p.title) + '</span>';
                 h += '<div class="cspv-dw-row">' + titleHtml
                    + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + pct + '%"></div></div>'
                    + '<span class="cspv-dw-row-num">' + p.views.toLocaleString() + '</span></div>';
@@ -568,7 +593,7 @@ function cspv_render_dashboard_widget() {
             for (var j = 0; j < data.ref_domains.length; j++) {
                 var d = data.ref_domains[j];
                 var rpct = maxR > 0 ? Math.round((d.views / maxR) * 100) : 0;
-                rh += '<div class="cspv-dw-row"><span class="cspv-dw-ref-host">' + d.host + '</span>'
+                rh += '<div class="cspv-dw-row"><span class="cspv-dw-ref-host">' + esc(d.host) + '</span>'
                     + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + rpct + '%"></div></div>'
                     + '<span class="cspv-dw-row-num">' + d.views.toLocaleString() + '</span></div>';
             }
@@ -587,7 +612,7 @@ function cspv_render_dashboard_widget() {
                 var display = rp.host;
                 try { var u = new URL(rp.url); display = u.hostname + u.pathname.replace(/\/$/, ''); } catch(e) {}
                 ph += '<div class="cspv-dw-row">'
-                    + '<a href="' + rp.url + '" target="_blank" class="cspv-dw-ref-link" title="' + rp.url + '">' + display + '</a>'
+                    + '<a href="' + esc(rp.url) + '" target="_blank" class="cspv-dw-ref-link" title="' + esc(rp.url) + '">' + esc(display) + '</a>'
                     + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + ppct + '%"></div></div>'
                     + '<span class="cspv-dw-row-num">' + rp.views.toLocaleString() + '</span></div>';
             }
@@ -781,13 +806,22 @@ function cspv_render_dashboard_widget() {
 
 /* ─── AJAX: fetch top pages + referrers for a period ─────────────── */
 add_action( 'wp_ajax_cspv_widget_lists', 'cspv_ajax_widget_lists' );
+/**
+ * AJAX handler: return top pages and referrers for a given time period.
+ *
+ * Requires manage_options capability and a valid nonce. Returns JSON
+ * with pages and referrers arrays for the requested period.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response.
+ */
 function cspv_ajax_widget_lists() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Forbidden' );
     }
     check_ajax_referer( 'cspv_widget_lists', 'nonce' );
 
-    $period = sanitize_text_field( $_POST['period'] ?? 'day' );
+    $period = sanitize_text_field( wp_unslash( $_POST['period'] ?? 'day' ) );
 
     // Compute date range based on period
     $now = new DateTime( 'now', wp_timezone() );

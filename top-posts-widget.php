@@ -5,16 +5,30 @@
  * Sidebar widget that displays a paginated list of top posts ranked by
  * view count from the cspv_views log table, with thumbnail, date and
  * formatted view count.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Enqueue widget CSS once per page via wp_enqueue_scripts.
+// Enqueue widget CSS/JS only on pages where the widget is active.
 add_action( 'wp_enqueue_scripts', 'cspv_top_posts_widget_enqueue' );
 
+/**
+ * Enqueue inline CSS and JS for the Top Posts widget.
+ *
+ * Only fires when the widget is active in at least one sidebar to avoid
+ * injecting styles and scripts on every frontend page (PCP global-enqueue rule).
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_top_posts_widget_enqueue() {
+    if ( ! is_active_widget( false, false, 'cspv_top_posts_widget' ) ) {
+        return;
+    }
     wp_register_style( 'cspv-top-posts-widget', false );
     wp_enqueue_style( 'cspv-top-posts-widget' );
     wp_add_inline_style( 'cspv-top-posts-widget', cspv_top_posts_widget_css() );
@@ -26,6 +40,15 @@ function cspv_top_posts_widget_enqueue() {
 // -------------------------------------------------------------------------
 // 1. Query helper: get top posts ranked by CloudScale view data
 // -------------------------------------------------------------------------
+/**
+ * Return top posts ranked by view data.
+ *
+ * @since 1.0.0
+ * @param int    $total       Maximum number of posts to return.
+ * @param string $order_by    Sort field: 'views' or 'date'.
+ * @param int    $view_window Days to look back; -1 for all time.
+ * @return array Array of { post, views } pairs.
+ */
 function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
 
     // --- Rank by views ---
@@ -59,7 +82,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         // ── Transition period: blend meta + beacon, rank by combined total ──
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare(
+            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "SELECT post_id, {$cnt} AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
                 $since
             ) ) : array();
@@ -70,7 +93,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
             }
 
             // Get all posts with lifetime meta > 0
-            $meta_rows = $wpdb->get_results(
+            $meta_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; fully hardcoded query
                 "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS lifetime
                  FROM {$wpdb->posts} p
                  INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
@@ -127,7 +150,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         if ( $table_exists ) {
             if ( $view_window > 0 ) {
                 $since = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-                $ranked = $wpdb->get_results( $wpdb->prepare(
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                     "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      WHERE viewed_at >= %s
@@ -138,7 +161,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                     $total * 2
                 ) );
             } else {
-                $ranked = $wpdb->get_results( $wpdb->prepare(
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                     "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      GROUP BY post_id
@@ -183,16 +206,19 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         }
 
         // Fallback: rank by meta if log table empty or missing
-        $meta_fallback = $wpdb->get_results(
-            "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS total_views
-             FROM {$wpdb->posts} p
-             INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
-             WHERE p.post_type = 'post'
-               AND p.post_status = 'publish'
-               AND pm.meta_key = '_cspv_view_count'
-               AND CAST(pm.meta_value AS UNSIGNED) > 0
-             ORDER BY total_views DESC
-             LIMIT " . absint( $total )
+        $meta_fallback = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted core table names
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts/$wpdb->postmeta are trusted core table names
+                "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS total_views
+                 FROM {$wpdb->posts} p
+                 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+                 WHERE p.post_type = 'post'
+                   AND p.post_status = 'publish'
+                   AND pm.meta_key = '_cspv_view_count'
+                   AND CAST(pm.meta_value AS UNSIGNED) > 0
+                 ORDER BY total_views DESC
+                 LIMIT %d",
+                absint( $total )
+            )
         );
         if ( ! empty( $meta_fallback ) ) {
             $fb_ids   = array();
@@ -252,19 +278,32 @@ add_action( 'widgets_init', function () {
 // -------------------------------------------------------------------------
 class CSPV_Top_Posts_Widget extends WP_Widget {
 
+    /**
+     * Register the widget with WordPress.
+     *
+     * @since 1.0.0
+     */
     public function __construct() {
         parent::__construct(
             'cspv_top_posts_widget',
-            'CloudScale: Top Posts',
+            __( 'Lightweight Analytics: Top Posts', 'lightweight-wordpress-free-analytics' ),
             array(
-                'description'            => 'Shows your most viewed posts with thumbnails, dates and view counts. Paginated with configurable post count and sort order.',
+                'description'            => __( 'Shows your most viewed posts with thumbnails, dates and view counts. Paginated with configurable post count and sort order.', 'lightweight-wordpress-free-analytics' ),
                 'show_instance_in_rest'  => true,
             )
         );
     }
 
+    /**
+     * Output the widget HTML on the frontend.
+     *
+     * @since 1.0.0
+     * @param array $args     Widget display arguments (before/after widget/title).
+     * @param array $instance Saved widget settings.
+     * @return void
+     */
     public function widget( $args, $instance ) {
-        $title        = ! empty( $instance['title'] )        ? $instance['title']               : 'Top Posts';
+        $title        = ! empty( $instance['title'] )        ? $instance['title']               : __( 'Top Posts', 'lightweight-wordpress-free-analytics' );
         $total_posts  = isset( $instance['total_posts'] )    ? (int) $instance['total_posts']    : 20;
         $posts_per_pg = isset( $instance['posts_per_page'] ) ? (int) $instance['posts_per_page'] : 5;
         $image_width  = isset( $instance['image_width'] )    ? (int) $instance['image_width']    : 150;
@@ -282,7 +321,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $posts_arr = cspv_get_top_posts( $total_posts, $order_by, $view_window );
 
         if ( empty( $posts_arr ) ) {
-            echo '<p style="font-size:0.85em;color:#888;">No published posts found.</p>';
+            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No published posts found.', 'lightweight-wordpress-free-analytics' ) . '</p>';
             echo $args['after_widget'];
             return;
         }
@@ -304,7 +343,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
                 }
             }
             $post_data[] = array(
-                'title'    => html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' ),
+                'title'    => wp_strip_all_tags( get_the_title( $p->ID ) ),
                 'url'      => get_permalink( $p->ID ),
                 'date'     => get_the_date( 'd M Y', $p->ID ),
                 'views'    => $views,
@@ -342,6 +381,8 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
     var totalPgs = Math.ceil(posts.length / perPage);
     var cur      = 1;
 
+    function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\'/g,"&#39;");}
+
     function fmt(n){
         if(n>=1000000) return (n/1000000).toFixed(1)+"M";
         if(n>=1000)    return (n/1000).toFixed(1)+"k";
@@ -362,7 +403,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
             var p = slice[i];
             var img = "";
             if(imgW>0 && p.thumb){
-                img = "<a href=\""+p.url+"\"><img class=\"cspv-tp-thumb\" src=\""+p.thumb+"\" width=\""+imgW+"\" loading=\"lazy\" alt=\"\" style=\"width:"+imgW+"px;max-width:100%;height:auto;\"></a>";
+                img = "<a href=\""+esc(p.url)+"\"><img class=\"cspv-tp-thumb\" src=\""+esc(p.thumb)+"\" width=\""+imgW+"\" loading=\"lazy\" alt=\"\" style=\"width:"+imgW+"px;max-width:100%;height:auto;\"></a>";
             }
             var views = "";
             if(p.lifetime>0){
@@ -370,7 +411,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
             }
             html += "<li>"
                   + "<span class=\"cspv-tp-meta\">"
-                  + "<a href=\""+p.url+"\">"+p.title+"</a>"
+                  + "<a href=\""+esc(p.url)+"\">"+esc(p.title)+"</a>"
                   + "<span class=\"cspv-tp-info-row\"><span>"+p.date+"</span>"+views+"</span>"
                   + img
                   + "</span>"
@@ -418,8 +459,15 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         echo $args['after_widget'];
     }
 
+    /**
+     * Render the widget settings form in the Widgets admin screen.
+     *
+     * @since 1.0.0
+     * @param array $instance Current saved widget settings.
+     * @return void
+     */
     public function form( $instance ) {
-        $title        = isset( $instance['title'] )          ? $instance['title']                  : 'Top Posts';
+        $title        = isset( $instance['title'] )          ? $instance['title']                  : __( 'Top Posts', 'lightweight-wordpress-free-analytics' );
         $total_posts  = isset( $instance['total_posts'] )    ? (int) $instance['total_posts']       : 20;
         $per_page     = isset( $instance['posts_per_page'] ) ? (int) $instance['posts_per_page']    : 5;
         $image_width  = isset( $instance['image_width'] )    ? (int) $instance['image_width']       : 150;
@@ -429,57 +477,57 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $meta_hover   = isset( $instance['meta_hover'] )     ? $instance['meta_hover']               : '#ea580c';
         ?>
         <p>
-            <label for="<?php echo $this->get_field_id('title'); ?>">Widget Title:</label>
-            <input class="widefat" id="<?php echo $this->get_field_id('title'); ?>"
-                   name="<?php echo $this->get_field_name('title'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Widget Title:', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <input class="widefat" id="<?php echo esc_attr( $this->get_field_id('title') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('title') ); ?>"
                    type="text" value="<?php echo esc_attr( $title ); ?>">
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('total_posts'); ?>">Total posts to pool (n):</label>
-            <input class="tiny-text" id="<?php echo $this->get_field_id('total_posts'); ?>"
-                   name="<?php echo $this->get_field_name('total_posts'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('total_posts') ); ?>"><?php esc_html_e( 'Total posts to pool (n):', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('total_posts') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('total_posts') ); ?>"
                    type="number" min="1" max="200" value="<?php echo esc_attr( $total_posts ); ?>">
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('posts_per_page'); ?>">Posts per page (x):</label>
-            <input class="tiny-text" id="<?php echo $this->get_field_id('posts_per_page'); ?>"
-                   name="<?php echo $this->get_field_name('posts_per_page'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page (x):', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('posts_per_page') ); ?>"
                    type="number" min="1" max="50" value="<?php echo esc_attr( $per_page ); ?>">
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('image_width'); ?>">Thumbnail width px (0 = hide):</label>
-            <input class="tiny-text" id="<?php echo $this->get_field_id('image_width'); ?>"
-                   name="<?php echo $this->get_field_name('image_width'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('image_width') ); ?>"><?php esc_html_e( 'Thumbnail width px (0 = hide):', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('image_width') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('image_width') ); ?>"
                    type="number" min="0" max="500" value="<?php echo esc_attr( $image_width ); ?>">
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('order_by'); ?>">Order posts by:</label>
-            <select class="widefat" id="<?php echo $this->get_field_id('order_by'); ?>"
-                    name="<?php echo $this->get_field_name('order_by'); ?>">
-                <option value="views"  <?php selected( $order_by, 'views' ); ?>>Most Viewed</option>
-                <option value="date"   <?php selected( $order_by, 'date' ); ?>>Most Recent</option>
+            <label for="<?php echo esc_attr( $this->get_field_id('order_by') ); ?>"><?php esc_html_e( 'Order posts by:', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <select class="widefat" id="<?php echo esc_attr( $this->get_field_id('order_by') ); ?>"
+                    name="<?php echo esc_attr( $this->get_field_name('order_by') ); ?>">
+                <option value="views"  <?php selected( $order_by, 'views' ); ?>><?php esc_html_e( 'Most Viewed', 'lightweight-wordpress-free-analytics' ); ?></option>
+                <option value="date"   <?php selected( $order_by, 'date' ); ?>><?php esc_html_e( 'Most Recent', 'lightweight-wordpress-free-analytics' ); ?></option>
             </select>
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('view_window'); ?>">View window (days, -1 = all time):</label>
-            <input class="tiny-text" id="<?php echo $this->get_field_id('view_window'); ?>"
-                   name="<?php echo $this->get_field_name('view_window'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('view_window') ); ?>"><?php esc_html_e( 'View window (days, -1 = all time):', 'lightweight-wordpress-free-analytics' ); ?></label>
+            <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('view_window') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('view_window') ); ?>"
                    type="number" min="-1" max="3650" value="<?php echo esc_attr( $view_window ); ?>">
-            <br><small>Posts are ranked and counted by views within this window. Set to -1 for all time.</small>
+            <br><small><?php esc_html_e( 'Posts are ranked and counted by views within this window. Set to -1 for all time.', 'lightweight-wordpress-free-analytics' ); ?></small>
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('meta_color'); ?>">Date &amp; views colour:</label><br>
-            <input id="<?php echo $this->get_field_id('meta_color'); ?>"
-                   name="<?php echo $this->get_field_name('meta_color'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+            <input id="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('meta_color') ); ?>"
                    type="color"
                    value="<?php echo esc_attr( $meta_color ); ?>"
                    style="width:50px;height:30px;padding:0;border:1px solid #ccc;border-radius:3px;cursor:pointer;vertical-align:middle;">
             <code style="font-size:11px;color:#666;"><?php echo esc_html( $meta_color ); ?></code>
         </p>
         <p>
-            <label for="<?php echo $this->get_field_id('meta_hover'); ?>">Date &amp; views hover colour:</label><br>
-            <input id="<?php echo $this->get_field_id('meta_hover'); ?>"
-                   name="<?php echo $this->get_field_name('meta_hover'); ?>"
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+            <input id="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name('meta_hover') ); ?>"
                    type="color"
                    value="<?php echo esc_attr( $meta_hover ); ?>"
                    style="width:50px;height:30px;padding:0;border:1px solid #ccc;border-radius:3px;cursor:pointer;vertical-align:middle;">
@@ -488,6 +536,14 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         <?php
     }
 
+    /**
+     * Sanitise and save widget settings submitted from the form.
+     *
+     * @since 1.0.0
+     * @param array $new_instance New settings submitted by the user.
+     * @param array $old_instance Previous saved settings.
+     * @return array Sanitised settings to persist.
+     */
     public function update( $new_instance, $old_instance ) {
         $instance                   = array();
         $instance['title']          = sanitize_text_field( $new_instance['title'] );

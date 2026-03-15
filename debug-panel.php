@@ -5,11 +5,14 @@
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number
  *   - Log table count (wp_cspv_views rows for this post)
- *   - Jetpack imported count (the difference)
+ *   - Jetpack imported count (only when log table is empty = true Jetpack import)
+ *   - Unlogged views delta (meta ahead of log, but log rows exist)
  *   - Daily view chart from the log table
  *
  * Only visible to users with manage_options capability.
  * Button renders INLINE next to the view counter (pink, 🐛 icon).
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,6 +22,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Enqueue styles for the debug panel (admin-only, singular only).
 add_action( 'wp_enqueue_scripts', 'cspv_debug_panel_enqueue' );
 
+/**
+ * Enqueue inline CSS and JS for the debug panel on singular admin-visible pages.
+ *
+ * @since 2.0.0
+ * @return void
+ */
 function cspv_debug_panel_enqueue() {
     if ( ! is_singular() || ! current_user_can( 'manage_options' ) ) {
         return;
@@ -61,13 +70,22 @@ function cspv_debug_panel_enqueue() {
 // Inject the debug button right after the auto-display counter
 add_filter( 'the_content', 'cspv_inject_debug_button', 100 );
 
+/**
+ * Prepend a hidden debug toggle button to post content for admins.
+ *
+ * JavaScript relocates the button into the view counter element after load.
+ *
+ * @since 2.0.0
+ * @param string $content Post content.
+ * @return string Content with debug button prepended, or unchanged for non-admins.
+ */
 function cspv_inject_debug_button( $content ) {
     if ( ! is_singular() ) { return $content; }
     if ( ! current_user_can( 'manage_options' ) ) { return $content; }
 
     // Always prepend a hidden button; JS will relocate it into the counter container
     $btn = '<button id="cspv-debug-toggle" style="display:none" title="View Diagnostics">🐛 Debug</button>';
-    $content = $btn . $content;
+    $content = wp_kses_post( $btn ) . $content;
 
     return $content;
 }
@@ -75,6 +93,15 @@ function cspv_inject_debug_button( $content ) {
 // Render the panel in wp_footer
 add_action( 'wp_footer', 'cspv_render_debug_panel' );
 
+/**
+ * Render the diagnostics panel overlay in wp_footer for admin users.
+ *
+ * Outputs meta count vs log count comparison, timeline, daily chart,
+ * and any mismatch warnings for the current singular post.
+ *
+ * @since 2.0.0
+ * @return void
+ */
 function cspv_render_debug_panel() {
     if ( ! is_singular() ) { return; }
     if ( ! current_user_can( 'manage_options' ) ) { return; }
@@ -93,16 +120,16 @@ function cspv_render_debug_panel() {
     $daily_data   = array();
 
     if ( $table_exists ) {
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $first_log = $wpdb->get_var( $wpdb->prepare(
+        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $last_log = $wpdb->get_var( $wpdb->prepare(
+        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
@@ -114,8 +141,12 @@ function cspv_render_debug_panel() {
         }
     }
 
-    $jetpack_imported = max( 0, $meta_count - $log_count );
-    $mismatch         = ( $meta_count !== $log_count && $jetpack_imported === 0 );
+    $meta_ahead       = max( 0, $meta_count - $log_count );
+    // A true Jetpack import means ALL counts came from Jetpack (no log rows at all).
+    // A non-zero delta when log rows exist is just an unlogged-view discrepancy.
+    $jetpack_imported = ( $log_count === 0 ) ? $meta_ahead : 0;
+    $unlogged_delta   = ( $log_count > 0 ) ? $meta_ahead : 0;
+    $mismatch         = ( $meta_count !== $log_count && $meta_ahead === 0 );
     $jp_meta          = get_post_meta( $post_id, 'jetpack_post_views', true );
     $jp_views         = $jp_meta ? (int) $jp_meta : null;
 
@@ -137,10 +168,18 @@ function cspv_render_debug_panel() {
             <span class="cspv-dbg-label">Log table rows (wp_cspv_views)</span>
             <span class="cspv-dbg-value blue"><?php echo number_format( $log_count ); ?></span>
         </div>
+        <?php if ( $jetpack_imported > 0 ) : ?>
         <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Jetpack imported (meta minus log)</span>
+            <span class="cspv-dbg-label">Jetpack imported (no log rows)</span>
             <span class="cspv-dbg-value orange"><?php echo number_format( $jetpack_imported ); ?></span>
         </div>
+        <?php endif; ?>
+        <?php if ( $unlogged_delta > 0 ) : ?>
+        <div class="cspv-dbg-row">
+            <span class="cspv-dbg-label">Unlogged views (meta ahead of log)</span>
+            <span class="cspv-dbg-value orange"><?php echo number_format( $unlogged_delta ); ?></span>
+        </div>
+        <?php endif; ?>
         <?php if ( $jp_views !== null ) : ?>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Jetpack meta (jetpack_post_views)</span>
@@ -179,7 +218,7 @@ function cspv_render_debug_panel() {
         </div>
         <?php endif; ?>
 
-        <?php if ( $meta_count > 0 && $log_count === 0 && $jetpack_imported > 0 ) : ?>
+        <?php if ( $jetpack_imported > 0 ) : ?>
         <div class="cspv-dbg-warn">
             All <?php echo number_format( $meta_count ); ?> views came from Jetpack import. No log table rows exist for this post.
         </div>
@@ -254,6 +293,15 @@ function cspv_render_debug_panel() {
 // AJAX handler for resync (from front end debug panel)
 add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta' );
 
+/**
+ * AJAX handler: resync the post meta count from the log table.
+ *
+ * Sets _cspv_view_count to the sum of log rows plus any Jetpack imported views.
+ * Requires manage_options capability and a valid nonce.
+ *
+ * @since 2.0.0
+ * @return void Sends JSON response.
+ */
 function cspv_ajax_resync_meta() {
     if ( ! check_ajax_referer( 'cspv_resync', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -273,7 +321,7 @@ function cspv_ajax_resync_meta() {
 
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
-    $log_count = (int) $wpdb->get_var( $wpdb->prepare(
+    $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $jp_views = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $new_count = $log_count + max( 0, $jp_views );

@@ -4,6 +4,8 @@
  *
  * Registers the POST endpoint that the beacon calls.
  * Multiple cache-bypass headers ensure Cloudflare never caches this route.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -27,7 +29,7 @@ function cspv_public_view_count( $post_id ) {
     if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
         global $wpdb;
         $table = $wpdb->prefix . 'cspv_views_v2';
-        return (int) $wpdb->get_var( $wpdb->prepare(
+        return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d AND source = 'tracked'",
             $post_id
         ) );
@@ -45,7 +47,7 @@ function cspv_public_view_count( $post_id ) {
  */
 function cspv_register_endpoint() {
     register_rest_route(
-        'cloudscale-page-views/v1',
+        'lightweight-wordpress-free-analytics/v1',
         '/record/(?P<id>\d+)',
         array(
             'methods'             => 'POST',
@@ -64,7 +66,7 @@ function cspv_register_endpoint() {
 
     // Diagnostics endpoint — used by the stats page to confirm beacon is reachable
     register_rest_route(
-        'cloudscale-page-views/v1',
+        'lightweight-wordpress-free-analytics/v1',
         '/ping',
         array(
             'methods'             => 'GET',
@@ -75,7 +77,7 @@ function cspv_register_endpoint() {
 }
 
 /**
- * REST callback for POST /cloudscale-page-views/v1/record/{id}.
+ * REST callback for POST /lightweight-wordpress-free-analytics/v1/record/{id}.
  *
  * Validates the post, checks the IP throttle, writes the hourly view bucket,
  * referrer, geo, and unique-visitor rows, then increments the denormalised
@@ -191,7 +193,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     }
 
     // Upsert hourly view bucket
-    $result = $wpdb->query( $wpdb->prepare(
+    $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count, source)
          VALUES (%d, %s, 1, 'tracked')
          ON DUPLICATE KEY UPDATE view_count = view_count + 1",
@@ -200,18 +202,17 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     if ( $result === false ) {
         return new WP_REST_Response( array(
-            'post_id'  => $post_id,
-            'views'    => cspv_public_view_count( $post_id ),
-            'logged'   => false,
-            'error'    => 'Insert failed.',
-            'db_error' => $wpdb->last_error,
+            'post_id' => $post_id,
+            'views'   => cspv_public_view_count( $post_id ),
+            'logged'  => false,
+            'error'   => 'Insert failed.',
         ), 200 );
     }
 
     // Upsert referrer bucket (only if referrer is non empty)
     if ( $referrer !== '' ) {
         $ref_table = $wpdb->prefix . 'cspv_referrers_v2';
-        $wpdb->query( $wpdb->prepare(
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$ref_table}` (post_id, viewed_at, referrer, view_count)
              VALUES (%d, %s, %s, 1)
              ON DUPLICATE KEY UPDATE view_count = view_count + 1",
@@ -225,16 +226,21 @@ function cspv_record_view( WP_REST_Request $request ) {
     if ( $geo_source !== 'disabled' ) {
         // Try CloudFlare header first (unless dbip only)
         if ( $geo_source !== 'dbip' && isset( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
-            $country = strtoupper( substr( sanitize_text_field( $_SERVER['HTTP_CF_IPCOUNTRY'] ), 0, 2 ) );
+            $country = strtoupper( substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ), 0, 2 ) );
         }
         // Fall back to DB-IP mmdb lookup (unless cloudflare only)
         if ( $country === '' && $geo_source !== 'cloudflare' ) {
-            $country = cspv_geo_lookup_dbip( $request->get_header( 'X-Forwarded-For' ) ?: $_SERVER['REMOTE_ADDR'] ?? '' );
+            $raw_ip  = $request->get_header( 'X-Forwarded-For' ) ?: wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via filter_var(FILTER_VALIDATE_IP) below
+            $raw_ip  = trim( explode( ',', $raw_ip )[0] );
+            $safe_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
+            if ( $safe_ip !== '' ) {
+                $country = cspv_geo_lookup_dbip( $safe_ip );
+            }
         }
         // Write to geo table if we resolved a valid country
         if ( $country !== '' && $country !== 'XX' && $country !== 'T1' ) {
             $geo_table = $wpdb->prefix . 'cspv_geo_v2';
-            $wpdb->query( $wpdb->prepare(
+            $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
                  VALUES (%d, %s, %s, 1)
                  ON DUPLICATE KEY UPDATE view_count = view_count + 1",
@@ -244,13 +250,13 @@ function cspv_record_view( WP_REST_Request $request ) {
     }
 
     // Track unique visitor (hashed IP, one row per visitor per post per day)
-    $visitor_ip = $request->get_header( 'X-Forwarded-For' ) ?: ( $_SERVER['REMOTE_ADDR'] ?? '' );
-    $visitor_ip = trim( explode( ',', $visitor_ip )[0] );
+    $visitor_raw = $request->get_header( 'X-Forwarded-For' ) ?: wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated via filter_var below
+    $visitor_ip  = filter_var( trim( explode( ',', $visitor_raw )[0] ), FILTER_VALIDATE_IP ) ?: '';
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
         $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
         $visitor_table = $wpdb->prefix . 'cspv_visitors_v2';
         $visitor_date  = current_time( 'Y-m-d' );
-        $wpdb->query( $wpdb->prepare(
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT IGNORE INTO `{$visitor_table}` (visitor_hash, post_id, viewed_at)
              VALUES (%s, %d, %s)",
             $visitor_hash, $post_id, $visitor_date
@@ -271,7 +277,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
 
 /**
- * REST callback for GET /cloudscale-page-views/v1/ping.
+ * REST callback for GET /lightweight-wordpress-free-analytics/v1/ping.
  *
  * Returns plugin version and current server time. Used by the Statistics page
  * to confirm the REST endpoint is reachable and not cached by the CDN.
@@ -324,7 +330,7 @@ function cspv_send_nocache_headers() {
 // Used by the archive/home page JS to update counts client-side after
 // Cloudflare serves a cached page.
 //
-// GET /wp-json/cloudscale-page-views/v1/counts?ids=1,2,3,4
+// GET /wp-json/lightweight-wordpress-free-analytics/v1/counts?ids=1,2,3,4
 // Returns: { "1": 42, "2": 7, ... }
 // -------------------------------------------------------------------------
 add_action( 'rest_api_init', 'cspv_register_counts_endpoint' );
@@ -339,7 +345,7 @@ add_action( 'rest_api_init', 'cspv_register_counts_endpoint' );
  */
 function cspv_register_counts_endpoint() {
     register_rest_route(
-        'cloudscale-page-views/v1',
+        'lightweight-wordpress-free-analytics/v1',
         '/counts',
         array(
             'methods'             => 'GET',
@@ -362,7 +368,7 @@ function cspv_register_counts_endpoint() {
 }
 
 /**
- * REST callback for GET /cloudscale-page-views/v1/counts?ids=1,2,3.
+ * REST callback for GET /lightweight-wordpress-free-analytics/v1/counts?ids=1,2,3.
  *
  * Returns a map of post ID → view count for up to 50 IDs per request.
  * Used by the archive/home page beacon to refresh counts on Cloudflare-cached
@@ -406,10 +412,10 @@ function cspv_get_counts( WP_REST_Request $request ) {
 // -------------------------------------------------------------------------
 // Cache bypass test endpoint
 //
-// GET  /wp-json/cloudscale-page-views/v1/cache-test
+// GET  /wp-json/lightweight-wordpress-free-analytics/v1/cache-test
 //   Returns the current counter value.
 //
-// POST /wp-json/cloudscale-page-views/v1/cache-test
+// POST /wp-json/lightweight-wordpress-free-analytics/v1/cache-test
 //   Increments the counter and returns the new value.
 //
 // The counter is stored as a transient that expires in 5 minutes.
@@ -427,7 +433,7 @@ add_action( 'rest_api_init', 'cspv_register_cache_test_endpoint' );
  * @return void
  */
 function cspv_register_cache_test_endpoint() {
-    register_rest_route( 'cloudscale-page-views/v1', '/cache-test', array(
+    register_rest_route( 'lightweight-wordpress-free-analytics/v1', '/cache-test', array(
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_cache_test_get',
@@ -444,7 +450,7 @@ function cspv_register_cache_test_endpoint() {
 }
 
 /**
- * REST callback for GET /cloudscale-page-views/v1/cache-test.
+ * REST callback for GET /lightweight-wordpress-free-analytics/v1/cache-test.
  *
  * Returns the current in-memory counter value. If Cloudflare caches this
  * response the counter will never change and the bypass test will correctly
@@ -464,7 +470,7 @@ function cspv_cache_test_get( WP_REST_Request $request ) {
 }
 
 /**
- * REST callback for POST /cloudscale-page-views/v1/cache-test.
+ * REST callback for POST /lightweight-wordpress-free-analytics/v1/cache-test.
  *
  * Increments the counter transient (5 min TTL) and returns the new value.
  * Requires manage_options capability.

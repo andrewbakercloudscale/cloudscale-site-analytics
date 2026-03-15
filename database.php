@@ -4,17 +4,26 @@
  *
  * Creates the wp_cspv_views_v2 and wp_cspv_referrers_v2 tables.
  * Plugin uses V2 hourly bucket schema exclusively.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+/**
+ * Run on plugin activation: create all database tables and seed the version option.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_activate() {
     cspv_create_table_v2();
     cspv_create_table_referrers_v2();
     cspv_create_table_geo_v2();
     cspv_create_table_visitors_v2();
+    cspv_create_table_404_v2();
     add_option( 'cspv_version', CSPV_VERSION );
 }
 
@@ -90,7 +99,7 @@ function cspv_create_table_geo_v2() {
     $table           = $wpdb->prefix . 'cspv_geo_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
-    $sql = "CREATE TABLE {$table} (
+    $sql = "CREATE TABLE IF NOT EXISTS {$table} (
         id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
         post_id       BIGINT(20) UNSIGNED NOT NULL,
         viewed_at     DATETIME            NOT NULL COMMENT 'Hour bucket',
@@ -119,7 +128,7 @@ function cspv_create_table_visitors_v2() {
     $table           = $wpdb->prefix . 'cspv_visitors_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
-    $sql = "CREATE TABLE {$table} (
+    $sql = "CREATE TABLE IF NOT EXISTS {$table} (
         id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
         visitor_hash  CHAR(64)            NOT NULL,
         post_id       BIGINT(20) UNSIGNED NOT NULL,

@@ -228,6 +228,28 @@ function cspv_auto_display_views( $content ) {
     return $content;
 }
 
+add_filter( 'the_excerpt', 'cspv_search_results_counter', 99 );
+
+/**
+ * Append the view counter to each post excerpt on search result pages.
+ *
+ * @since 2.9.94
+ * @param string $excerpt Post excerpt.
+ * @return string Excerpt with counter appended, or unchanged.
+ */
+function cspv_search_results_counter( $excerpt ) {
+	if ( ! is_search() || is_admin() || ! in_the_loop() ) {
+		return $excerpt;
+	}
+
+	$post_types = get_option( 'cspv_display_post_types', array( 'post' ) );
+	if ( ! in_array( get_post_type(), $post_types, true ) ) {
+		return $excerpt;
+	}
+
+	return $excerpt . cspv_build_counter_html();
+}
+
 // -------------------------------------------------------------------------
 // 4. Front end CSS for all three styles
 // -------------------------------------------------------------------------
@@ -266,6 +288,11 @@ function cspv_auto_display_style() {
     $css .= '.cspv-ad-pill .cspv-ad-icon{font-size:14px;line-height:1;}.cspv-ad-pill .cspv-ad-num{font-variant-numeric:tabular-nums;}.cspv-ad-pill .cspv-ad-suffix{color:' . $c['light_suffix'] . ';font-weight:500;font-size:12px;}' . "\n";
     $css .= '.cspv-ad-minimal{display:inline-flex;align-items:center;gap:5px;color:' . $c['solid'] . ';font-size:13px;}' . "\n";
     $css .= '.cspv-ad-minimal .cspv-ad-icon{line-height:1;}.cspv-ad-minimal .cspv-ad-num{font-variant-numeric:tabular-nums;}.cspv-ad-minimal .cspv-ad-suffix{font-size:12px;}';
+
+    if ( is_search() ) {
+        $css .= "\n" . '.search-results .hentry,.search .hentry{padding-bottom:1.5em;margin-bottom:1.5em;border-bottom:2px solid #e5e7eb;}'
+              . '.search-results .hentry:last-child,.search .hentry:last-child{border-bottom:none;}';
+    }
 
     wp_register_style( 'cspv-auto-display', false );
     wp_enqueue_style( 'cspv-auto-display' );

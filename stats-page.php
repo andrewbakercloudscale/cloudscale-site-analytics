@@ -16,7 +16,6 @@ add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
 add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
 add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
-add_action( 'wp_ajax_cspv_toggle_ignore_jetpack', 'cspv_ajax_toggle_ignore_jetpack' );
 add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
@@ -326,33 +325,14 @@ function cspv_ajax_chart_data() {
     );
 
     // All time top posts
-    $ignore_jp    = get_option( 'cspv_ignore_jetpack', '0' ) === '1';
-    $lifetime_top = array();
-
-    if ( $ignore_jp ) {
-        // Exclude Jetpack/imported rows — V2 schema uses source column
-        $jp_where      = "v.source != 'imported'";
-        $jp_where_bare = "source != 'imported'";
-        $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT v.post_id, {$cnt} AS total_views
-             FROM `{$table}` v
-             INNER JOIN {$wpdb->posts} p ON p.ID = v.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
-             WHERE {$jp_where}
-             GROUP BY v.post_id
-             ORDER BY total_views DESC LIMIT 10"
-        );
-        $lifetime_total = (int) $wpdb->get_var( "SELECT {$cnt} FROM `{$table}` WHERE {$jp_where_bare}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        $lifetime_posts = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE {$jp_where_bare}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-    } else {
-        // Meta (includes Jetpack imported)
-        $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
-             FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
-             WHERE pm.meta_key = '_cspv_view_count' AND pm.meta_value > 0
-             ORDER BY total_views DESC LIMIT 10"
-        );
-    }
+    $lifetime_top     = array();
+    $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
+         FROM {$wpdb->postmeta} pm
+         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
+         WHERE pm.meta_key = '_cspv_view_count' AND pm.meta_value > 0
+         ORDER BY total_views DESC LIMIT 10"
+    );
     if ( is_array( $lifetime_top_raw ) ) {
         foreach ( $lifetime_top_raw as $row ) {
             $pid  = absint( $row->post_id );
@@ -383,7 +363,6 @@ function cspv_ajax_chart_data() {
         'lifetime_total' => $lifetime_total,
         'lifetime_posts' => $lifetime_posts,
         'lifetime_top'      => $lifetime_top,
-        'ignore_jetpack'    => $ignore_jp,
     ) );
 }
 
@@ -608,31 +587,6 @@ function cspv_ajax_resync_meta_from_stats() {
     ) );
 }
 
-// ---------------------------------------------------------------------------
-/**
- * AJAX handler: toggle the ignore-Jetpack-views option.
- *
- * @since 1.0.0
- * @return void
- */
-function cspv_ajax_toggle_ignore_jetpack() {
-    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
-        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
-        return;
-    }
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
-
-    // Accept explicit value if sent, otherwise toggle
-    if ( isset( $_POST['value'] ) ) {
-        $new = ( isset( $_POST['value'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['value'] ) ) ) ? '1' : '0';
-    } else {
-        $current = get_option( 'cspv_ignore_jetpack', '0' );
-        $new     = ( $current === '1' ) ? '0' : '1';
-    }
-    update_option( 'cspv_ignore_jetpack', $new, true );
-
-    wp_send_json_success( array( 'ignore_jetpack' => $new === '1' ) );
-}
 
 /**
  * AJAX handler: return per-post breakdown for a selected country.
@@ -1048,13 +1002,7 @@ function cspv_render_stats_page() {
             <div class="cspv-panel" style="flex:1;">
                 <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#1a3a8f,#1e6fd9);border-radius:6px 6px 0 0;">
                     <span>🏆 All Time Top Posts <a class="cspv-info-btn" data-info="all-time" title="Info">i</a></span>
-                    <span style="display:flex;align-items:center;gap:8px;">
-                        <label style="font-size:11px;font-weight:400;cursor:pointer;display:flex;align-items:center;gap:5px;opacity:0.9;" title="When enabled, shows only tracked views (excludes imported Jetpack data)">
-                            <input type="checkbox" id="cspv-ignore-jetpack" <?php echo get_option( 'cspv_ignore_jetpack', '0' ) === '1' ? 'checked' : ''; ?> style="cursor:pointer;">
-                            Tracked only
-                        </label>
-                        <span>Total Views</span>
-                    </span>
+                    <span>Total Views</span>
                 </div>
                 <div id="cspv-lifetime-top"></div>
             </div>
@@ -1696,20 +1644,6 @@ function cspv_render_stats_page() {
             <span>🗑 Jetpack Data Management</span>
         </div>
         <div style="padding:16px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-            <label style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:#333;cursor:pointer;" title="When enabled, the All Time Top Posts table shows only live-tracked views — imported Jetpack data is excluded">
-                <div id="cspv-jetpack-hide-toggle" style="
-                    position:relative;width:42px;height:24px;border-radius:12px;
-                    cursor:pointer;transition:background 0.2s;flex-shrink:0;
-                    background:<?php echo get_option('cspv_ignore_jetpack','0')==='1' ? '#e02020' : '#ccc'; ?>;"
-                    onclick="cspvToggleJetpackHide(this)">
-                    <div id="cspv-jetpack-hide-knob" style="
-                        position:absolute;top:3px;left:3px;width:18px;height:18px;
-                        background:#fff;border-radius:50%;transition:transform 0.2s;
-                        box-shadow:0 1px 3px rgba(0,0,0,0.3);
-                        transform:<?php echo get_option('cspv_ignore_jetpack','0')==='1' ? 'translateX(18px)' : 'translateX(0)'; ?>;"></div>
-                </div>
-                Hide imported Jetpack data
-            </label>
             <button id="cspv-btn-delete-jetpack" class="cspv-btn-danger-sm" style="margin-left:auto;">
                 🗑 Delete Jetpack Data
             </button>
@@ -1957,23 +1891,6 @@ ob_start();
 
     // ── Load data ──────────────────────────────────────────────────
     window.loadData = function() { loadData(); }; // expose for external callers
-    // Ignore Jetpack toggle (persisted, refreshes data)
-    document.getElementById('cspv-ignore-jetpack').addEventListener('change', function() {
-        var cb = this;
-        if (cb._suppressChange) return; // fired programmatically — skip
-        cb.disabled = true;
-        fetch(ajaxurl, {
-            method: 'POST',
-            headers: {'Content-Type':'application/x-www-form-urlencoded'},
-            body: 'action=cspv_toggle_ignore_jetpack&nonce=' + nonce + '&value=' + (cb.checked ? '1' : '0')
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(r) {
-            cb.disabled = false;
-            if (r.success) { loadData(); }
-        })
-        .catch(function() { cb.disabled = false; });
-    });
 
     function loadData() {
         var from = document.getElementById('cspv-from').value;
@@ -3056,28 +2973,6 @@ ob_start();
         });
     }
 
-    // ── Hide Jetpack toggle ────────────────────────────────────────
-    function cspvToggleJetpackHide(el) {
-        var active = el.style.background === 'rgb(224, 32, 32)';
-        active = !active;
-        el.style.background = active ? '#e02020' : '#ccc';
-        document.getElementById('cspv-jetpack-hide-knob').style.transform = active ? 'translateX(18px)' : 'translateX(0)';
-        // Also sync the Tracked Only checkbox in the All Time header (suppress its change listener)
-        var cb = document.getElementById('cspv-ignore-jetpack');
-        if (cb) { cb._suppressChange = true; cb.checked = active; cb._suppressChange = false; }
-        // Save to DB via existing AJAX action — send explicit value, not a blind toggle
-        fetch(ajaxUrl, {
-            method: 'POST',
-            body: new URLSearchParams({ action: 'cspv_toggle_ignore_jetpack', nonce: nonce, value: active ? '1' : '0' })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(resp) {
-            if (resp.success) {
-                if (typeof loadData === 'function') loadData();
-            }
-        });
-    }
-    window.cspvToggleJetpackHide = cspvToggleJetpackHide;
 
     // ── Delete Jetpack data ───────────────────────────────────────
     var deleteJetpackBtn = document.getElementById('cspv-btn-delete-jetpack');

@@ -83,17 +83,6 @@ function cspv_get_view_count( $post_id = null ) {
     $post_id = absint( $post_id );
     if ( ! $post_id ) { return 0; }
 
-    // When the ignore Jetpack toggle is on, return tracked-only views from V2
-    if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'cspv_views_v2';
-        $count = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d AND source = 'tracked'",
-            $post_id
-        ) );
-        return (int) $count;
-    }
-
     return (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 }
 

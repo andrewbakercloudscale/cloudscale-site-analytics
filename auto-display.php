@@ -10,6 +10,8 @@
  *   after_content   - Below the post body
  *   both            - Above and below
  *   off             - Disabled (use template functions manually)
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -21,6 +23,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 // -------------------------------------------------------------------------
 add_action( 'admin_init', 'cspv_register_display_settings' );
 
+/**
+ * Register all display-related plugin settings with the WordPress Settings API.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_register_display_settings() {
     register_setting( 'cspv_display_options', 'cspv_auto_display', array(
         'type'              => 'string',
@@ -52,18 +60,56 @@ function cspv_register_display_settings() {
         'default'           => array( 'post' ),
         'sanitize_callback' => 'cspv_sanitize_post_types',
     ) );
+    register_setting( 'cspv_display_options', 'cspv_display_color', array(
+        'type'              => 'string',
+        'default'           => 'blue',
+        'sanitize_callback' => 'cspv_sanitize_display_color',
+    ) );
 }
 
+/**
+ * Sanitise the cspv_display_color setting.
+ *
+ * @since 1.0.0
+ * @param string $value Raw value from settings form.
+ * @return string One of blue|pink|red|purple|grey.
+ */
+function cspv_sanitize_display_color( $value ) {
+    $valid = array( 'blue', 'pink', 'red', 'purple', 'grey' );
+    return in_array( $value, $valid, true ) ? $value : 'blue';
+}
+
+/**
+ * Sanitise the cspv_auto_display setting.
+ *
+ * @since 1.0.0
+ * @param string $value Raw value from settings form.
+ * @return string One of before_content|after_content|both|off.
+ */
 function cspv_sanitize_auto_display( $value ) {
     $valid = array( 'before_content', 'after_content', 'both', 'off' );
     return in_array( $value, $valid, true ) ? $value : 'before_content';
 }
 
+/**
+ * Sanitise the post-types array setting.
+ *
+ * @since 1.0.0
+ * @param mixed $value Raw value from settings form.
+ * @return array Array of sanitised post-type slugs.
+ */
 function cspv_sanitize_post_types( $value ) {
     if ( ! is_array( $value ) ) { return array( 'post' ); }
     return array_map( 'sanitize_key', $value );
 }
 
+/**
+ * Sanitise the display style setting.
+ *
+ * @since 1.0.0
+ * @param string $value Raw value from settings form.
+ * @return string One of badge|pill|minimal.
+ */
 function cspv_sanitize_display_style( $value ) {
     $valid = array( 'badge', 'pill', 'minimal' );
     return in_array( $value, $valid, true ) ? $value : 'badge';
@@ -90,7 +136,13 @@ add_filter( 'the_title',   'cspv_auto_display_above_title', 99, 2 );
 add_filter( 'the_content', 'cspv_auto_display_views', 99 );
 
 /**
- * Build the counter HTML (shared by both hooks).
+ * Build the view counter HTML element using current display settings.
+ *
+ * Used by both the title and content hooks so the output is consistent
+ * regardless of which injection position is configured.
+ *
+ * @since 1.0.0
+ * @return string Counter HTML string.
  */
 function cspv_build_counter_html() {
     $icon   = get_option( 'cspv_display_icon', '👁' );
@@ -109,7 +161,15 @@ function cspv_build_counter_html() {
 }
 
 /**
- * Inject counter ABOVE the post title on singular pages.
+ * Inject the view counter above the post title on singular pages.
+ *
+ * Hooked to `the_title` at priority 99. Guards ensure the counter only
+ * appears once for the main queried post, never in widgets or nav menus.
+ *
+ * @since 1.0.0
+ * @param string $title   Post title.
+ * @param int    $post_id Post ID.
+ * @return string Modified title with counter prepended, or unchanged title.
  */
 function cspv_auto_display_above_title( $title, $post_id = 0 ) {
     // Only on singular front end, only for the main queried post
@@ -136,7 +196,13 @@ function cspv_auto_display_above_title( $title, $post_id = 0 ) {
 }
 
 /**
- * Inject counter below post content (after_content or both).
+ * Inject the view counter below post content on singular pages.
+ *
+ * Hooked to `the_content` at priority 99. Fires for after_content and both modes.
+ *
+ * @since 1.0.0
+ * @param string $content Post content.
+ * @return string Modified content with counter appended, or unchanged content.
  */
 function cspv_auto_display_views( $content ) {
     if ( ! is_singular() || is_feed() || is_admin() ) {
@@ -167,6 +233,15 @@ function cspv_auto_display_views( $content ) {
 // -------------------------------------------------------------------------
 add_action( 'wp_enqueue_scripts', 'cspv_auto_display_style', 100 );
 
+/**
+ * Enqueue inline CSS for the auto-display counter on applicable frontend pages.
+ *
+ * Skipped when auto-display is disabled or the current page type doesn't
+ * need a counter, so styles are never injected globally.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_auto_display_style() {
     if ( ! is_singular() && ! is_home() && ! is_front_page() && ! is_archive() && ! is_search() ) {
         return;

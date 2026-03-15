@@ -6,6 +6,8 @@
  * Removes all plugin data: custom database tables and wp_options entries.
  *
  * @since 2.9.94
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {

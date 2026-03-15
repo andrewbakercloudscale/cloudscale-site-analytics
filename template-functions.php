@@ -61,6 +61,8 @@
  *
  *     $views = cspv_get_view_count();            // current post in loop
  *     $views = cspv_get_view_count( $post_id );  // specific post
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -70,6 +72,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Get the view count for a post as an integer.
  *
+ * @since 1.0.0
  * @param  int|null $post_id  Post ID, or null for current post in The Loop.
  * @return int
  */
@@ -84,7 +87,7 @@ function cspv_get_view_count( $post_id = null ) {
     if ( get_option( 'cspv_ignore_jetpack', '0' ) === '1' ) {
         global $wpdb;
         $table = $wpdb->prefix . 'cspv_views_v2';
-        $count = $wpdb->get_var( $wpdb->prepare(
+        $count = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d AND source = 'tracked'",
             $post_id
         ) );
@@ -102,6 +105,7 @@ function cspv_get_view_count( $post_id = null ) {
  * On single post templates this is all you need — the beacon updates
  * the count automatically after recording the view, with no second API call.
  *
+ * @since 1.0.0
  * @param array $args {
  *     @type string   $icon     Icon to show before the count. Default '👁'.
  *                              Pass '' to hide.
@@ -110,6 +114,7 @@ function cspv_get_view_count( $post_id = null ) {
  *     @type string   $after    HTML wrapper closing tag.
  *     @type int|null $post_id  Post ID. Defaults to current post.
  * }
+ * @return void
  */
 function cspv_the_views( $args = array() ) {
     $defaults = array(
@@ -135,6 +140,7 @@ function cspv_the_views( $args = array() ) {
 /**
  * Return the view count HTML as a string.
  *
+ * @since 1.0.0
  * @param  array $args  Same as cspv_the_views().
  * @return string
  */
@@ -148,6 +154,12 @@ function cspv_get_views_html( $args = array() ) {
 // sit neatly together without the theme needing any CSS changes.
 add_action( 'wp_enqueue_scripts', 'cspv_views_inline_style', 99 );
 
+/**
+ * Enqueue the inline CSS for the view counter display.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_views_inline_style() {
     // Only enqueue where the counter is likely displayed.
     if ( ! is_singular() && ! is_home() && ! is_front_page() && ! is_archive() && ! is_search() ) {

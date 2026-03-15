@@ -26,6 +26,8 @@
  * DOUBLE-MIGRATION PROTECTION
  * After a successful run a lock is stored. Reset it via "Reset Lock" if
  * you need to re-run after a database restore.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -42,14 +44,33 @@ add_action( 'wp_ajax_cspv_manual_import',        'cspv_ajax_manual_import' );
 // Lock helpers
 // -------------------------------------------------------------------------
 
+/**
+ * Check whether a migration lock is set (i.e. migration has already run).
+ *
+ * @since 1.0.0
+ * @return bool True if migration is locked.
+ */
 function cspv_migration_is_locked() {
     return (bool) get_option( 'cspv_migration_complete', false );
 }
 
+/**
+ * Persist the migration lock with result data.
+ *
+ * @since 1.0.0
+ * @param mixed $data Data to store alongside the lock (e.g. stats array).
+ * @return void
+ */
 function cspv_migration_set_lock( $data ) {
     update_option( 'cspv_migration_complete', $data, false );
 }
 
+/**
+ * Remove the migration lock so the migration can be re-run.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function cspv_migration_clear_lock() {
     delete_option( 'cspv_migration_complete' );
 }
@@ -58,6 +79,12 @@ function cspv_migration_clear_lock() {
 // Pre-flight — detect Jetpack and preview what will be imported
 // -------------------------------------------------------------------------
 
+/**
+ * AJAX handler: detect Jetpack and preview how many views would be imported.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response with preflight data.
+ */
 function cspv_ajax_jetpack_preflight() {
     if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -81,6 +108,15 @@ function cspv_ajax_jetpack_preflight() {
 // Migration
 // -------------------------------------------------------------------------
 
+/**
+ * AJAX handler: execute the Jetpack stats migration.
+ *
+ * Imports historical view counts from Jetpack into CloudScale post meta
+ * and the V2 log table. Sets a lock on completion to prevent double-import.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response with migration results.
+ */
 function cspv_ajax_jetpack_migrate() {
     if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -135,7 +171,7 @@ function cspv_ajax_jetpack_migrate() {
         }
 
         // Upsert a single imported bucket row in V2
-        $wpdb->query( $wpdb->prepare(
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$table}` (post_id, viewed_at, view_count, source)
              VALUES (%d, %s, %d, 'imported')
              ON DUPLICATE KEY UPDATE view_count = %d",
@@ -173,6 +209,12 @@ function cspv_ajax_jetpack_migrate() {
 // One line per post:  post-slug-or-id, view_count
 // -------------------------------------------------------------------------
 
+/**
+ * AJAX handler: manually import a CSV of post IDs and view counts.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response with import results.
+ */
 function cspv_ajax_manual_import() {
     if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -238,7 +280,7 @@ function cspv_ajax_manual_import() {
         update_post_meta( $post_id, CSPV_META_KEY, $current + $views );
 
         // Upsert a single imported bucket row in V2
-        $wpdb->query( $wpdb->prepare(
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$table}` (post_id, viewed_at, view_count, source)
              VALUES (%d, %s, %d, 'imported')
              ON DUPLICATE KEY UPDATE view_count = view_count + %d",
@@ -274,6 +316,12 @@ function cspv_ajax_manual_import() {
 // Reset lock
 // -------------------------------------------------------------------------
 
+/**
+ * AJAX handler: clear the migration lock so the migration can be re-run.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response.
+ */
 function cspv_ajax_migration_reset_lock() {
     if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -291,6 +339,12 @@ function cspv_ajax_migration_reset_lock() {
 // Delete Jetpack imported rows from cspv_views_v2 table
 // -------------------------------------------------------------------------
 
+/**
+ * AJAX handler: delete all Jetpack post_stats meta from every post.
+ *
+ * @since 1.0.0
+ * @return void Sends JSON response.
+ */
 function cspv_ajax_delete_jetpack_data() {
     if ( ! check_ajax_referer( 'cspv_migrate', 'nonce', false ) ) {
         wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
@@ -304,7 +358,7 @@ function cspv_ajax_delete_jetpack_data() {
     global $wpdb;
     $table = $wpdb->prefix . 'cspv_views_v2';
 
-    $deleted = $wpdb->query(
+    $deleted = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; table and value are hardcoded internal constants
         "DELETE FROM `{$table}` WHERE source = 'imported'"
     );
 
@@ -322,6 +376,15 @@ function cspv_ajax_delete_jetpack_data() {
 // Core: fetch Jetpack data — tries all available methods
 // -------------------------------------------------------------------------
 
+/**
+ * Retrieve all Jetpack post view data using available methods.
+ *
+ * Tries stats_get_csv(), then the WPCOM_Stats class, then local post meta
+ * in order of reliability. Returns an array keyed by post ID.
+ *
+ * @since 1.0.0
+ * @return array Post view data with post_id and views keys per entry.
+ */
 function cspv_get_jetpack_data() {
     $posts  = array();
     $method = 'none';
@@ -380,7 +443,7 @@ function cspv_get_jetpack_data() {
     if ( empty( $posts ) ) {
         global $wpdb;
 
-        $rows = $wpdb->get_results(
+        $rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; fully hardcoded query using core $wpdb->postmeta table name
             "SELECT post_id, meta_value FROM {$wpdb->postmeta}
              WHERE meta_key = '_jetpack_post_views' AND meta_value > 0
              ORDER BY CAST(meta_value AS UNSIGNED) DESC LIMIT 500"
@@ -398,7 +461,7 @@ function cspv_get_jetpack_data() {
 
     if ( empty( $posts ) ) {
         global $wpdb;
-        $rows = $wpdb->get_results(
+        $rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; fully hardcoded query
             "SELECT post_id, meta_value FROM {$wpdb->postmeta}
              WHERE meta_key = 'jetpack_post_stats' LIMIT 500"
         );
@@ -450,6 +513,15 @@ function cspv_get_jetpack_data() {
 // Helper: resolve a post ID and add it to the working array
 // -------------------------------------------------------------------------
 
+/**
+ * Resolve a post ID and add it to the migration working array if valid.
+ *
+ * @since 1.0.0
+ * @param array $posts    Working array of posts to migrate, passed by reference.
+ * @param int   $post_id  Post ID to add.
+ * @param int   $jp_views Jetpack view count for this post.
+ * @return void
+ */
 function cspv_add_jp_post( &$posts, $post_id, $jp_views ) {
     $post = get_post( $post_id );
     if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'private' ), true ) ) {

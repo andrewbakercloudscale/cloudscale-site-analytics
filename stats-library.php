@@ -9,6 +9,8 @@
  * Functions exposed:
  *   cspv_rolling_24h_views()   → array { current, prior }
  *   cspv_rolling_window_views( $seconds ) → int
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -72,6 +74,7 @@ function cspv_referrer_source() {
  *
  * Shared by stats page and dashboard widget so numbers are always identical.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $limit     Max domains to return.
@@ -83,12 +86,12 @@ function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
     $ref_table = $src['table'];
     $cnt       = $src['cnt'];
 
-    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) );
+    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
     if ( ! $has_referrer ) {
         return array();
     }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare(
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
         "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
@@ -121,6 +124,7 @@ function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
 /**
  * Return top referrer pages (full URLs) for a date range.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $limit     Max pages to return.
@@ -132,12 +136,12 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
     $ref_table = $src['table'];
     $cnt       = $src['cnt'];
 
-    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) );
+    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
     if ( ! $has_referrer ) {
         return array();
     }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare(
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
         "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
@@ -168,6 +172,7 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
  * Uses WordPress timezone. Results are memoised in a static variable so multiple
  * callers within the same request only hit the database once.
  *
+ * @since 1.0.0
  * @return array {
  *     @type int $current  Views in the last 24 hours (NOW-24h → NOW).
  *     @type int $prior    Views in the prior 24 hours (NOW-48h → NOW-24h).
@@ -199,12 +204,12 @@ function cspv_rolling_24h_views() {
     $from_str    = $ago24->format( 'Y-m-d H:i:s' );
     $prior_start = $ago48->format( 'Y-m-d H:i:s' );
 
-    $current = (int) $wpdb->get_var( $wpdb->prepare(
+    $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str
     ) );
 
-    $prior = (int) $wpdb->get_var( $wpdb->prepare(
+    $prior = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $prior_start, $from_str
     ) );
@@ -222,6 +227,7 @@ function cspv_rolling_24h_views() {
 /**
  * Return the view count for any arbitrary rolling window in seconds.
  *
+ * @since 1.0.0
  * @param  int $seconds  Window length in seconds (e.g. 7 * DAY_IN_SECONDS).
  * @return int
  */
@@ -239,7 +245,7 @@ function cspv_rolling_window_views( $seconds ) {
     $from = clone $now;
     $from->modify( '-' . (int) $seconds . ' seconds' );
 
-    return (int) $wpdb->get_var( $wpdb->prepare(
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from->format( 'Y-m-d H:i:s' ),
         $now->format( 'Y-m-d H:i:s' )
@@ -249,6 +255,7 @@ function cspv_rolling_window_views( $seconds ) {
 /**
  * Return total views for a date range.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @return int
@@ -257,7 +264,7 @@ function cspv_views_for_range( $from_str, $to_str ) {
     global $wpdb;
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
-    return (int) $wpdb->get_var( $wpdb->prepare(
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str ) );
 }
@@ -265,6 +272,7 @@ function cspv_views_for_range( $from_str, $to_str ) {
 /**
  * Return unique post count for a date range.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @return int
@@ -272,7 +280,7 @@ function cspv_views_for_range( $from_str, $to_str ) {
 function cspv_unique_posts_for_range( $from_str, $to_str ) {
     global $wpdb;
     $table = cspv_views_table();
-    return (int) $wpdb->get_var( $wpdb->prepare(
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str ) );
 }
@@ -280,6 +288,7 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
 /**
  * Return top pages for a date range with title, URL, and view count.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $limit     Max pages to return.
@@ -289,7 +298,7 @@ function cspv_top_pages( $from_str, $to_str, $limit = 3 ) {
     global $wpdb;
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
-    $rows  = $wpdb->get_results( $wpdb->prepare(
+    $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt and $table are trusted internal values
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY views DESC LIMIT %d",
@@ -311,6 +320,7 @@ function cspv_top_pages( $from_str, $to_str, $limit = 3 ) {
 /**
  * Return top countries by view count for a date range.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $limit     Max countries to return (0 = all).
@@ -326,7 +336,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     }
 
     $limit_sql = $limit > 0 ? $wpdb->prepare( ' LIMIT %d', $limit ) : '';
-    $rows = $wpdb->get_results( $wpdb->prepare(
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table and $limit_sql are trusted internal values
         "SELECT country_code, COALESCE(SUM(view_count),0) AS views
          FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s AND country_code <> ''
@@ -350,6 +360,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
 /**
  * Return top pages for a specific country within a date range.
  *
+ * @since 1.0.0
  * @param  string $country_code  Two letter ISO country code.
  * @param  string $from_str      Start datetime (Y-m-d H:i:s).
  * @param  string $to_str        End datetime (Y-m-d H:i:s).
@@ -365,7 +376,7 @@ function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 
         return array();
     }
 
-    $rows = $wpdb->get_results( $wpdb->prepare(
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT post_id, COALESCE(SUM(view_count),0) AS views
          FROM `{$table}`
          WHERE country_code = %s AND viewed_at BETWEEN %s AND %s
@@ -395,6 +406,7 @@ function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 
  * Returns a 2 letter ISO country code or empty string if lookup fails.
  * The mmdb file must exist at wp-content/uploads/cspv-geo/dbip-city-lite.mmdb.
  *
+ * @since 1.0.0
  * @param  string $ip  IP address to look up.
  * @return string      Two letter country code or ''.
  */
@@ -456,6 +468,7 @@ function cspv_geo_lookup_dbip( $ip ) {
  *
  * Counts distinct visitor hashes (SHA256 of IP) from the visitors table.
  *
+ * @since 1.0.0
  * @param  string $from_str  Start date (Y-m-d).
  * @param  string $to_str    End date (Y-m-d).
  * @return int
@@ -473,7 +486,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     $from_date = substr( $from_str, 0, 10 );
     $to_date   = substr( $to_str, 0, 10 );
 
-    return (int) $wpdb->get_var( $wpdb->prepare(
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_date, $to_date
     ) );
@@ -482,6 +495,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
 /**
  * Return unique visitor count per post for a date range.
  *
+ * @since 1.0.0
  * @param  int    $post_id   Post ID.
  * @param  string $from_str  Start date (Y-m-d or Y-m-d H:i:s).
  * @param  string $to_str    End date (Y-m-d or Y-m-d H:i:s).
@@ -499,7 +513,7 @@ function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     $from_date = substr( $from_str, 0, 10 );
     $to_date   = substr( $to_str, 0, 10 );
 
-    return (int) $wpdb->get_var( $wpdb->prepare(
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE post_id = %d AND viewed_at BETWEEN %s AND %s",
         $post_id, $from_date, $to_date
     ) );

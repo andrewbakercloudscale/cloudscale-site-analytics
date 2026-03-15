@@ -1,6 +1,6 @@
-=== CloudScale Page Views ===
+=== Lightweight WordPress Free Analytics ===
 Contributors: andrewbaker
-Tags: page views, analytics, cloudflare, view counter, jetpack migration
+Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
@@ -12,7 +12,7 @@ Accurate page view tracking for WordPress sites behind Cloudflare and other CDNs
 
 == Description ==
 
-CloudScale Page Views solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting — typically 5 to 10 times lower than actual traffic.
+Lightweight WordPress Free Analytics solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting — typically 5 to 10 times lower than actual traffic.
 
 CloudScale uses a lightweight JavaScript beacon that fires after the cached page loads, recording every view through a REST API endpoint that bypasses the CDN cache. The result is accurate view counts regardless of cache status.
 
@@ -48,11 +48,11 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 
 == Installation ==
 
-1. Upload the `cloudscale-page-views` folder to `/wp-content/plugins/`
+1. Upload the `lightweight-wordpress-free-analytics` folder to `/wp-content/plugins/`
 2. Activate the plugin in Plugins > Installed Plugins
 3. The database table is created automatically on activation
 4. Add the Cloudflare Cache Rule (see FAQ)
-5. Configure display settings in Tools > CloudScale Page Views > Display tab
+5. Configure display settings in Tools > Lightweight WordPress Free Analytics > Display tab
 
 == Frequently Asked Questions ==
 
@@ -62,14 +62,14 @@ In the Cloudflare dashboard go to Caching > Cache Rules > Create Rule:
 
 * Field: URI Path
 * Operator: contains
-* Value: /wp-json/cloudscale-page-views/
+* Value: /wp-json/lightweight-wordpress-free-analytics/
 * Action: Cache Status: Bypass
 
 The plugin also sends no cache headers on every REST response, but the Cache Rule is the primary protection.
 
 = How do I migrate from Jetpack Stats? =
 
-Go to Tools > CloudScale Page Views > Migrate Jetpack tab. Click the migration button to import all Jetpack lifetime view counts into CloudScale. The migration preserves your historical totals as a starting point and the plugin blends them with new beacon data during a 28 day transition period.
+Go to Tools > Lightweight WordPress Free Analytics > Migrate Jetpack tab. Click the migration button to import all Jetpack lifetime view counts into CloudScale. The migration preserves your historical totals as a starting point and the plugin blends them with new beacon data during a 28 day transition period.
 
 = Does it work without Cloudflare? =
 
@@ -177,6 +177,20 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * Dashboard widget colours changed from pink to green
 * Transition period logic for Jetpack migration blending
 * Jetpack Stats one click migration tool
+
+== Third Party Services ==
+
+This plugin optionally connects to the following external services:
+
+= DB-IP Lite (optional, geolocation only) =
+When you click "Download DB-IP Lite" in the plugin's statistics page, the plugin fetches the free DB-IP City Lite database directly from DB-IP's servers:
+* Service URL: https://download.db-ip.com/
+* This request is only made when you explicitly trigger it from the admin panel.
+* DB-IP Privacy Policy: https://db-ip.com/db/privacy-policy.html
+* DB-IP Terms of Use: https://db-ip.com/db/terms.html
+* The database is stored locally on your server after download; no data is sent to DB-IP.
+
+No data is transmitted to any external service during normal page view tracking. The JavaScript beacon only communicates with your own site's REST API endpoint.
 
 == License ==
 

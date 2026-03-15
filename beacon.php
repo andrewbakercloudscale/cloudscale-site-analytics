@@ -13,6 +13,8 @@
  *    single request, and injects the numbers into the matching elements.
  *    This means view counts on listing pages are always fresh even when
  *    Cloudflare has cached the HTML.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -59,7 +61,7 @@ function cspv_enqueue_beacon() {
     }
 
     wp_enqueue_script(
-        'cloudscale-page-views-beacon',
+        'lightweight-wordpress-free-analytics-beacon',
         CSPV_PLUGIN_URL . 'beacon.js',
         array(),
         CSPV_VERSION,
@@ -69,7 +71,7 @@ function cspv_enqueue_beacon() {
     // Some optimisation plugins strip ?ver= from scripts.
     // Re-add the version as a cache buster that survives stripping.
     add_filter( 'script_loader_src', function( $src, $handle ) {
-        if ( $handle === 'cloudscale-page-views-beacon' && strpos( $src, 'ver=' ) === false ) {
+        if ( $handle === 'lightweight-wordpress-free-analytics-beacon' && strpos( $src, 'ver=' ) === false ) {
             $src = add_query_arg( 'cspv', CSPV_VERSION, $src );
         }
         return $src;
@@ -77,7 +79,7 @@ function cspv_enqueue_beacon() {
 
     $data = array(
         'mode'       => $is_singular ? 'record' : 'fetch',
-        'countsUrl'  => rest_url( 'cloudscale-page-views/v1/counts' ),
+        'countsUrl'  => rest_url( 'lightweight-wordpress-free-analytics/v1/counts' ),
         'nonce'      => wp_create_nonce( 'wp_rest' ),
         'debug'      => defined( 'WP_DEBUG' ) && WP_DEBUG,
         'dedupOn'    => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
@@ -85,9 +87,9 @@ function cspv_enqueue_beacon() {
 
     if ( $is_singular ) {
         $post_id         = get_the_ID();
-        $data['apiUrl']  = rest_url( 'cloudscale-page-views/v1/record/' . $post_id );
+        $data['apiUrl']  = rest_url( 'lightweight-wordpress-free-analytics/v1/record/' . $post_id );
         $data['postId']  = $post_id;
     }
 
-    wp_localize_script( 'cloudscale-page-views-beacon', 'cspvData', $data );
+    wp_localize_script( 'lightweight-wordpress-free-analytics-beacon', 'cspvData', $data );
 }

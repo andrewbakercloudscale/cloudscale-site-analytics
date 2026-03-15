@@ -10,12 +10,20 @@
  *
  * All calculations use ONLY beacon logged data (wp_cspv_views table).
  * Results cached in wp_options for 1 hour.
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+/**
+ * Return site health metrics, serving a 1-hour cached result when available.
+ *
+ * @since 1.0.0
+ * @return array Metrics array with keys growth, hot_pages, overall, data_days.
+ */
 function cspv_get_site_health() {
     $cache = get_option( 'cspv_site_health_cache', array() );
     if (
@@ -37,6 +45,16 @@ function cspv_get_site_health() {
     return $data;
 }
 
+/**
+ * Compute raw site health metrics from the log table.
+ *
+ * Calculates traffic growth and hot-pages concentration across four
+ * time windows (1 Day, 7 Days, 28 Days, 90 Days) compared to the
+ * prior equivalent period.
+ *
+ * @since 1.0.0
+ * @return array Metrics array with keys growth, hot_pages, overall, data_days.
+ */
 function cspv_compute_site_health() {
     global $wpdb;
     $table = cspv_views_table();
@@ -82,12 +100,12 @@ function cspv_compute_site_health() {
                 $previous = $r24['prior'];
             } else {
                 $start = wp_date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
-                $current = (int) $wpdb->get_var( $wpdb->prepare(
+                $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                     "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $start ) );
 
                 $prev_end   = $start;
                 $prev_start = wp_date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
-                $previous = (int) $wpdb->get_var( $wpdb->prepare(
+                $previous = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                     "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
                     $prev_start, $prev_end ) );
             }
@@ -181,6 +199,16 @@ function cspv_compute_site_health() {
     );
 }
 
+/**
+ * Count how many top pages account for 50% of traffic in a given window.
+ *
+ * @since 1.0.0
+ * @param string $table    Log table name.
+ * @param int    $today_ts Unix timestamp for "today".
+ * @param int    $days     Length of the window in days.
+ * @param int    $offset   Days to offset the window end from today (0 = current window).
+ * @return array|null Array with hot_count, hot_pct, total_views, total_with_views, or null if no data.
+ */
 function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     global $wpdb;
 
@@ -188,7 +216,7 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     $start = wp_date( 'Y-m-d', strtotime( "-" . ( $offset + $days ) . " days", $today_ts ) ) . ' 00:00:00';
 
     $cnt = cspv_count_expr();
-    $post_views = $wpdb->get_results( $wpdb->prepare(
+    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at >= %s AND viewed_at <= %s
          GROUP BY post_id ORDER BY views DESC", $start, $end ) );
@@ -217,6 +245,13 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     );
 }
 
+/**
+ * Render the site health metrics HTML cards.
+ *
+ * @since 1.0.0
+ * @param string $context Rendering context: 'widget' (dashboard) or 'page' (stats page).
+ * @return void
+ */
 function cspv_render_site_health_html( $context = 'widget' ) {
     $health = cspv_get_site_health();
 
@@ -260,10 +295,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
         <span style="background:<?php echo $rag_bg[ $health['overall'] ]; ?>;color:<?php echo $overall_color; ?>;
             font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;text-transform:uppercase;
             box-shadow:0 1px 4px rgba(0,0,0,.08);">
-            <?php echo $overall_emoji; ?> <?php echo $overall_label; ?>
+            <?php echo esc_html( $overall_emoji ); ?> <?php echo esc_html( $overall_label ); ?>
         </span>
         <?php if ( $health['data_days'] > 0 ) : ?>
-        <span style="font-size:10px;color:#aaa;"><?php echo $health['data_days']; ?> days of tracking data</span>
+        <span style="font-size:10px;color:#aaa;"><?php echo (int) $health['data_days']; ?> days of tracking data</span>
         <?php endif; ?>
     </div>
 
@@ -286,7 +321,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
             </div>
             <div style="font-size:<?php echo $w ? '16' : '22'; ?>px;font-weight:900;color:<?php echo $val_color; ?>;
                 font-variant-numeric:tabular-nums;line-height:1.1;">
-                <?php echo $arrow; ?> <?php echo abs( $g['pct_change'] ); ?>%
+                <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
                 <?php echo number_format( $g['current'] ); ?> current
@@ -334,10 +369,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
             </div>
             <div style="font-size:<?php echo $w ? '16' : '22'; ?>px;font-weight:900;color:<?php echo $val_color; ?>;
                 font-variant-numeric:tabular-nums;line-height:1.1;">
-                <?php echo $arrow; ?> <?php echo abs( $h['pct_change'] ); ?>%
+                <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
-                <?php echo $h['current_count']; ?> page<?php echo $h['current_count'] !== 1 ? 's' : ''; ?> &gt;= 50% traffic
+                <?php echo (int) $h['current_count']; ?> page<?php echo (int) $h['current_count'] !== 1 ? 's' : ''; ?> &gt;= 50% traffic
             </div>
         </div>
     <?php else : ?>
@@ -351,7 +386,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
                 Insufficient Data
             </div>
             <div style="font-size:<?php echo $w ? '9' : '10'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.6;margin-top:2px;">
-                need <?php echo $h['days'] * 2; ?> days
+                need <?php echo (int) $h['days'] * 2; ?> days
             </div>
         </div>
     <?php endif; endforeach; ?>

@@ -1,16 +1,19 @@
 <?php
 /**
- * Plugin Name:  CloudScale Page Views
+ * Plugin Name:  Lightweight WordPress Free Analytics
  * Plugin URI:   https://your-wordpress-site.example.com
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
  * Version:      2.9.94
  * Author:       Andrew Baker
  * Author URI:   https://your-wordpress-site.example.com
+ * Contributors: andrewjbaker
  * License:      GPL-2.0-or-later
  * License URI:  https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:  cloudscale-page-views
+ * Text Domain:  lightweight-wordpress-free-analytics
  * Requires PHP: 7.4
  * Requires at least: 6.0
+ *
+ * @package Lightweight_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,6 +43,8 @@ require_once CSPV_PLUGIN_DIR . 'template-functions.php';
 require_once CSPV_PLUGIN_DIR . 'jetpack-migration.php';
 require_once CSPV_PLUGIN_DIR . 'top-posts-widget.php';
 require_once CSPV_PLUGIN_DIR . 'recent-posts-widget.php';
+require_once CSPV_PLUGIN_DIR . 'search.php';
+require_once CSPV_PLUGIN_DIR . 'not-found.php';
 require_once CSPV_PLUGIN_DIR . 'auto-display.php';
 require_once CSPV_PLUGIN_DIR . 'admin-columns.php';
 require_once CSPV_PLUGIN_DIR . 'dashboard-widget.php';
@@ -109,6 +114,7 @@ add_action( 'admin_init', function() {
         cspv_create_table_referrers_v2();
         cspv_create_table_geo_v2();
         cspv_create_table_visitors_v2();
+        cspv_create_table_404_v2();
         update_option( 'cspv_version', CSPV_VERSION );
     }
 } );

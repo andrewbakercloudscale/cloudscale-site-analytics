@@ -3,6 +3,53 @@
 All notable changes to CloudScale Page Views are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.94] - 2026-03-15
+
+### Fixed
+- Debug panel "Jetpack imported" counter was a false positive whenever meta count exceeded log count by any amount. The label now only appears when there are zero log rows (a true Jetpack-only import). A separate "Unlogged views" row appears when log rows exist but meta is slightly ahead — reflecting a minor write-ordering gap, not a Jetpack import.
+
+### Changed
+- Widget enqueues gated: `cspv_recent_posts_widget_enqueue` and `cspv_top_posts_widget_enqueue` now check `is_active_widget()` before injecting inline CSS/JS. Assets no longer load on every frontend page when neither widget is active (PCP global-enqueue compliance).
+- Added `__()` / `esc_html_e()` i18n wrappers to all widget registration strings, form labels, default titles, and admin column headers. Text domain `cloudscale-page-views` is now exercised across all user-visible PHP strings in widget and column code.
+- DocBlocks (`@since`, `@param`, `@return`) added to all functions in `admin-columns.php`, `auto-display.php`, `dashboard-widget.php`, `debug-panel.php`, `database.php`, `ip-throttle.php`, `jetpack-migration.php`, `site-health.php`, `recent-posts-widget.php`, and `top-posts-widget.php`.
+
+## [2.9.88] - 2026-03-08
+
+### Added
+- Geography tracking with Leaflet map: country-level data stored in `wp_cspv_geo_v2` table, visualised on the stats page with an interactive choropleth map.
+- Unique visitor tracking via daily hashed-IP buckets in `wp_cspv_visitors_v2` table.
+- Shared stats consolidation: stats-library.php is now the single source of truth for all rolling view, referrer, geo, and visitor queries.
+
+### Fixed
+- Debug panel close button alignment.
+- Date swap bug in visitor range queries.
+- Geo map rendering on sites with no geo data.
+
+## [2.9.72] - 2026-03-04
+
+### Added
+- V2 referrer table (`wp_cspv_referrers_v2`): one row per post per hour per referrer, replacing the flat referrer string stored on each view row.
+- Shared referrer query functions in `stats-library.php` (`cspv_top_referrer_domains`, `cspv_top_referrer_pages`).
+- Configurable Ignore Jetpack toggle: when enabled, disables transition-mode blending and ranks Top Posts widget purely by beacon data.
+
+### Changed
+- Dashboard widget and stats page redesigned with card UI.
+- Top Posts widget skips transition mode entirely when Ignore Jetpack toggle is on.
+- Dashboard widget banner now leads with percentage change vs prior period.
+
+## [2.9.46] - 2026-03-03
+
+### Added
+- `stats-library.php` as single source of truth for rolling view counts, referrer sources, and geo lookups. Removed duplicate `cspv_rolling_24h_views()` from main plugin file.
+- Post History view on stats page: per-post daily/monthly breakdown with period comparison.
+- Configurable FTB (Fail2Ban) block duration: 30 minutes to 24 hours, selectable in admin UI.
+
+### Fixed
+- Runaway "Jetpack imported" count inflation in Top Posts widget transition mode.
+- Client-side deduplication ignoring disabled setting when value was stored as a string.
+- Beacon cache-bust `?ver=` parameter stripped by some optimisation plugins — re-added as `?cspv=` fallback.
+- WordPress timezone offset applied correctly to rolling window calculations.
+
 ## [2.9.12] - 2026-03-01
 
 ### Changed

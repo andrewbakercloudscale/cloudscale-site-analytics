@@ -6,7 +6,7 @@
  *   - Post meta count (_cspv_view_count) = the displayed number
  *   - Log table total (SUM of view_count in wp_cspv_views_v2 for this post)
  *   - Jetpack imported count (only when log table is empty = true Jetpack import)
- *   - Unlogged views delta (meta ahead of log, but log rows exist)
+ *   - Restore offset delta (meta ahead of log, permanent gap from log wipe/restore)
  *   - Daily view chart from the log table
  *
  * Only visible to users with manage_options capability.
@@ -180,7 +180,7 @@ function cspv_render_debug_panel() {
         <?php endif; ?>
         <?php if ( $unlogged_delta > 0 ) : ?>
         <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Unlogged views (meta ahead of log)</span>
+            <span class="cspv-dbg-label">Restore offset (meta ahead of log)</span>
             <span class="cspv-dbg-value orange"><?php echo number_format( $unlogged_delta ); ?></span>
         </div>
         <?php endif; ?>

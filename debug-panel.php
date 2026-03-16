@@ -4,7 +4,7 @@
  *
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number
- *   - Log table count (wp_cspv_views rows for this post)
+ *   - Log table total (SUM of view_count in wp_cspv_views_v2 for this post)
  *   - Jetpack imported count (only when log table is empty = true Jetpack import)
  *   - Unlogged views delta (meta ahead of log, but log rows exist)
  *   - Daily view chart from the log table
@@ -57,7 +57,11 @@ function cspv_debug_panel_enqueue() {
          . '.cspv-dbg-chart-labels{display:flex;justify-content:space-between;font-size:10px;color:#aaa;margin-top:2px;}'
          . '.cspv-dbg-warn{background:#fef3cd;border:1px solid #f0d060;border-radius:4px;padding:8px 10px;font-size:12px;margin-top:10px;color:#856404;}'
          . '.cspv-dbg-fix-btn{display:inline-block;margin-top:6px;padding:4px 12px;background:#e53e3e;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;}'
-         . '.cspv-dbg-fix-btn:hover{background:#c53030;}';
+         . '.cspv-dbg-fix-btn:hover{background:#c53030;}'
+         . '.cspv-dbg-override{display:flex;gap:6px;align-items:center;margin-top:8px;}'
+         . '.cspv-dbg-override input{flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;}'
+         . '.cspv-dbg-override-btn{padding:4px 12px;background:#7c3aed;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}'
+         . '.cspv-dbg-override-btn:hover{background:#6d28d9;}';
 
     wp_register_style( 'cspv-debug-panel', false );
     wp_enqueue_style( 'cspv-debug-panel' );
@@ -165,7 +169,7 @@ function cspv_render_debug_panel() {
             <span class="cspv-dbg-value <?php echo $mismatch ? 'red' : 'green'; ?>"><?php echo number_format( $meta_count ); ?></span>
         </div>
         <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Log table rows (wp_cspv_views)</span>
+            <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cspv_views_v2</span>
             <span class="cspv-dbg-value blue"><?php echo number_format( $log_count ); ?></span>
         </div>
         <?php if ( $jetpack_imported > 0 ) : ?>
@@ -230,6 +234,15 @@ function cspv_render_debug_panel() {
         </div>
         <?php endif; ?>
 
+        <div class="cspv-dbg-section">Manual Override</div>
+        <div class="cspv-dbg-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
+            <span class="cspv-dbg-label">Set displayed count to a specific value (e.g. after a data restore)</span>
+            <div class="cspv-dbg-override">
+                <input type="number" id="cspv-dbg-override-val" min="0" placeholder="e.g. 2000" value="<?php echo (int) $meta_count; ?>">
+                <button class="cspv-dbg-override-btn" id="cspv-dbg-override-save">Set count</button>
+            </div>
+        </div>
+
         <div class="cspv-dbg-section">System</div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Plugin version</span>
@@ -285,6 +298,29 @@ function cspv_render_debug_panel() {
             }).catch(function(){resync.textContent="\u2717 Error";});
         });
     }
+    var overrideSave=document.getElementById("cspv-dbg-override-save");
+    var overrideVal=document.getElementById("cspv-dbg-override-val");
+    if(overrideSave&&overrideVal){
+        overrideSave.addEventListener("click",function(){
+            var v=parseInt(overrideVal.value,10);
+            if(isNaN(v)||v<0){overrideVal.style.borderColor="#e53e3e";return;}
+            overrideVal.style.borderColor="";
+            if(!confirm("Set view count for this post to "+v.toLocaleString()+"?"))return;
+            overrideSave.disabled=true;
+            overrideSave.textContent="Saving\u2026";
+            fetch(cspvDebug.ajaxUrl,{
+                method:"POST",credentials:"same-origin",
+                headers:{"Content-Type":"application/x-www-form-urlencoded"},
+                body:"action=cspv_set_view_count&nonce="+encodeURIComponent(cspvDebug.nonce)+"&post_id="+cspvDebug.postId+"&count="+v
+            }).then(function(r){return r.json();})
+            .then(function(resp){
+                if(resp.success){
+                    overrideSave.textContent="\u2713 Set to "+resp.data.new_count.toLocaleString();
+                    overrideSave.style.background="#059669";
+                }else{overrideSave.textContent="\u2717 Failed";overrideSave.disabled=false;}
+            }).catch(function(){overrideSave.textContent="\u2717 Error";overrideSave.disabled=false;});
+        });
+    }
 })();';
 
     wp_add_inline_script( 'cspv-debug-panel', $js );
@@ -323,9 +359,11 @@ function cspv_ajax_resync_meta() {
     $cnt   = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
-    $jp_views = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
-    $new_count = $log_count + max( 0, $jp_views );
+    $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+    // Never reduce the meta — take the higher of the two sources so a partial
+    // log restore doesn't silently wipe out counts that meta already knows about.
+    $new_count = max( $old_count, $log_count + max( 0, $jp_views ) );
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
 
     wp_send_json_success( array(
@@ -334,5 +372,44 @@ function cspv_ajax_resync_meta() {
         'new_count' => $new_count,
         'log_rows'  => $log_count,
         'jp_views'  => $jp_views,
+    ) );
+}
+
+// AJAX handler for manual count override (e.g. after a data restore).
+add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
+
+/**
+ * AJAX handler: manually set the post meta view count to a specific value.
+ *
+ * Used to correct counts that were lost or corrupted during a data restore.
+ * Requires manage_options capability and a valid nonce.
+ *
+ * @since 2.9.96
+ * @return void Sends JSON response.
+ */
+function cspv_ajax_set_view_count() {
+    if ( ! check_ajax_referer( 'cspv_resync', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );
+        return;
+    }
+
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    if ( ! $post_id ) {
+        wp_send_json_error( array( 'message' => 'Invalid post ID.' ) );
+        return;
+    }
+
+    $new_count = isset( $_POST['count'] ) ? absint( $_POST['count'] ) : 0;
+    $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
+
+    wp_send_json_success( array(
+        'post_id'   => $post_id,
+        'old_count' => $old_count,
+        'new_count' => $new_count,
     ) );
 }

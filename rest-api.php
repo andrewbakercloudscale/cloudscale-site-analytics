@@ -229,16 +229,18 @@ function cspv_record_view( WP_REST_Request $request ) {
                 $country = cspv_geo_lookup_dbip( $safe_ip );
             }
         }
-        // Write to geo table if we resolved a valid country
-        if ( $country !== '' && $country !== 'XX' && $country !== 'T1' ) {
-            $geo_table = $wpdb->prefix . 'cspv_geo_v2';
-            $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
-                 VALUES (%d, %s, %s, 1)
-                 ON DUPLICATE KEY UPDATE view_count = view_count + 1",
-                $post_id, $hour_bucket, $country
-            ) );
+        // Tor/anonymous exits map to ZZ (unknown) rather than being dropped.
+        if ( $country === 'XX' || $country === 'T1' || $country === '' ) {
+            $country = 'ZZ';
         }
+        // Write to geo table — every view is recorded, ZZ = unknown/unresolved.
+        $geo_table = $wpdb->prefix . 'cspv_geo_v2';
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+            "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
+             VALUES (%d, %s, %s, 1)
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
+            $post_id, $hour_bucket, $country
+        ) );
     }
 
     // Track unique visitor (hashed IP, one row per visitor per post per day)

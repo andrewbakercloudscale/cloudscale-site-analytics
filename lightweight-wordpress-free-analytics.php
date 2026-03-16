@@ -3,7 +3,7 @@
  * Plugin Name:  Lightweight WordPress Free Analytics
  * Plugin URI:   https://your-wordpress-site.example.com
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.95
+ * Version:      2.9.96
  * Author:       Andrew Baker
  * Author URI:   https://your-wordpress-site.example.com
  * Contributors: andrewjbaker
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.95' );
+define( 'CSPV_VERSION',    '2.9.96' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

@@ -1,10 +1,10 @@
 <?php
 /**
- * Lightweight Analytics - Admin Columns
+ * CloudScale Analytics - Admin Columns
  *
  * Adds a sortable Views column to the Posts list table in wp-admin.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,7 +24,7 @@ add_action( 'pre_get_posts',                     'cspv_sort_by_views' );
  * @return array Modified column headers.
  */
 function cspv_add_admin_column( $columns ) {
-    $columns['cspv_views'] = __( '👁 Views', 'lightweight-wordpress-free-analytics' );
+    $columns['cspv_views'] = __( '👁 Views', 'cloudscale-wordpress-free-analytics' );
     return $columns;
 }
 

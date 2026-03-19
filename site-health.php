@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - Site Health Metrics  v4.0.0
+ * CloudScale Analytics - Site Health Metrics  v4.0.0
  *
  * Computes two metric groups across 4 time windows (1 Day, 7 Days, 28 Days, 3 Months)
  * compared against the prior equivalent period:
@@ -11,7 +11,7 @@
  * All calculations use ONLY beacon logged data (wp_cspv_views table).
  * Results cached in wp_options for 1 hour.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

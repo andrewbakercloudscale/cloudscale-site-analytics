@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - IP Throttling + Fail2Ban  v3.1.0
+ * CloudScale Analytics - IP Throttling + Fail2Ban  v3.1.0
  *
  * Two tier IP protection:
  *
@@ -15,7 +15,7 @@
  *   last 2 hours and auto clear via transients. The admin UI also
  *   stores a persistent list for display that prunes expired entries.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

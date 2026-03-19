@@ -1,11 +1,11 @@
 <?php
 /**
- * Lightweight Analytics - Database
+ * CloudScale Analytics - Database
  *
  * Creates the wp_cspv_views_v2 and wp_cspv_referrers_v2 tables.
  * Plugin uses V2 hourly bucket schema exclusively.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

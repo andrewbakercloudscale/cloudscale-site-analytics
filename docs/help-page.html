@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Lightweight WordPress Free Analytics — Help</title></head><body>
+<!-- wp:html -->
+<style>
+.cs-help-docs{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1a202c;line-height:1.7;max-width:900px;}
+.cs-help-docs a{color:#2563eb;}
+.cs-help-docs code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;font-size:.88em;}
+.cs-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0e6b8f 100%);color:#fff;border-radius:12px;padding:48px 40px;margin-bottom:40px;}
+.cs-hero h1{font-size:2.2em;font-weight:800;margin:0 0 12px;letter-spacing:-.02em;color:#fff;}
+.cs-hero p{font-size:1.1em;margin:0;opacity:.85;max-width:680px;}
+.cs-hero .cs-badge{display:inline-block;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 14px;font-size:.8em;font-weight:600;margin-bottom:16px;letter-spacing:.05em;text-transform:uppercase;}
+.cs-toc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:28px 36px;margin:32px 0;}
+.cs-toc-title{font-size:1em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 16px;}
+.cs-toc ol{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px;margin:0;padding-left:24px;}
+.cs-toc li a{color:#2563eb;text-decoration:none;font-weight:500;font-size:.97em;}
+.cs-tab-section{margin:56px 0 0;}
+.cs-tab-heading{font-size:2em;font-weight:800;color:#0f172a;padding:0 0 16px;border-bottom:3px solid #0e6b8f;margin:0 0 8px;}
+.cs-tab-intro{color:#475569;font-size:1.05em;margin:10px 0 32px;}
+.cs-panel-section{margin:36px 0 0;}
+.cs-panel-heading{font-size:1.45em;font-weight:700;color:#1e293b;margin:0 0 16px;padding:0 0 10px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
+.cs-panel-heading::before{content:"";display:inline-block;width:4px;height:1.2em;background:#0e6b8f;border-radius:2px;flex-shrink:0;}
+.cs-screenshot{margin:20px 0 24px;}
+.cs-screenshot img{max-width:100%;border-radius:8px;border:1px solid #d1d5db;box-shadow:0 4px 20px rgba(0,0,0,.10);display:block;}
+.cs-panel-body{color:#334155;}
+.cs-panel-body p{margin:0 0 12px;}
+.cs-panel-body ul,.cs-panel-body ol{padding-left:22px;margin:8px 0 16px;}
+.cs-panel-body li{margin:6px 0;}
+.cs-panel-body strong{color:#1e293b;}
+.cs-divider{border:none;border-top:1px solid #e2e8f0;margin:40px 0;}
+</style>
+<div class="cs-help-docs" style="max-width:900px;margin:0 auto;">
+<div class="cs-hero">
+<div class="cs-badge">Free &amp; Open Source</div>
+<h1>Lightweight WordPress Free Analytics</h1>
+<p>Accurate page view tracking via a JavaScript beacon that bypasses caching. Includes a live statistics dashboard, Top Posts and Recent Posts sidebar widgets, IP throttling, and a Jetpack stats migrator — completely free, no data sent to third parties.</p>
+</div>
+
+<div class="cs-toc">
+<div class="cs-toc-title">Contents</div>
+<ol><li><a href="#statistics">Statistics Dashboard</a></li>
+<li><a href="#display">Display Settings</a></li>
+<li><a href="#throttle">IP Throttle</a></li>
+<li><a href="#history">Post History</a></li></ol>
+</div>
+
+<hr class="cs-divider"/>
+
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="statistics">Statistics Dashboard</h3>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-statistics.jpg" alt="Statistics Dashboard" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Statistics Dashboard</strong> is the main analytics view, showing page view data stored directly in your WordPress database. No data is sent to Google, Facebook, or any third party.</p>
+<ul>
+<li><strong>Period selector</strong> — switch between Today, 7 days, 30 days, 90 days, and All time to see view counts for that period.</li>
+<li><strong>Totals bar</strong> — shows Total Views, Unique Posts Viewed, and Lifetime total at a glance.</li>
+<li><strong>Views chart</strong> — a bar chart showing daily view volume over the selected period.</li>
+<li><strong>Top Posts table</strong> — your most-viewed posts for the selected period, ranked by view count with links to edit each post.</li>
+<li><strong>Referrer breakdown</strong> — shows which domains are sending traffic to your site.</li>
+</ul>
+<p>Page views are recorded by a lightweight JavaScript beacon that fires after the page loads, bypassing Cloudflare and other caching layers that would block server-side tracking.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="display">Display Settings</h3>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-display.jpg" alt="Display Settings" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Display Settings</strong> tab controls how and where view counts and widgets appear on your site.</p>
+<ul>
+<li><strong>Show view count on posts</strong> — when enabled, a view counter is displayed on single post pages. Useful for social proof ("1,240 views").</li>
+<li><strong>View count position</strong> — place the counter before or after the post content, or in the post meta area.</li>
+<li><strong>Top Posts widget</strong> — displays your most-viewed posts in any sidebar. Configure via Appearance → Widgets. Settings: number of posts to show (1–20), minimum view threshold (hides posts with very few views), and whether to show thumbnails.</li>
+<li><strong>Recent Posts widget</strong> — shows recently viewed posts. Configure the number of entries and whether to display post thumbnails.</li>
+<li><strong>Exclude post types</strong> — prevent certain post types (e.g. WooCommerce products, custom post types) from having their views tracked or displayed.</li>
+</ul></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="throttle">IP Throttle</h3>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-throttle.jpg" alt="IP Throttle" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>IP Throttle</strong> tab prevents your own page views — and repeated views from the same visitor — from inflating your statistics.</p>
+<ul>
+<li><strong>Throttle window</strong> — the time period (in minutes) during which a repeat view from the same IP address is not counted. Default: 30 minutes. Set to 0 to count every page load.</li>
+<li><strong>Exclude logged-in users</strong> — when ticked, views from any logged-in WordPress user are not recorded. This prevents your own browsing from appearing in the stats.</li>
+<li><strong>Exclude administrators</strong> — more specific than the above: only excludes users with the Administrator role, leaving Editor and Author views counted.</li>
+<li><strong>Pause tracking</strong> — temporarily suspend all view recording without deactivating the plugin. Useful during maintenance, content imports, or testing.</li>
+<li><strong>Bot filtering</strong> — automatically ignores known crawler and bot user agents. Bots do not trigger the JavaScript beacon, so this is a secondary safeguard.</li>
+</ul></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="history">Post History</h3>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-history.jpg" alt="Post History" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Post History</strong> tab lets you look up the complete view history for any specific post or page.</p>
+<ul>
+<li><strong>Post search</strong> — type the title of any post or page to find it. Select it from the autocomplete dropdown.</li>
+<li><strong>View timeline</strong> — once a post is selected, the tab shows a day-by-day breakdown of its view count over its entire history.</li>
+<li><strong>Total views</strong> — the lifetime view count for that specific post.</li>
+<li><strong>Trending indicator</strong> — compares recent views to the post's historical average, showing whether it is currently gaining or losing traffic.</li>
+</ul>
+<p>This is useful for identifying which posts are driving traffic, spotting seasonal patterns, and measuring the impact of updates or promotions on a specific article.</p></div>
+</div>
+<hr class="cs-divider"/>
+</div>
+<!-- /wp:html -->
+</body></html>

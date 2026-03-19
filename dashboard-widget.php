@@ -8,7 +8,7 @@
  *   - Time-period chart: 7 Hours / 1 Day / 7 Days / 1 Month / 6 Months
  *   - Top 3 posts and top 3 referrers for today (side by side)
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

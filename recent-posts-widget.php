@@ -6,7 +6,7 @@
  * Replaces the standalone CloudScale Paginated Recent Posts plugin
  * that previously used Jetpack stats.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

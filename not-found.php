@@ -8,7 +8,7 @@
  *
  * Results displayed in the stats page above Site Health.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

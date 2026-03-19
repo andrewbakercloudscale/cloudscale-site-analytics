@@ -2,7 +2,7 @@
 /**
  * CloudScale Analytics - Statistics Dashboard
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  * @since   1.0.0
  */
 
@@ -28,7 +28,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  */
 function cspv_add_tools_page() {
     add_management_page(
-        'CloudScale WordPress Free Analytics',
+        'CloudScale Free Analytics',
         'CloudScale Analytics',
         'manage_options',
         'cloudscale-wordpress-free-analytics',

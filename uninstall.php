@@ -9,7 +9,7 @@
  *
  * @since 2.9.94
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {

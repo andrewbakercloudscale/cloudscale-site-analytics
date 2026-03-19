@@ -12,7 +12,7 @@
  * Only visible to users with manage_options capability.
  * Button renders INLINE next to the view counter (pink, 🐛 icon).
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -384,7 +384,7 @@ add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
  * Used to correct counts that were lost or corrupted during a data restore.
  * Requires manage_options capability and a valid nonce.
  *
- * @since 2.9.97
+ * @since 2.9.98
  * @return void Sends JSON response.
  */
 function cspv_ajax_set_view_count() {

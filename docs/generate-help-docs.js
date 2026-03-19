@@ -12,6 +12,7 @@ helpLib.run({
     pluginDesc: 'Most WordPress analytics plugins miss 80–95% of your traffic when Cloudflare or a CDN is caching your pages. Google Analytics sends your visitor data to Google. Jetpack sends it to Automattic. CloudScale keeps every view count in your own database, counts every visit regardless of caching, and costs nothing. No subscriptions, no external services, no tracking pixels — your data stays on your server.',
     pageTitle:  'CloudScale Free Analytics: Online Help',
     pageSlug:   'analytics-help',
+    downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
 
     sections: [

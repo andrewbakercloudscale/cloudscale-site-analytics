@@ -1,26 +1,26 @@
 <?php
 /**
- * Plugin Name:  Lightweight WordPress Free Analytics
+ * Plugin Name:  CloudScale WordPress Free Analytics
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.96
+ * Version:      2.9.97
  * Author:       Andrew Baker
  * Author URI:   https://andrewbaker.ninja
  * Contributors: andrewjbaker
  * License:      GPL-2.0-or-later
  * License URI:  https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:  lightweight-wordpress-free-analytics
+ * Text Domain:  cloudscale-wordpress-free-analytics
  * Requires PHP: 7.4
  * Requires at least: 6.0
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.96' );
+define( 'CSPV_VERSION',    '2.9.97' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

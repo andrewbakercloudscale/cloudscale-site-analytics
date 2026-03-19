@@ -1,11 +1,11 @@
 <?php
 /**
- * Lightweight Analytics - REST API
+ * CloudScale Analytics - REST API
  *
  * Registers the POST endpoint that the beacon calls.
  * Multiple cache-bypass headers ensure Cloudflare never caches this route.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -39,7 +39,7 @@ function cspv_public_view_count( $post_id ) {
  */
 function cspv_register_endpoint() {
     register_rest_route(
-        'lightweight-wordpress-free-analytics/v1',
+        'cloudscale-wordpress-free-analytics/v1',
         '/record/(?P<id>\d+)',
         array(
             'methods'             => 'POST',
@@ -58,7 +58,7 @@ function cspv_register_endpoint() {
 
     // Diagnostics endpoint — used by the stats page to confirm beacon is reachable
     register_rest_route(
-        'lightweight-wordpress-free-analytics/v1',
+        'cloudscale-wordpress-free-analytics/v1',
         '/ping',
         array(
             'methods'             => 'GET',
@@ -69,7 +69,7 @@ function cspv_register_endpoint() {
 }
 
 /**
- * REST callback for POST /lightweight-wordpress-free-analytics/v1/record/{id}.
+ * REST callback for POST /cloudscale-wordpress-free-analytics/v1/record/{id}.
  *
  * Validates the post, checks the IP throttle, writes the hourly view bucket,
  * referrer, geo, and unique-visitor rows, then increments the denormalised
@@ -271,7 +271,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
 
 /**
- * REST callback for GET /lightweight-wordpress-free-analytics/v1/ping.
+ * REST callback for GET /cloudscale-wordpress-free-analytics/v1/ping.
  *
  * Returns plugin version and current server time. Used by the Statistics page
  * to confirm the REST endpoint is reachable and not cached by the CDN.
@@ -324,7 +324,7 @@ function cspv_send_nocache_headers() {
 // Used by the archive/home page JS to update counts client-side after
 // Cloudflare serves a cached page.
 //
-// GET /wp-json/lightweight-wordpress-free-analytics/v1/counts?ids=1,2,3,4
+// GET /wp-json/cloudscale-wordpress-free-analytics/v1/counts?ids=1,2,3,4
 // Returns: { "1": 42, "2": 7, ... }
 // -------------------------------------------------------------------------
 add_action( 'rest_api_init', 'cspv_register_counts_endpoint' );
@@ -339,7 +339,7 @@ add_action( 'rest_api_init', 'cspv_register_counts_endpoint' );
  */
 function cspv_register_counts_endpoint() {
     register_rest_route(
-        'lightweight-wordpress-free-analytics/v1',
+        'cloudscale-wordpress-free-analytics/v1',
         '/counts',
         array(
             'methods'             => 'GET',
@@ -362,7 +362,7 @@ function cspv_register_counts_endpoint() {
 }
 
 /**
- * REST callback for GET /lightweight-wordpress-free-analytics/v1/counts?ids=1,2,3.
+ * REST callback for GET /cloudscale-wordpress-free-analytics/v1/counts?ids=1,2,3.
  *
  * Returns a map of post ID → view count for up to 50 IDs per request.
  * Used by the archive/home page beacon to refresh counts on Cloudflare-cached
@@ -406,10 +406,10 @@ function cspv_get_counts( WP_REST_Request $request ) {
 // -------------------------------------------------------------------------
 // Cache bypass test endpoint
 //
-// GET  /wp-json/lightweight-wordpress-free-analytics/v1/cache-test
+// GET  /wp-json/cloudscale-wordpress-free-analytics/v1/cache-test
 //   Returns the current counter value.
 //
-// POST /wp-json/lightweight-wordpress-free-analytics/v1/cache-test
+// POST /wp-json/cloudscale-wordpress-free-analytics/v1/cache-test
 //   Increments the counter and returns the new value.
 //
 // The counter is stored as a transient that expires in 5 minutes.
@@ -427,7 +427,7 @@ add_action( 'rest_api_init', 'cspv_register_cache_test_endpoint' );
  * @return void
  */
 function cspv_register_cache_test_endpoint() {
-    register_rest_route( 'lightweight-wordpress-free-analytics/v1', '/cache-test', array(
+    register_rest_route( 'cloudscale-wordpress-free-analytics/v1', '/cache-test', array(
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_cache_test_get',
@@ -444,7 +444,7 @@ function cspv_register_cache_test_endpoint() {
 }
 
 /**
- * REST callback for GET /lightweight-wordpress-free-analytics/v1/cache-test.
+ * REST callback for GET /cloudscale-wordpress-free-analytics/v1/cache-test.
  *
  * Returns the current in-memory counter value. If Cloudflare caches this
  * response the counter will never change and the bypass test will correctly
@@ -464,7 +464,7 @@ function cspv_cache_test_get( WP_REST_Request $request ) {
 }
 
 /**
- * REST callback for POST /lightweight-wordpress-free-analytics/v1/cache-test.
+ * REST callback for POST /cloudscale-wordpress-free-analytics/v1/cache-test.
  *
  * Increments the counter transient (5 min TTL) and returns the new value.
  * Requires manage_options capability.

@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics — 404 Tracking
+ * CloudScale Analytics — 404 Tracking
  *
  * Logs every frontend 404 (destination URL + referrer source) to
  * wp_cspv_404_v2. Repeated hits on the same URL+referrer pair increment
@@ -8,7 +8,7 @@
  *
  * Results displayed in the stats page above Site Health.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -137,7 +137,7 @@ add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script', 20 );
  * @return void
  */
 function cspv_404_enqueue_purge_script( $hook ) {
-	if ( 'tools_page_lightweight-wordpress-free-analytics' !== $hook ) {
+	if ( 'tools_page_cloudscale-wordpress-free-analytics' !== $hook ) {
 		return;
 	}
 	$nonce = wp_json_encode( wp_create_nonce( 'cspv_404_data' ) );

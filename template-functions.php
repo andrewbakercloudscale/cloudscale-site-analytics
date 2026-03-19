@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - Template Functions  v2.0.0
+ * CloudScale Analytics - Template Functions  v2.0.0
  *
  * USAGE GUIDE
  * ===========
@@ -62,7 +62,7 @@
  *     $views = cspv_get_view_count();            // current post in loop
  *     $views = cspv_get_view_count( $post_id );  // specific post
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

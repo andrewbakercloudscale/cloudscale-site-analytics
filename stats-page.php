@@ -1,8 +1,8 @@
 <?php
 /**
- * Lightweight Analytics - Statistics Dashboard
+ * CloudScale Analytics - Statistics Dashboard
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  * @since   1.0.0
  */
 
@@ -28,10 +28,10 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  */
 function cspv_add_tools_page() {
     add_management_page(
-        'Lightweight WordPress Free Analytics',
-        'Lightweight Analytics',
+        'CloudScale WordPress Free Analytics',
+        'CloudScale Analytics',
         'manage_options',
-        'lightweight-wordpress-free-analytics',
+        'cloudscale-wordpress-free-analytics',
         'cspv_render_stats_page'
     );
 }
@@ -44,7 +44,7 @@ function cspv_add_tools_page() {
  * @return void
  */
 function cspv_enqueue_admin_assets( $hook ) {
-    if ( 'tools_page_lightweight-wordpress-free-analytics' !== $hook ) { return; }
+    if ( 'tools_page_cloudscale-wordpress-free-analytics' !== $hook ) { return; }
     wp_enqueue_script( 'cspv-chartjs',
         CSPV_PLUGIN_URL . 'assets/js/chart.umd.min.js',
         array(), '4.4.1', true );
@@ -800,7 +800,7 @@ function cspv_render_stats_page() {
 
         printf(
             '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-            esc_html__( 'Display settings saved.', 'lightweight-wordpress-free-analytics' )
+            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' )
         );
     }
 
@@ -1021,7 +1021,7 @@ function cspv_render_stats_page() {
             </div>
             <div id="cspv-cf-rule">
                 Required Cache Rule: URI Path <code>contains</code>
-                <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Cache Status: <strong>Bypass</strong>
+                <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Cache Status: <strong>Bypass</strong>
             </div>
             <div id="cspv-cf-test-log"></div>
         </div>
@@ -2726,7 +2726,7 @@ ob_start();
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here (not imported Jetpack totals). Click any title to visit the post.' },
                 { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
-                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Bypass Cache.' },
+                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Bypass Cache.' },
                 { title: 'Installation', badge: 'required', body: 'No additional installation required. The plugin creates its database table automatically on activation. Ensure your Cloudflare Cache Rule is set up (see Cache Bypass above) for accurate counting behind a CDN.' }
             ]
         },
@@ -2838,7 +2838,7 @@ ob_start();
 
     // ── Cache bypass test ──────────────────────────────────────────
     (function() {
-        var testUrl  = <?php echo wp_json_encode( rest_url( 'lightweight-wordpress-free-analytics/v1/cache-test' ) ); ?>;
+        var testUrl  = <?php echo wp_json_encode( rest_url( 'cloudscale-wordpress-free-analytics/v1/cache-test' ) ); ?>;
         var wpNonce  = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
         var badge    = document.getElementById('cspv-cf-status-badge');
         var log      = document.getElementById('cspv-cf-test-log');
@@ -3238,7 +3238,7 @@ ob_start();
         },
         'cache-test': {
             title: '☁ Cloudflare Cache Test',
-            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/lightweight-wordpress-free-analytics/</code> → Bypass Cache.</p>'
+            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Bypass Cache.</p>'
         },
         'display-position': {
             title: '📍 Display Position',

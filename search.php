@@ -1,13 +1,13 @@
 <?php
 /**
- * Lightweight Analytics: Search Widget
+ * CloudScale Analytics: Search Widget
  *
  * Replaces Relevanssi on the frontend with a LIKE '%term%' wildcard search.
- * Renders a search form widget (Appearance > Widgets > "Lightweight Analytics: Search").
+ * Renders a search form widget (Appearance > Widgets > "CloudScale Analytics: Search").
  * Results are capped at 50 posts, ordered newest-first.
  * Thumbnails are forced to 'thumbnail' size on search-result pages.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -57,9 +57,9 @@ class CSPV_Search_Widget extends WP_Widget {
 	public function __construct() {
 		parent::__construct(
 			'cspv_search_widget',
-			__( 'Lightweight Analytics: Search', 'lightweight-wordpress-free-analytics' ),
+			__( 'CloudScale Analytics: Search', 'cloudscale-wordpress-free-analytics' ),
 			array(
-				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt — short terms like "AI" work correctly. Results capped at 50.', 'lightweight-wordpress-free-analytics' ),
+				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt — short terms like "AI" work correctly. Results capped at 50.', 'cloudscale-wordpress-free-analytics' ),
 				'show_instance_in_rest' => true,
 			)
 		);
@@ -74,8 +74,8 @@ class CSPV_Search_Widget extends WP_Widget {
 	 * @return void
 	 */
 	public function widget( $args, $instance ) {
-		$title       = ! empty( $instance['title'] )       ? $instance['title']       : __( 'Search', 'lightweight-wordpress-free-analytics' );
-		$placeholder = ! empty( $instance['placeholder'] ) ? $instance['placeholder'] : __( 'Search posts…', 'lightweight-wordpress-free-analytics' );
+		$title       = ! empty( $instance['title'] )       ? $instance['title']       : __( 'Search', 'cloudscale-wordpress-free-analytics' );
+		$placeholder = ! empty( $instance['placeholder'] ) ? $instance['placeholder'] : __( 'Search posts…', 'cloudscale-wordpress-free-analytics' );
 		$btn_color   = ! empty( $instance['btn_color'] )   ? sanitize_hex_color( $instance['btn_color'] )   : '#e8491d';
 		$btn_hover   = ! empty( $instance['btn_hover'] )   ? sanitize_hex_color( $instance['btn_hover'] )   : '#f27c1a';
 
@@ -98,7 +98,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
 					<path fill-rule="evenodd" d="M9 3a6 6 0 1 0 3.72 10.72l3.28 3.28a1 1 0 0 0 1.42-1.42l-3.28-3.28A6 6 0 0 0 9 3Zm-4 6a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd"/>
 				</svg>
-				<span class="screen-reader-text"><?php esc_html_e( 'Search', 'lightweight-wordpress-free-analytics' ); ?></span>
+				<span class="screen-reader-text"><?php esc_html_e( 'Search', 'cloudscale-wordpress-free-analytics' ); ?></span>
 			</button>
 		</form>
 		<?php
@@ -113,13 +113,13 @@ class CSPV_Search_Widget extends WP_Widget {
 	 * @return void
 	 */
 	public function form( $instance ) {
-		$title       = $instance['title']       ?? __( 'Search', 'lightweight-wordpress-free-analytics' );
-		$placeholder = $instance['placeholder'] ?? __( 'Search posts…', 'lightweight-wordpress-free-analytics' );
+		$title       = $instance['title']       ?? __( 'Search', 'cloudscale-wordpress-free-analytics' );
+		$placeholder = $instance['placeholder'] ?? __( 'Search posts…', 'cloudscale-wordpress-free-analytics' );
 		$btn_color   = $instance['btn_color']   ?? '#e8491d';
 		$btn_hover   = $instance['btn_hover']   ?? '#f27c1a';
 		?>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"><?php esc_html_e( 'Title:', 'lightweight-wordpress-free-analytics' ); ?></label>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"><?php esc_html_e( 'Title:', 'cloudscale-wordpress-free-analytics' ); ?></label>
 			<input class="widefat"
 				   id="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'title' ) ); ?>"
@@ -127,7 +127,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				   value="<?php echo esc_attr( $title ); ?>">
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"><?php esc_html_e( 'Input placeholder:', 'lightweight-wordpress-free-analytics' ); ?></label>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"><?php esc_html_e( 'Input placeholder:', 'cloudscale-wordpress-free-analytics' ); ?></label>
 			<input class="widefat"
 				   id="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'placeholder' ) ); ?>"
@@ -135,7 +135,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				   value="<?php echo esc_attr( $placeholder ); ?>">
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"><?php esc_html_e( 'Button colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"><?php esc_html_e( 'Button colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
 			<input id="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'btn_color' ) ); ?>"
 				   type="color"
@@ -144,7 +144,7 @@ class CSPV_Search_Widget extends WP_Widget {
 			<code style="font-size:11px;color:#666;"><?php echo esc_html( $btn_color ); ?></code>
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"><?php esc_html_e( 'Button hover colour:', 'lightweight-wordpress-free-analytics' ); ?></label><br>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"><?php esc_html_e( 'Button hover colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
 			<input id="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'btn_hover' ) ); ?>"
 				   type="color"

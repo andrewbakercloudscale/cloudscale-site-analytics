@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - Shared Stats Library  v1.0.0
+ * CloudScale Analytics - Shared Stats Library  v1.0.0
  *
  * Single source of truth for all rolling time window calculations.
  * Every consumer (dashboard widget, statistics page, site health) calls
@@ -10,7 +10,7 @@
  *   cspv_rolling_24h_views()   → array { current, prior }
  *   cspv_rolling_window_views( $seconds ) → int
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

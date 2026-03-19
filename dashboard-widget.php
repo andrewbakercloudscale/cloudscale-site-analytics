@@ -8,7 +8,7 @@
  *   - Time-period chart: 7 Hours / 1 Day / 7 Days / 1 Month / 6 Months
  *   - Top 3 posts and top 3 referrers for today (side by side)
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -338,7 +338,7 @@ function cspv_render_dashboard_widget() {
         }
     }
 
-    $stats_url   = admin_url( 'tools.php?page=lightweight-wordpress-free-analytics' );
+    $stats_url   = admin_url( 'tools.php?page=cloudscale-wordpress-free-analytics' );
     $throttle_on = cspv_throttle_enabled();
     $blocked     = count( cspv_get_blocklist() );
     $widget_id   = 'cspv-dw-' . substr( md5( uniqid() ), 0, 6 );

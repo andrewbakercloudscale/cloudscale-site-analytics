@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - Auto Display
+ * CloudScale Analytics - Auto Display
  *
  * Automatically injects the view counter into single post pages without
  * requiring any theme file edits. Controlled via Settings > CloudScale Views.
@@ -11,7 +11,7 @@
  *   both            - Above and below
  *   off             - Disabled (use template functions manually)
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

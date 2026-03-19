@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - Jetpack Migration  v2.0.0
+ * CloudScale Analytics - Jetpack Migration  v2.0.0
  *
  * Migrates historical post view counts from Jetpack into CloudScale.
  *
@@ -27,7 +27,7 @@
  * After a successful run a lock is stored. Reset it via "Reset Lock" if
  * you need to re-run after a database restore.
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

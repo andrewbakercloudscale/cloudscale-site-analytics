@@ -21,3 +21,7 @@ crash-remove.sh
 crash-logs/
 _archive/
 WORKING-NOTES.md
+
+# Help docs generator
+generate-help-docs.sh
+docs/screenshots/

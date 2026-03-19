@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight Analytics - View Diagnostics Panel  v2.0.0
+ * CloudScale Analytics - View Diagnostics Panel  v2.0.0
  *
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number
@@ -12,7 +12,7 @@
  * Only visible to users with manage_options capability.
  * Button renders INLINE next to the view counter (pink, 🐛 icon).
  *
- * @package Lightweight_WordPress_Free_Analytics
+ * @package CloudScale_WordPress_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -384,7 +384,7 @@ add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
  * Used to correct counts that were lost or corrupted during a data restore.
  * Requires manage_options capability and a valid nonce.
  *
- * @since 2.9.96
+ * @since 2.9.97
  * @return void Sends JSON response.
  */
 function cspv_ajax_set_view_count() {

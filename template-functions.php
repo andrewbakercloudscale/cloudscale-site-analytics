@@ -62,7 +62,7 @@
  *     $views = cspv_get_view_count();            // current post in loop
  *     $views = cspv_get_view_count( $post_id );  // specific post
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

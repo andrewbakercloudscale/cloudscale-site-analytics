@@ -10,7 +10,7 @@
  *   cspv_rolling_24h_views()   → array { current, prior }
  *   cspv_rolling_window_views( $seconds ) → int
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

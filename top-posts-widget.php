@@ -6,7 +6,7 @@
  * view count from the cspv_views log table, with thumbnail, date and
  * formatted view count.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

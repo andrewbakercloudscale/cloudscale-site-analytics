@@ -5,7 +5,7 @@
  * Registers the POST endpoint that the beacon calls.
  * Multiple cache-bypass headers ensure Cloudflare never caches this route.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

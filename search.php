@@ -7,7 +7,7 @@
  * Results are capped at 50 posts, ordered newest-first.
  * Thumbnails are forced to 'thumbnail' size on search-result pages.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

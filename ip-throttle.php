@@ -15,7 +15,7 @@
  *   last 2 hours and auto clear via transients. The admin UI also
  *   stores a persistent list for display that prunes expired entries.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

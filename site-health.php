@@ -11,7 +11,7 @@
  * All calculations use ONLY beacon logged data (wp_cspv_views table).
  * Results cached in wp_options for 1 hour.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

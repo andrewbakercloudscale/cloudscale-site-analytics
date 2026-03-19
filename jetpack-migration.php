@@ -27,7 +27,7 @@
  * After a successful run a lock is stored. Reset it via "Reset Lock" if
  * you need to re-run after a database restore.
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:  CloudScale WordPress Free Analytics
+ * Plugin Name:  CloudScale Free Analytics
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
  * Version:      2.9.98
@@ -13,7 +13,7 @@
  * Requires PHP: 7.4
  * Requires at least: 6.0
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

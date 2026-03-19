@@ -1,4 +1,4 @@
-=== CloudScale WordPress Free Analytics ===
+=== CloudScale Free Analytics ===
 Contributors: andrewbaker
 Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
@@ -12,7 +12,7 @@ Accurate page view tracking for WordPress sites behind Cloudflare and other CDNs
 
 == Description ==
 
-CloudScale WordPress Free Analytics solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting — typically 5 to 10 times lower than actual traffic.
+CloudScale Free Analytics solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting — typically 5 to 10 times lower than actual traffic.
 
 CloudScale uses a lightweight JavaScript beacon that fires after the cached page loads, recording every view through a REST API endpoint that bypasses the CDN cache. The result is accurate view counts regardless of cache status.
 
@@ -52,7 +52,7 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 2. Activate the plugin in Plugins > Installed Plugins
 3. The database table is created automatically on activation
 4. Add the Cloudflare Cache Rule (see FAQ)
-5. Configure display settings in Tools > CloudScale WordPress Free Analytics > Display tab
+5. Configure display settings in Tools > CloudScale Free Analytics > Display tab
 
 == Frequently Asked Questions ==
 
@@ -69,7 +69,7 @@ The plugin also sends no cache headers on every REST response, but the Cache Rul
 
 = How do I migrate from Jetpack Stats? =
 
-Go to Tools > CloudScale WordPress Free Analytics > Migrate Jetpack tab. Click the migration button to import all Jetpack lifetime view counts into CloudScale. The migration preserves your historical totals as a starting point and the plugin blends them with new beacon data during a 28 day transition period.
+Go to Tools > CloudScale Free Analytics > Migrate Jetpack tab. Click the migration button to import all Jetpack lifetime view counts into CloudScale. The migration preserves your historical totals as a starting point and the plugin blends them with new beacon data during a 28 day transition period.
 
 = Does it work without Cloudflare? =
 

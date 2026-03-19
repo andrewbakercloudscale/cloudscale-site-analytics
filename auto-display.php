@@ -11,7 +11,7 @@
  *   both            - Above and below
  *   off             - Disabled (use template functions manually)
  *
- * @package CloudScale_WordPress_Free_Analytics
+ * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

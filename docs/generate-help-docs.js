@@ -10,7 +10,7 @@ helpLib.run({
 
     pluginName: 'CloudScale Free Analytics',
     pluginDesc: 'Accurate page view tracking via a JavaScript beacon that bypasses caching. Includes a live statistics dashboard, Top Posts and Recent Posts sidebar widgets, IP throttling, and a Jetpack stats migrator — completely free, no data sent to third parties.',
-    pageTitle:  'Help & Documentation — Analytics',
+    pageTitle:  'CloudScale Free Analytics: Online Help',
     pageSlug:   'analytics-help',
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
 

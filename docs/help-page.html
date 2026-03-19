@@ -32,7 +32,7 @@
 <div class="cs-hero">
 <div class="cs-badge">Free &amp; Open Source</div>
 <h1>CloudScale Free Analytics</h1>
-<p>Accurate page view tracking via a JavaScript beacon that bypasses caching. Includes a live statistics dashboard, Top Posts and Recent Posts sidebar widgets, IP throttling, and a Jetpack stats migrator — completely free, no data sent to third parties.</p>
+<p>Most WordPress analytics plugins miss 80–95% of your traffic when Cloudflare or a CDN is caching your pages. Google Analytics sends your visitor data to Google. Jetpack sends it to Automattic. CloudScale keeps every view count in your own database, counts every visit regardless of caching, and costs nothing. No subscriptions, no external services, no tracking pixels — your data stays on your server.</p>
 </div>
 
 <div class="cs-toc">
@@ -48,8 +48,15 @@
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="statistics">Statistics Dashboard</h3>
-<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-statistics-3.jpg" alt="Statistics Dashboard" /></figure>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-statistics-4.jpg" alt="Statistics Dashboard" /></figure>
 <div class="cs-panel-body">
+<div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
+<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Free Analytics?</h2>
+<p style="margin:0 0 10px;">If your site runs behind Cloudflare, WP Rocket, or any other caching layer, server-side analytics see only the 5–20% of requests that reach PHP. Your stats are lying to you — by a factor of 5 to 10.</p>
+<p style="margin:0 0 10px;">CloudScale solves this with a JavaScript beacon that fires after the browser loads the page, regardless of where the HTML came from. The beacon POSTs to a REST endpoint that bypasses the CDN cache, so every real visit is counted. <strong>You finally see your actual traffic.</strong></p>
+<p style="margin:0 0 10px;">Unlike Google Analytics or Jetpack, your visitor data never leaves your server. No third-party scripts, no tracking pixels, no GDPR headaches from external data processors. IP addresses are hashed before storage — the raw IP is never written to the database.</p>
+<p style="margin:0;"><strong>It is completely free.</strong> No premium tier. No per-site fees. Install it, add one Cloudflare Cache Rule, and your stats are accurate from the first pageview.</p>
+</div>
 <p>The <strong>Statistics Dashboard</strong> shows page view data stored directly in your WordPress database across five custom tables (<code>wp_cspv_views_v2</code>, <code>wp_cspv_referrers_v2</code>, <code>wp_cspv_geo_v2</code>, <code>wp_cspv_visitors_v2</code>, <code>wp_cspv_404_v2</code>). No data is ever sent to Google, Facebook, or any external service.</p>
 <p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-wordpress-free-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request — not served from cache — it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
 <p><strong>Cloudflare Cache Rule required for production:</strong> Add a Cache Rule in your Cloudflare dashboard: URI Path <em>contains</em> <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Cache Status: <em>Bypass</em>. Without this rule, Cloudflare may cache the REST responses, causing beacon POSTs to fail silently.</p>
@@ -66,7 +73,7 @@
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="display">Display Settings</h3>
-<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-display-3.jpg" alt="Display Settings" /></figure>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-display-4.jpg" alt="Display Settings" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Display Settings</strong> tab controls how view counts appear on your site and configures the sidebar widgets.</p>
 <ul>
@@ -82,7 +89,7 @@
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="throttle">IP Throttle</h3>
-<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-throttle-3.jpg" alt="IP Throttle" /></figure>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-throttle-4.jpg" alt="IP Throttle" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>IP Throttle</strong> tab prevents inflated statistics from repeat page loads, bots, and your own browsing.</p>
 <ul>
@@ -98,7 +105,7 @@
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="history">Post History</h3>
-<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-history-3.jpg" alt="Post History" /></figure>
+<figure class="cs-screenshot"><img src="https://your-wordpress-site.example.com/wp-content/uploads/2026/03/panel-history-4.jpg" alt="Post History" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Post History</strong> tab provides a full day-by-day breakdown of views for any individual post or page — useful for diagnosing traffic spikes, measuring the impact of promotions, and spotting seasonal patterns.</p>
 <ul>

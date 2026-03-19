@@ -9,7 +9,7 @@ helpLib.run({
     docsDir:    process.env.WP_DOCS_DIR,
 
     pluginName: 'CloudScale Free Analytics',
-    pluginDesc: 'Accurate page view tracking via a JavaScript beacon that bypasses caching. Includes a live statistics dashboard, Top Posts and Recent Posts sidebar widgets, IP throttling, and a Jetpack stats migrator — completely free, no data sent to third parties.',
+    pluginDesc: 'Most WordPress analytics plugins miss 80–95% of your traffic when Cloudflare or a CDN is caching your pages. Google Analytics sends your visitor data to Google. Jetpack sends it to Automattic. CloudScale keeps every view count in your own database, counts every visit regardless of caching, and costs nothing. No subscriptions, no external services, no tracking pixels — your data stays on your server.',
     pageTitle:  'CloudScale Free Analytics: Online Help',
     pageSlug:   'analytics-help',
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
@@ -23,6 +23,13 @@ helpLib.run({
 
     docs: {
         'statistics': `
+<div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
+<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Free Analytics?</h2>
+<p style="margin:0 0 10px;">If your site runs behind Cloudflare, WP Rocket, or any other caching layer, server-side analytics see only the 5–20% of requests that reach PHP. Your stats are lying to you — by a factor of 5 to 10.</p>
+<p style="margin:0 0 10px;">CloudScale solves this with a JavaScript beacon that fires after the browser loads the page, regardless of where the HTML came from. The beacon POSTs to a REST endpoint that bypasses the CDN cache, so every real visit is counted. <strong>You finally see your actual traffic.</strong></p>
+<p style="margin:0 0 10px;">Unlike Google Analytics or Jetpack, your visitor data never leaves your server. No third-party scripts, no tracking pixels, no GDPR headaches from external data processors. IP addresses are hashed before storage — the raw IP is never written to the database.</p>
+<p style="margin:0;"><strong>It is completely free.</strong> No premium tier. No per-site fees. Install it, add one Cloudflare Cache Rule, and your stats are accurate from the first pageview.</p>
+</div>
 <p>The <strong>Statistics Dashboard</strong> shows page view data stored directly in your WordPress database across five custom tables (<code>wp_cspv_views_v2</code>, <code>wp_cspv_referrers_v2</code>, <code>wp_cspv_geo_v2</code>, <code>wp_cspv_visitors_v2</code>, <code>wp_cspv_404_v2</code>). No data is ever sent to Google, Facebook, or any external service.</p>
 <p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-wordpress-free-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request — not served from cache — it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
 <p><strong>Cloudflare Cache Rule required for production:</strong> Add a Cache Rule in your Cloudflare dashboard: URI Path <em>contains</em> <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Cache Status: <em>Bypass</em>. Without this rule, Cloudflare may cache the REST responses, causing beacon POSTs to fail silently.</p>

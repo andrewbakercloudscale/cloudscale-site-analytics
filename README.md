@@ -4,7 +4,7 @@
 
 WordPress analytics that actually work behind Cloudflare. Every other page view counter counts on the server. When Cloudflare serves a cached page, WordPress never executes and the counter never increments. On a site with 85 to 95 percent cache hit rate, server side counters undercount by 5x to 10x.
 
-CloudScale Page Views fixes this with a lightweight JavaScript beacon that fires after the cached page loads and hits a REST API endpoint that always bypasses the CDN. Every single view is counted regardless of whether the page was served from cache or origin.
+CloudScale Analytics fixes this with a lightweight JavaScript beacon that fires after the cached page loads and hits a REST API endpoint that always bypasses the CDN. Every single view is counted regardless of whether the page was served from cache or origin.
 
 Completely free. No subscriptions. No external services. No tracking pixels. Your data stays on your server.
 
@@ -78,7 +78,7 @@ The beacon is tiny and fires asynchronously after the page has rendered. Zero im
 1. Download the latest release zip from the [Releases](../../releases) page
 2. In WordPress admin go to **Plugins > Add New > Upload Plugin**
 3. Upload the zip file, click **Install Now**, then **Activate Plugin**
-4. Go to **Tools > CloudScale Page Views**
+4. Go to **Tools > CloudScale Analytics**
 
 The plugin creates its database table automatically on activation.
 

@@ -627,6 +627,10 @@ function cspv_ajax_country_drill() {
     if ( strlen( $country ) !== 2 || ! $from || ! $to ) {
         wp_send_json_error( 'Invalid parameters' );
     }
+    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ||
+         ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
+        wp_send_json_error( 'Invalid date format.' );
+    }
 
     $from_str = $from . ' 00:00:00';
     $to_str   = $to . ' 23:59:59';

@@ -870,7 +870,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ HEADER BANNER ═══════════════════════ -->
     <div id="cspv-banner">
         <div id="cspv-banner-left">
-            <div id="cspv-banner-title">☁ CloudScale Page Views v<?php echo esc_html( CSPV_VERSION ); ?></div>
+            <div id="cspv-banner-title">☁ CloudScale Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
             <div id="cspv-banner-sub">Cloudflare-accurate view tracking · v<?php echo esc_html( CSPV_VERSION ); ?></div>
         </div>
         <div id="cspv-banner-right">

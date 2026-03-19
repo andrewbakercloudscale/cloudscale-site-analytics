@@ -384,7 +384,7 @@ add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
  * Used to correct counts that were lost or corrupted during a data restore.
  * Requires manage_options capability and a valid nonce.
  *
- * @since 2.9.100
+ * @since 2.9.101
  * @return void Sends JSON response.
  */
 function cspv_ajax_set_view_count() {

@@ -30,8 +30,10 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 function cspv_admin_menu_styles() {
     ?>
     <style>
-        #adminmenu a[href*="cloudscale"] { color: #7dd3fc !important; }
-        #adminmenu a[href*="cloudscale"]:hover { color: #fff !important; }
+        #adminmenu a[href*="cloudscale"],
+        #adminmenu a[href*="cs-seo-optimizer"] { color: #7dd3fc !important; }
+        #adminmenu a[href*="cloudscale"]:hover,
+        #adminmenu a[href*="cs-seo-optimizer"]:hover { color: #fff !important; }
     </style>
     <?php
 }

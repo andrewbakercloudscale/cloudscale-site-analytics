@@ -24,7 +24,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 /**
  * Highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.101
+ * @since 2.9.102
  * @return void
  */
 function cspv_admin_menu_styles() {

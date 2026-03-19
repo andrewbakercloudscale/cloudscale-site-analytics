@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'admin_menu',              'cspv_add_tools_page' );
 add_action( 'admin_enqueue_scripts',   'cspv_enqueue_admin_assets' );
+add_action( 'admin_head',             'cspv_admin_menu_styles' );
 add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
 add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
@@ -19,6 +20,21 @@ add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
+
+/**
+ * Highlight CloudScale menu items in Tools with a light blue colour.
+ *
+ * @since 2.9.100
+ * @return void
+ */
+function cspv_admin_menu_styles() {
+    ?>
+    <style>
+        #adminmenu a[href*="cloudscale"] { color: #7dd3fc !important; }
+        #adminmenu a[href*="cloudscale"]:hover { color: #fff !important; }
+    </style>
+    <?php
+}
 
 /**
  * Register the plugin stats page under Tools.

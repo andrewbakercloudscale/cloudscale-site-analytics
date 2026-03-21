@@ -473,6 +473,7 @@ function cspv_ajax_post_search() {
             'date'    => get_the_date( 'j M Y', $p ),
             'views'   => $views,
             'jetpack' => max( 0, $views - $log_cnt ),
+            'url'     => get_permalink( $p->ID ),
         );
     }
     wp_send_json_success( $results );
@@ -1758,10 +1759,12 @@ function cspv_render_stats_page() {
                          data-views="<?php echo esc_attr( (int) $views ); ?>"
                          data-pageviews="<?php echo esc_attr( (int) $ph_logged ); ?>"
                          data-jetpack="<?php echo esc_attr( (int) $jetpack ); ?>"
+                         data-url="<?php echo esc_attr( get_permalink( $p->ID ) ); ?>"
                          style="display:flex;align-items:center;
                         padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
                         <div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                             <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo esc_html( $p->post_type ); ?></span>
+                            <a class="cspv-ph-view-link" href="<?php echo esc_url( get_permalink( $p->ID ) ); ?>" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">↗</a>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
                             <?php echo number_format( $views ); ?>
@@ -1818,19 +1821,27 @@ function cspv_render_stats_page() {
                     <span>Last logged view: <strong id="cspv-ph-last">—</strong></span>
                 </div>
 
-                <div style="display:flex;gap:8px;margin-bottom:12px;">
-                    <button class="cspv-ph-period active" data-period="daily">Last 180 days</button>
+                <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+                    <button class="cspv-ph-period active" data-period="daily">Daily Chart</button>
                     <button class="cspv-ph-period" data-period="hourly">Last 48 hours</button>
+                </div>
+
+                <!-- Timeline slider (shown in daily mode) -->
+                <div id="cspv-ph-slider-wrap" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <label style="font-size:12px;color:#555;font-weight:700;white-space:nowrap;">Window:</label>
+                    <input type="range" id="cspv-ph-days" min="7" max="180" value="180" step="1"
+                           style="flex:1;min-width:120px;max-width:320px;accent-color:#2e86c1;cursor:pointer;">
+                    <span id="cspv-ph-days-label" style="font-size:12px;font-weight:800;color:#2e86c1;white-space:nowrap;min-width:80px;">180 days</span>
                 </div>
 
                 <div style="height:220px;position:relative;">
                     <canvas id="cspv-ph-chart"></canvas>
                 </div>
 
-                <!-- 180 day timeline audit trail -->
+                <!-- Audit trail — window controlled by slider -->
                 <div style="margin-top:24px;">
                     <div style="font-size:12px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.04em;margin-bottom:8px;">
-                        📋 180 Day Audit Trail
+                        📋 <span id="cspv-ph-trail-label">180 Day</span> Audit Trail
                     </div>
                     <div id="cspv-ph-timeline" style="max-height:500px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;"></div>
                 </div>
@@ -2802,8 +2813,8 @@ ob_start();
         'stats': {
             title: 'Statistics Dashboard — How It Works',
             cards: [
-                { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>unique posts viewed</strong>, and <strong>average views per day</strong> for the selected date range. Use the quick range buttons (Today, 7 Days, 30 Days, 6 Months) or the custom date picker to change the period.' },
-                { title: 'Chart', badge: 'info', body: 'The chart displays views over time. A single day shows hourly breakdown, up to 90 days shows daily, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
+                { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>posts viewed</strong>, <strong>unique visitors</strong>, and <strong>hot pages</strong> for the selected date range. Use the quick range buttons (7h, Last 24h, 1 Week, 1 Month, 3 Months, 6 Months) or the custom date picker to change the period.' },
+                { title: 'Chart', badge: 'info', body: 'The chart displays views over time. Short ranges show hourly breakdown, medium ranges show daily bars, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here (not imported Jetpack totals). Click any title to visit the post.' },
                 { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
@@ -2833,6 +2844,17 @@ ob_start();
                 { title: 'Test Fail2Ban', badge: 'info', body: 'The <strong>🧪 Test Fail2Ban</strong> button runs a five point diagnostic: it writes and reads a test transient (the engine behind FTB blocks), checks options table access (blocklist storage), verifies FTB is enabled, and confirms the block duration. If all five tests pass, Fail2Ban is fully operational.' },
                 { title: 'FTB Installation', badge: 'required', body: '<strong>No external software is required.</strong> CloudScale Fail2Ban is entirely built in to the plugin. It does <strong>not</strong> use the Linux fail2ban service or any server side packages. It works purely through WordPress transients and the options table, which means it runs on any WordPress host including shared hosting, managed WordPress, and VPS.<br><br><strong>Requirements:</strong><br>• WordPress 6.0+ with a working database<br>• The plugin activated (no additional configuration files)<br>• Transients must work (they do on all standard WordPress installs; if you use an object cache like Redis or Memcached, transients are stored there instead and still work correctly)<br><br><strong>No server configuration, no firewall rules, no cron jobs needed.</strong> Enable the toggle above and FTB starts protecting immediately.' },
                 { title: 'Clear IP Addresses', badge: 'tip', body: 'The <strong>Clear All IP Addresses</strong> button at the bottom is a nuclear option that wipes all throttle blocks, FTB blocks, all request counters, and all event logs across both tiers. Use this to start fresh after configuration changes or testing.' }
+            ]
+        },
+        'history': {
+            title: 'Post View History — How It Works',
+            cards: [
+                { title: 'Browsing Posts', badge: 'info', body: 'The top list shows your 100 most-viewed posts ranked by total view count. Click any row to load that post\'s detail panel. Click the <strong>↗</strong> link next to a title to open the post on your site in a new tab. Use the search box to find posts by title if they are not in the top 100.' },
+                { title: 'Timeline Slider', badge: 'tip', body: 'Use the <strong>Window</strong> slider (7–180 days) to control how much history is shown in the daily chart and the Audit Trail below it. Drag left to zoom in on recent activity, or right to see the full 6 month picture. The slider is hidden in "Last 48 hours" mode.' },
+                { title: 'View Counts Explained', badge: 'info', body: '<strong>Total Views</strong> is the number stored in <code>_cspv_view_count</code> post meta — the count visitors see on the front end. <strong>Page Views</strong> is the number of rows in the tracking log table for this post. <strong>Jetpack Imported</strong> is the difference: if you migrated from Jetpack, this is your pre-CloudScale historic total.' },
+                { title: 'Count Mismatch Warning', badge: 'info', body: 'If the displayed count does not equal log rows + Jetpack imported, a yellow warning appears. This can happen after manual edits or partial migrations. Click <strong>Resync meta</strong> to recalculate the correct total from log rows + Jetpack meta and write it back to post meta.' },
+                { title: 'Daily Chart vs Hourly', badge: 'info', body: 'The <strong>Daily Chart</strong> button shows views per day within the slider window (up to 180 days). The <strong>Last 48 hours</strong> button shows an hour-by-hour breakdown of the last 2 days. Both draw from the tracking log table only (Jetpack imported views are not split per day).' },
+                { title: 'Audit Trail', badge: 'info', body: 'The Audit Trail below the chart shows every day in the slider window with a view count and the top referring domain for that day. Days with zero views are shown in grey. The row highlighted in blue marks the post\'s published date.' }
             ]
         },
         'migrate': {
@@ -3387,7 +3409,7 @@ ob_start();
         },
         'post-history': {
             title: '🔍 Post View History',
-            body: '<p>Search for any post by title to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Log table rows</strong> is the actual number of view records in <code>wp_cspv_views</code>, representing tracked views.</p><p><strong>Jetpack imported</strong> is the difference between the displayed count and the log table rows. If you migrated from Jetpack, this represents the imported historic total.</p><p><strong>Jetpack meta</strong> is the raw value from <code>jetpack_post_views</code> post meta (what was imported during migration).</p><p>If the counts don\'t add up (meta \u2260 log + Jetpack), a mismatch warning appears with a <strong>Resync</strong> button that recalculates the correct total from log rows + Jetpack meta.</p><p>The chart shows daily views for the last 90 days or hourly views for the last 48 hours, from the log table only.</p>'
+            body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Page Views</strong> is the actual number of tracked view records in the log table.</p><p><strong>Jetpack imported</strong> is the difference: if you migrated from Jetpack, this is your pre-CloudScale historic total.</p><p>If the counts don\'t add up (meta \u2260 log + Jetpack), a mismatch warning appears with a <strong>Resync</strong> button that recalculates the correct total.</p><p>The <strong>timeline slider</strong> (7–180 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>\u2197</strong> link next to any post title to open it on your site.</p>'
         }
     };
 
@@ -3425,7 +3447,9 @@ ob_start();
         // Wire clicks on preloaded rows
         function wireRowClicks() {
             listBox.querySelectorAll('.cspv-ph-row').forEach(function(el) {
-                el.addEventListener('click', function() {
+                el.addEventListener('click', function(e) {
+                    // Let view-link clicks open the post without triggering row selection
+                    if (e.target.classList.contains('cspv-ph-view-link')) return;
                     listBox.querySelectorAll('.cspv-ph-row').forEach(function(r) { r.classList.remove('active'); });
                     el.classList.add('active');
                     loadPostHistory(parseInt(el.dataset.id));
@@ -3485,10 +3509,11 @@ ob_start();
                     var pageViews = Math.max(0, p.views - p.jetpack);
                     var jpColor = p.jetpack > 0 ? '#f47c20' : '#ccc';
                     var jpText  = p.jetpack > 0 ? p.jetpack.toLocaleString() : '\u2014';
-                    html += '<div class="cspv-ph-row" data-id="' + p.id + '" style="display:flex;align-items:center;' +
+                    var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
+                    html += '<div class="cspv-ph-row" data-id="' + p.id + '" data-url="' + escHtml(p.url || '') + '" style="display:flex;align-items:center;' +
                         'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
                         '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
-                        escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span></div>' +
+                        escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span>' + viewLink + '</div>' +
                         '<div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">' + p.views.toLocaleString() + '</div>' +
                         '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">' + pageViews.toLocaleString() + '</div>' +
                         '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:' + jpColor + ';font-variant-numeric:tabular-nums;">' + jpText + '</div></div>';
@@ -3551,16 +3576,25 @@ ob_start();
             }
 
             panel.style.display = 'block';
-            drawPhChart('daily');
+            // Reset slider to 180 days when loading a new post
+            var slider = document.getElementById('cspv-ph-days');
+            if (slider) {
+                slider.value = 180;
+                document.getElementById('cspv-ph-days-label').textContent = '180 days';
+                document.getElementById('cspv-ph-trail-label').textContent = '180 Day';
+            }
+            document.getElementById('cspv-ph-slider-wrap').style.display = 'flex';
+            drawPhChart('daily', 180);
             document.querySelectorAll('.cspv-ph-period').forEach(function(b) {
                 b.classList.toggle('active', b.dataset.period === 'daily');
             });
-            renderTimeline();
+            renderTimeline(180);
         }
 
-        function renderTimeline() {
+        function renderTimeline(days) {
             var box = document.getElementById('cspv-ph-timeline');
             if (!box || !phData) return;
+            if (!days) days = 180;
 
             var rawTl = phData.timeline || [];
             var jp = phData.jetpack_imported || 0;
@@ -3569,17 +3603,17 @@ ob_start();
             var tlMap = {};
             rawTl.forEach(function(r) { tlMap[r.day] = r; });
 
-            // Generate days from today back to published date (min 180 days)
+            // Generate days from today back — bounded by slider value and published date
             var pubYmd = phData.published_ymd || '';
             var tl = [];
             var now = new Date();
-            var minDays = 180;
+            var minDays = days;
             if (pubYmd) {
                 var pp = pubYmd.split('-');
                 var pubDate = new Date(parseInt(pp[0]), parseInt(pp[1])-1, parseInt(pp[2]));
                 var diffMs = now.getTime() - pubDate.getTime();
                 var pubDays = Math.ceil(diffMs / 86400000) + 1;
-                if (pubDays > minDays) minDays = pubDays;
+                if (pubDays < minDays) minDays = pubDays;
             }
             for (var d = 0; d < minDays; d++) {
                 var dt = new Date(now);
@@ -3642,27 +3676,28 @@ ob_start();
             box.innerHTML = html;
         }
 
-        function drawPhChart(period) {
+        function drawPhChart(period, days) {
             var canvas = document.getElementById('cspv-ph-chart');
             if (!canvas || !window.Chart || !phData) return;
+            if (!days) days = 180;
 
             var labels, values;
             if (period === 'hourly') {
                 labels = phData.hourly.map(function(h) { var p = h.hour.split(' '); return p[1] || h.hour; });
                 values = phData.hourly.map(function(h) { return h.views; });
             } else {
-                // Build day array from published date to today
+                // Build day array from published date (or slider window) to today
                 var dailyMap = {};
                 phData.daily.forEach(function(d) { dailyMap[d.day] = d.views; });
                 var allDays = [];
                 var now = new Date();
                 var chartPub = phData.published_ymd || '';
-                var startDay = 179;
+                var startDay = days - 1;
                 if (chartPub) {
                     var cp = chartPub.split('-');
                     var cpDate = new Date(parseInt(cp[0]), parseInt(cp[1])-1, parseInt(cp[2]));
                     var cpDiff = Math.ceil((now.getTime() - cpDate.getTime()) / 86400000);
-                    startDay = Math.max(0, cpDiff);
+                    startDay = Math.min(startDay, Math.max(0, cpDiff));
                 }
                 for (var dd = startDay; dd >= 0; dd--) {
                     var dt = new Date(now);
@@ -3716,9 +3751,35 @@ ob_start();
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.cspv-ph-period').forEach(function(b) { b.classList.remove('active'); });
                 btn.classList.add('active');
-                drawPhChart(btn.dataset.period);
+                var sliderWrap = document.getElementById('cspv-ph-slider-wrap');
+                var days = parseInt(document.getElementById('cspv-ph-days').value) || 180;
+                if (btn.dataset.period === 'hourly') {
+                    sliderWrap.style.display = 'none';
+                    drawPhChart('hourly', days);
+                } else {
+                    sliderWrap.style.display = 'flex';
+                    drawPhChart('daily', days);
+                }
             });
         });
+
+        // Slider input: update chart and timeline in real time
+        (function() {
+            var slider = document.getElementById('cspv-ph-days');
+            var daysLabel = document.getElementById('cspv-ph-days-label');
+            var trailLabel = document.getElementById('cspv-ph-trail-label');
+            if (!slider) return;
+            slider.addEventListener('input', function() {
+                var days = parseInt(slider.value);
+                daysLabel.textContent = days + ' day' + (days === 1 ? '' : 's');
+                trailLabel.textContent = days + ' Day';
+                var activePeriod = document.querySelector('.cspv-ph-period.active');
+                if (!activePeriod || activePeriod.dataset.period === 'daily') {
+                    drawPhChart('daily', days);
+                    renderTimeline(days);
+                }
+            });
+        })();
 
         document.getElementById('cspv-ph-resync').addEventListener('click', function() {
             var btn = this;

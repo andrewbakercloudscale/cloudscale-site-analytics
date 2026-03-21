@@ -286,6 +286,32 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
 }
 
 /**
+ * Return count of distinct posts with at least $min_views views in a date range.
+ *
+ * Used for the "Hot Pages" summary card: pages that received genuine engagement
+ * (more than a single hit) within the selected period.
+ *
+ * @since 2.9.115
+ * @param  string $from_str  Start datetime (Y-m-d H:i:s).
+ * @param  string $to_str    End datetime (Y-m-d H:i:s).
+ * @param  int    $min_views Minimum views threshold (default 2).
+ * @return int
+ */
+function cspv_hot_pages_for_range( $from_str, $to_str, $min_views = 2 ) {
+    global $wpdb;
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        "SELECT COUNT(*) FROM (
+            SELECT post_id FROM `{$table}`
+            WHERE viewed_at BETWEEN %s AND %s
+            GROUP BY post_id
+            HAVING {$cnt} >= %d
+         ) AS hot",
+        $from_str, $to_str, $min_views ) );
+}
+
+/**
  * Return top pages for a date range with title, URL, and view count.
  *
  * @since 1.0.0

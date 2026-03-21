@@ -190,7 +190,8 @@
 #cspv-card-views::before { background: linear-gradient(90deg,#1a3a8f,#1e6fd9); }
 #cspv-card-posts::before { background: linear-gradient(90deg,#1db954,#0fb8e0); }
 #cspv-card-visitors::before { background: linear-gradient(90deg,#f59e0b,#ef4444); }
-#cspv-card-avg::before   { background: linear-gradient(90deg,#f47c20,#f7b733); }
+#cspv-card-avg::before      { background: linear-gradient(90deg,#f47c20,#f7b733); }
+#cspv-card-hotpages::before { background: linear-gradient(90deg,#ef4444,#f97316); }
 .cspv-card-icon  { font-size: 18px; margin-bottom: 6px; }
 .cspv-card-value { font-size: 34px; font-weight: 800; line-height: 1; color: #1a2332; }
 .cspv-card-label { font-size: 12px; color: #7a8aaa; margin-top: 4px; font-weight: 500; }
@@ -258,16 +259,50 @@
 /* ── Panels ──────────────────────────────────────── */
 #cspv-panels {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
     margin-bottom: 18px;
 }
-@media (max-width: 782px) { #cspv-panels { grid-template-columns: 1fr; } }
+@media (max-width: 960px) {
+    /* On mobile, remove WP sidebar left-margin so our content fills full width. */
+    body.tools_page_cloudscale-wordpress-free-analytics #wpcontent { margin-left: 0 !important; }
+    #cspv-panels { grid-template-columns: minmax(0, 1fr); }
+    #cspv-app { width: 100%; min-width: 0; }
+    .cspv-panel { min-width: 0; overflow: hidden; }
+    .cspv-bar-label { max-width: 100%; }
+    .cspv-section-header { flex-wrap: wrap; gap: 6px; }
+    #cspv-panels-alltime { flex-direction: column; }
+    #cspv-date-bar { flex-direction: column; align-items: flex-start; }
+    #cspv-date-inputs { flex-wrap: wrap; }
+    .cspv-card-value { font-size: 26px; }
+    .cspv-lifetime-stat + .cspv-lifetime-stat { margin-left: 0; padding-left: 0; border-left: none; border-top: 1px solid rgba(255,255,255,.2); padding-top: 12px; }
+
+    /* Tab bar: wrap onto two rows on mobile */
+    #cspv-tab-bar {
+        flex-wrap: wrap;
+        padding: 0 4px;
+    }
+    .cspv-tab-spacer { display: none; }
+    .cspv-tab-help { order: 99; margin-left: 0; }
+    .cspv-tab { padding: 10px 12px; font-size: 11px; }
+
+    /* Summary cards: 2×2 grid on mobile */
+    #cspv-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    /* Lifetime bar: each stat takes full width, stacked */
+    #cspv-lifetime-bar { flex-direction: column; gap: 0; }
+    .cspv-lifetime-stat { justify-content: space-between; padding: 10px 0; }
+    .cspv-lifetime-value { margin-left: auto; }
+}
 #cspv-panels-alltime { margin-bottom: 18px; display: flex; gap: 18px; }
 .cspv-panel { background: #fff; border: 1.5px solid #dce3ef; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 6px 20px rgba(0,0,0,.12); }
 
 #cspv-lifetime-bar {
     display: flex;
+    flex-wrap: wrap;
     gap: 18px;
     margin-bottom: 18px;
     background: linear-gradient(135deg, #0d2147 0%, #1a3a8f 60%, #1e6fd9 100%);

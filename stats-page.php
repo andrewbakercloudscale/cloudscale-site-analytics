@@ -25,10 +25,17 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 /**
  * Highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.103
+ * @since 2.9.115
  * @return void
  */
 function cspv_admin_menu_styles() {
+    global $pagenow;
+    // Inject viewport meta on our plugin page so mobile media queries fire correctly.
+    // The WP admin does not output a viewport meta tag by default, causing phones to
+    // render the page at the default 980px viewport where max-width:782px never fires.
+    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-wordpress-free-analytics' ) {
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
+    }
     ?>
     <style>
         #adminmenu a[href*="cloudscale"],
@@ -42,7 +49,7 @@ function cspv_admin_menu_styles() {
 /**
  * Style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.103
+ * @since 2.9.115
  * @return void
  */
 function cspv_frontend_nav_styles() {
@@ -339,6 +346,11 @@ function cspv_ajax_chart_data() {
         $prev_posts  = cspv_unique_posts_for_range( $prev_from_str, $prev_to_str );
     }
 
+    $hot_pages      = cspv_hot_pages_for_range( $from_str, $to_str );
+    $prev_hot_pages = isset( $prev_from_str )
+        ? cspv_hot_pages_for_range( $prev_from_str, $prev_to_str )
+        : cspv_hot_pages_for_range( $prev_48h, $prev_24h_ts );
+
     $referrers      = cspv_top_referrer_domains( $from_str, $to_str, 10 );
     $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
     $countries      = cspv_top_countries( $from_str, $to_str, 20 );
@@ -396,6 +408,8 @@ function cspv_ajax_chart_data() {
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
         'countries'       => $countries,
+        'hot_pages'          => $hot_pages,
+        'prev_hot_pages'     => $prev_hot_pages,
         'unique_visitors'    => $unique_visitors,
         'prev_visitors'      => $prev_visitors,
         'lifetime_visitors'  => $lifetime_visitors,
@@ -972,6 +986,12 @@ function cspv_render_stats_page() {
                 <div class="cspv-card-value" id="stat-visitors-delta">—</div>
                 <div class="cspv-card-label">Unique Visitors</div>
                 <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+            </div>
+            <div class="cspv-card" id="cspv-card-hotpages">
+                <div class="cspv-card-icon">🔥</div>
+                <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
+                <div class="cspv-card-label">Hot Pages</div>
+                <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
         </div>
 
@@ -1955,6 +1975,8 @@ ob_start();
         document.getElementById('stat-posts-detail').textContent = '';
         document.getElementById('stat-visitors-delta').textContent = '—';
         document.getElementById('stat-visitors-detail').textContent = '';
+        document.getElementById('stat-hotpages-delta').textContent = '—';
+        document.getElementById('stat-hotpages-detail').textContent = '';
         document.getElementById('cspv-top-posts').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-referrers').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-lifetime-top').innerHTML = '<div class="cspv-loading">Loading…</div>';
@@ -2046,6 +2068,22 @@ ob_start();
             visDeltaEl.textContent = data.unique_visitors.toLocaleString();
             visDeltaEl.className   = 'cspv-card-value';
             visDetailEl.textContent = '';
+        }
+
+        // Hot Pages card: percentage as hero, counts as detail line
+        var hotDeltaEl  = document.getElementById('stat-hotpages-delta');
+        var hotDetailEl = document.getElementById('stat-hotpages-detail');
+        if (data.prev_hot_pages > 0) {
+            var hotPct   = Math.round(((data.hot_pages - data.prev_hot_pages) / data.prev_hot_pages) * 100);
+            var hotArrow = hotPct > 0 ? '↑' : (hotPct < 0 ? '↓' : '–');
+            var hotCls   = hotPct > 0 ? 'cspv-delta-up' : (hotPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
+            hotDeltaEl.textContent = hotArrow + ' ' + Math.abs(hotPct) + '%';
+            hotDeltaEl.className   = 'cspv-card-value ' + hotCls;
+            hotDetailEl.textContent = data.hot_pages.toLocaleString() + ' vs ' + data.prev_hot_pages.toLocaleString();
+        } else {
+            hotDeltaEl.textContent = data.hot_pages.toLocaleString();
+            hotDeltaEl.className   = 'cspv-card-value';
+            hotDetailEl.textContent = '';
         }
 
         // Views card: percentage as hero, counts as detail line

@@ -62,7 +62,7 @@ function cspv_register_display_settings() {
     ) );
     register_setting( 'cspv_display_options', 'cspv_display_color', array(
         'type'              => 'string',
-        'default'           => 'blue',
+        'default'           => 'red',
         'sanitize_callback' => 'cspv_sanitize_display_color',
     ) );
 }
@@ -114,6 +114,13 @@ function cspv_sanitize_display_style( $value ) {
     $valid = array( 'badge', 'pill', 'minimal' );
     return in_array( $value, $valid, true ) ? $value : 'badge';
 }
+
+// One-time migration: if color is still the old 'blue' default, switch to 'red'.
+add_action( 'init', function () {
+    if ( get_option( 'cspv_display_color' ) === 'blue' ) {
+        update_option( 'cspv_display_color', 'red' );
+    }
+}, 1 );
 
 // -------------------------------------------------------------------------
 // 2. Settings page under Settings menu
@@ -271,7 +278,7 @@ function cspv_auto_display_style() {
     $position = get_option( 'cspv_auto_display', 'before_content' );
     if ( $position === 'off' ) { return; }
 
-    $color = get_option( 'cspv_display_color', 'blue' );
+    $color = get_option( 'cspv_display_color', 'red' );
     $colors = array(
         'blue'   => array( 'grad' => '#1a3a8f, #1e6fd9', 'solid' => '#1a3a8f', 'light_bg' => '#f0f6ff', 'light_border' => '#d0dfff', 'light_text' => '#1a3a8f', 'light_suffix' => '#5a7abf' ),
         'pink'   => array( 'grad' => '#db2777, #f472b6', 'solid' => '#db2777', 'light_bg' => '#fdf2f8', 'light_border' => '#fbcfe8', 'light_text' => '#be185d', 'light_suffix' => '#db2777' ),

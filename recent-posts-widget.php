@@ -153,7 +153,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
 
             if ( $total_pages > 1 ) {
                 $base_url   = strtok( home_url( add_query_arg( array() ) ), '?' );
-                $query_vars = $_GET;
+                $query_vars = array_map( 'sanitize_text_field', wp_unslash( $_GET ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- used only for pagination URL construction, not for data processing
 
                 echo '<div class="cspv-rp-pagination">';
 

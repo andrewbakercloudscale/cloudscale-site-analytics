@@ -3,7 +3,7 @@
  * Plugin Name:  CloudScale Free Analytics
  * Plugin URI:   https://your-wordpress-site.example.com
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.115
+ * Version:      2.9.118
  * Author:       Andrew Baker
  * Author URI:   https://your-wordpress-site.example.com
  * Contributors: andrewjbaker
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.115' );
+define( 'CSPV_VERSION',    '2.9.118' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -57,28 +57,17 @@ register_activation_hook( __FILE__, 'cspv_activate' );
 register_deactivation_hook( __FILE__, function () {
     $dir = plugin_dir_path( __FILE__ );
     foreach ( glob( $dir . '*.{js,css}', GLOB_BRACE ) as $f ) {
-        if ( is_file( $f ) ) { unlink( $f ); }
+        if ( is_file( $f ) ) { wp_delete_file( $f ); }
     }
-    $assets = $dir . 'assets/';
-    if ( is_dir( $assets ) ) {
-        foreach ( glob( $assets . '*' ) as $f ) {
-            if ( is_file( $f ) ) { unlink( $f ); }
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    WP_Filesystem();
+    global $wp_filesystem;
+    foreach ( array( $dir . 'assets/', $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
+        if ( ! is_dir( $subdir ) ) { continue; }
+        foreach ( glob( $subdir . '*' ) as $f ) {
+            if ( is_file( $f ) ) { wp_delete_file( $f ); }
         }
-        rmdir( $assets );
-    }
-    $admin = $dir . 'admin/';
-    if ( is_dir( $admin ) ) {
-        foreach ( glob( $admin . '*' ) as $f ) {
-            if ( is_file( $f ) ) { unlink( $f ); }
-        }
-        rmdir( $admin );
-    }
-    $inc = $dir . 'includes/';
-    if ( is_dir( $inc ) ) {
-        foreach ( glob( $inc . '*' ) as $f ) {
-            if ( is_file( $f ) ) { unlink( $f ); }
-        }
-        rmdir( $inc );
+        if ( $wp_filesystem ) { $wp_filesystem->rmdir( $subdir ); }
     }
 } );
 
@@ -87,27 +76,16 @@ add_action( 'admin_init', function () {
     if ( $stored !== CSPV_VERSION ) {
         if ( function_exists( 'opcache_reset' ) ) { opcache_reset(); }
 
-        $dir    = plugin_dir_path( __FILE__ );
-        $assets = $dir . 'assets/';
-        if ( is_dir( $assets ) ) {
-            foreach ( glob( $assets . '*' ) as $f ) {
-                if ( is_file( $f ) ) { unlink( $f ); }
+        $dir = plugin_dir_path( __FILE__ );
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        WP_Filesystem();
+        global $wp_filesystem;
+        foreach ( array( $dir . 'assets/', $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
+            if ( ! is_dir( $subdir ) ) { continue; }
+            foreach ( glob( $subdir . '*' ) as $f ) {
+                if ( is_file( $f ) ) { wp_delete_file( $f ); }
             }
-            rmdir( $assets );
-        }
-        $admin = $dir . 'admin/';
-        if ( is_dir( $admin ) ) {
-            foreach ( glob( $admin . '*' ) as $f ) {
-                if ( is_file( $f ) ) { unlink( $f ); }
-            }
-            rmdir( $admin );
-        }
-        $inc = $dir . 'includes/';
-        if ( is_dir( $inc ) ) {
-            foreach ( glob( $inc . '*' ) as $f ) {
-                if ( is_file( $f ) ) { unlink( $f ); }
-            }
-            rmdir( $inc );
+            if ( $wp_filesystem ) { $wp_filesystem->rmdir( $subdir ); }
         }
 
         cspv_create_table_v2();

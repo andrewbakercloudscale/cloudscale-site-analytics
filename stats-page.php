@@ -10,10 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-add_action( 'admin_menu',              'cspv_add_tools_page' );
-add_action( 'admin_enqueue_scripts',   'cspv_enqueue_admin_assets' );
-add_action( 'admin_head',             'cspv_admin_menu_styles' );
-add_action( 'wp_head',               'cspv_frontend_nav_styles' );
+add_action( 'admin_menu',            'cspv_add_tools_page' );
+add_action( 'admin_enqueue_scripts', 'cspv_enqueue_admin_assets' );
+add_action( 'admin_head',            'cspv_admin_menu_styles' );
+add_action( 'admin_enqueue_scripts', 'cspv_admin_menu_enqueue' );
+add_action( 'wp_enqueue_scripts',    'cspv_frontend_nav_enqueue' );
 add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
 add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
@@ -23,47 +24,50 @@ add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 
 /**
- * Highlight CloudScale menu items in Tools with a light blue colour.
+ * Inject viewport meta tag on the plugin page so mobile media queries fire correctly.
  *
- * @since 2.9.117
+ * The WP admin does not output a viewport meta tag by default, causing phones to
+ * render the page at the default 980px viewport where max-width:782px never fires.
+ *
+ * @since 2.9.118
  * @return void
  */
 function cspv_admin_menu_styles() {
-    global $pagenow;
-    // Inject viewport meta on our plugin page so mobile media queries fire correctly.
-    // The WP admin does not output a viewport meta tag by default, causing phones to
-    // render the page at the default 980px viewport where max-width:782px never fires.
     if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-wordpress-free-analytics' ) {
         echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
     }
-    ?>
-    <style>
-        #adminmenu a[href*="cloudscale"],
-        #adminmenu a[href*="cs-seo-optimizer"] { color: #7dd3fc !important; }
-        #adminmenu a[href*="cloudscale"]:hover,
-        #adminmenu a[href*="cs-seo-optimizer"]:hover { color: #fff !important; }
-    </style>
-    <?php
 }
 
 /**
- * Style the CloudScale nav menu item on the frontend.
+ * Enqueue inline CSS to highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.117
+ * @since 2.9.119
  * @return void
  */
-function cspv_frontend_nav_styles() {
-    ?>
-    <style>
-        .cs-cloudscale-menu > a {
-            color: #93c5fd !important;
-            font-weight: 700 !important;
-        }
-        .cs-cloudscale-menu > a:hover {
-            color: #bfdbfe !important;
-        }
-    </style>
-    <?php
+function cspv_admin_menu_enqueue() {
+    wp_register_style( 'cspv-admin-menu', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle, version set
+    wp_enqueue_style( 'cspv-admin-menu' );
+    wp_add_inline_style(
+        'cspv-admin-menu',
+        '#adminmenu a[href*="cloudscale"], #adminmenu a[href*="cs-seo-optimizer"] { color: #7dd3fc !important; }
+        #adminmenu a[href*="cloudscale"]:hover, #adminmenu a[href*="cs-seo-optimizer"]:hover { color: #fff !important; }'
+    );
+}
+
+/**
+ * Enqueue inline CSS to style the CloudScale nav menu item on the frontend.
+ *
+ * @since 2.9.119
+ * @return void
+ */
+function cspv_frontend_nav_enqueue() {
+    wp_register_style( 'cspv-frontend-nav', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle, version set
+    wp_enqueue_style( 'cspv-frontend-nav' );
+    wp_add_inline_style(
+        'cspv-frontend-nav',
+        '.cs-cloudscale-menu > a { color: #93c5fd !important; font-weight: 700 !important; }
+        .cs-cloudscale-menu > a:hover { color: #bfdbfe !important; }'
+    );
 }
 
 /**
@@ -720,20 +724,20 @@ function cspv_ajax_download_dbip() {
 
     $code = wp_remote_retrieve_response_code( $response );
     if ( $code !== 200 ) {
-        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         wp_send_json_error( 'Download failed with HTTP ' . $code . '. The file may not be available yet for this month.' );
     }
 
     // Decompress gzip
     $gz = gzopen( $gz_path, 'rb' );
     if ( ! $gz ) {
-        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         wp_send_json_error( 'Failed to open gzipped file.' );
     }
     $out = fopen( $mmdb_path, 'wb' );
     if ( ! $out ) {
         gzclose( $gz );
-        if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         wp_send_json_error( 'Failed to write mmdb file.' );
     }
     while ( ! gzeof( $gz ) ) {
@@ -741,12 +745,12 @@ function cspv_ajax_download_dbip() {
     }
     gzclose( $gz );
     fclose( $out );
-    if ( file_exists( $gz_path ) ) { unlink( $gz_path ); }
+    if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
 
     // Verify the file is valid
     $size = filesize( $mmdb_path );
     if ( $size < 1000000 ) {
-        if ( file_exists( $mmdb_path ) ) { unlink( $mmdb_path ); }
+        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
         wp_send_json_error( 'Downloaded file is too small (' . size_format( $size ) . '). May be corrupt.' );
     }
 
@@ -757,7 +761,7 @@ function cspv_ajax_download_dbip() {
         $meta   = $reader->metadata();
         $reader->close();
     } catch ( \Exception $e ) {
-        if ( file_exists( $mmdb_path ) ) { unlink( $mmdb_path ); }
+        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
         wp_send_json_error( 'Database file invalid: ' . $e->getMessage() );
     }
 
@@ -829,7 +833,7 @@ function cspv_render_stats_page() {
     global $wpdb;
 
     // Handle display settings save
-    if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( $_POST['cspv_display_nonce'], 'cspv_display_save' ) ) {
+    if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( wp_unslash( $_POST['cspv_display_nonce'] ), 'cspv_display_save' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce value, not user content
         $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
         $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
         update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );

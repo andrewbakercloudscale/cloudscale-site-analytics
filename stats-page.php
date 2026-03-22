@@ -75,7 +75,7 @@ function cspv_frontend_nav_styles() {
 function cspv_add_tools_page() {
     add_management_page(
         'CloudScale Free Analytics',
-        '🌩️ CloudScale Analytics',
+        '📊 CloudScale Analytics',
         'manage_options',
         'cloudscale-wordpress-free-analytics',
         'cspv_render_stats_page'

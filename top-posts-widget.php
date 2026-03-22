@@ -29,7 +29,7 @@ function cspv_top_posts_widget_enqueue() {
     if ( ! is_active_widget( false, false, 'cspv_top_posts_widget' ) ) {
         return;
     }
-    wp_register_style( 'cspv-top-posts-widget', false );
+    wp_register_style( 'cspv-top-posts-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-top-posts-widget' );
     wp_add_inline_style( 'cspv-top-posts-widget', cspv_top_posts_widget_css() );
 
@@ -310,14 +310,14 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $uid = 'cspv_tp_' . preg_replace( '/[^a-zA-Z0-9]/', '_', $args['widget_id'] );
         $safe_wid = esc_attr( $args['widget_id'] );
 
-        echo $args['before_widget'];
-        echo $args['before_title'] . esc_html( $title ) . $args['after_title'];
+        echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+        echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
 
         $posts_arr = cspv_get_top_posts( $total_posts, $order_by, $view_window );
 
         if ( empty( $posts_arr ) ) {
             echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No published posts found.', 'cloudscale-wordpress-free-analytics' ) . '</p>';
-            echo $args['after_widget'];
+            echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
             return;
         }
 
@@ -451,7 +451,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
 })();';
 
         wp_add_inline_script( 'cspv-top-posts-widget', $js );
-        echo $args['after_widget'];
+        echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
     }
 
     /**

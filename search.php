@@ -36,7 +36,7 @@ function cspv_search_widget_enqueue() {
 	if ( ! is_active_widget( false, false, 'cspv_search_widget' ) ) {
 		return;
 	}
-	wp_register_style( 'cspv-search-widget', false );
+	wp_register_style( 'cspv-search-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
 	wp_enqueue_style( 'cspv-search-widget' );
 	wp_add_inline_style( 'cspv-search-widget', cspv_search_widget_css() );
 }
@@ -79,8 +79,8 @@ class CSPV_Search_Widget extends WP_Widget {
 		$btn_color   = ! empty( $instance['btn_color'] )   ? sanitize_hex_color( $instance['btn_color'] )   : '#e8491d';
 		$btn_hover   = ! empty( $instance['btn_hover'] )   ? sanitize_hex_color( $instance['btn_hover'] )   : '#f27c1a';
 
-		echo $args['before_widget'];
-		echo $args['before_title'] . esc_html( $title ) . $args['after_title'];
+		echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+		echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
 		?>
 		<form role="search" method="get" class="cspv-search-form"
 			  style="--cspv-btn-color:<?php echo esc_attr( $btn_color ); ?>;--cspv-btn-hover:<?php echo esc_attr( $btn_hover ); ?>;"
@@ -102,7 +102,7 @@ class CSPV_Search_Widget extends WP_Widget {
 			</button>
 		</form>
 		<?php
-		echo $args['after_widget'];
+		echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
 	}
 
 	/**

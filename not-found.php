@@ -216,10 +216,10 @@ function cspv_render_404_html() {
 	<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
 		<div style="display:flex;gap:10px;flex-wrap:wrap;">
 			<span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:700;color:#dc2626;">
-				<?php echo number_format( $total_unique ); ?> unique URLs
+				<?php echo esc_html( number_format( $total_unique ) ); ?> unique URLs
 			</span>
 			<span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:700;color:#ea580c;">
-				<?php echo number_format( $total_hits ); ?> total hits
+				<?php echo esc_html( number_format( $total_hits ) ); ?> total hits
 			</span>
 			<?php if ( $over_limit ) : ?>
 			<span style="background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;padding:4px 12px;font-size:12px;color:#6b7280;">
@@ -270,7 +270,7 @@ function cspv_render_404_html() {
 						<?php endif; ?>
 					</td>
 					<td style="padding:8px 12px;text-align:center;font-weight:700;color:<?php echo (int) $row->hit_count > 10 ? '#dc2626' : '#374151'; ?>;">
-						<?php echo number_format( (int) $row->hit_count ); ?>
+						<?php echo esc_html( number_format( (int) $row->hit_count ) ); ?>
 					</td>
 					<td style="padding:8px 12px;font-size:12px;color:#6b7280;white-space:nowrap;">
 						<?php echo esc_html( wp_date( 'j M Y H:i', ( new DateTime( $row->last_seen, wp_timezone() ) )->getTimestamp() ) ); ?>

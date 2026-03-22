@@ -63,7 +63,7 @@ function cspv_debug_panel_enqueue() {
          . '.cspv-dbg-override-btn{padding:4px 12px;background:#7c3aed;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}'
          . '.cspv-dbg-override-btn:hover{background:#6d28d9;}';
 
-    wp_register_style( 'cspv-debug-panel', false );
+    wp_register_style( 'cspv-debug-panel', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-debug-panel' );
     wp_add_inline_style( 'cspv-debug-panel', $css );
 
@@ -166,28 +166,28 @@ function cspv_render_debug_panel() {
         <div class="cspv-dbg-section">Counts</div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Displayed count (post meta)</span>
-            <span class="cspv-dbg-value <?php echo $mismatch ? 'red' : 'green'; ?>"><?php echo number_format( $meta_count ); ?></span>
+            <span class="cspv-dbg-value <?php echo esc_attr( $mismatch ? 'red' : 'green' ); ?>"><?php echo esc_html( number_format( $meta_count ) ); ?></span>
         </div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cspv_views_v2</span>
-            <span class="cspv-dbg-value blue"><?php echo number_format( $log_count ); ?></span>
+            <span class="cspv-dbg-value blue"><?php echo esc_html( number_format( $log_count ) ); ?></span>
         </div>
         <?php if ( $jetpack_imported > 0 ) : ?>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Jetpack imported (no log rows)</span>
-            <span class="cspv-dbg-value orange"><?php echo number_format( $jetpack_imported ); ?></span>
+            <span class="cspv-dbg-value orange"><?php echo esc_html( number_format( $jetpack_imported ) ); ?></span>
         </div>
         <?php endif; ?>
         <?php if ( $unlogged_delta > 0 ) : ?>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Restore offset (meta ahead of log)</span>
-            <span class="cspv-dbg-value orange"><?php echo number_format( $unlogged_delta ); ?></span>
+            <span class="cspv-dbg-value orange"><?php echo esc_html( number_format( $unlogged_delta ) ); ?></span>
         </div>
         <?php endif; ?>
         <?php if ( $jp_views !== null ) : ?>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Jetpack meta (jetpack_post_views)</span>
-            <span class="cspv-dbg-value"><?php echo number_format( $jp_views ); ?></span>
+            <span class="cspv-dbg-value"><?php echo esc_html( number_format( $jp_views ) ); ?></span>
         </div>
         <?php endif; ?>
 
@@ -211,7 +211,7 @@ function cspv_render_debug_panel() {
             <?php foreach ( $daily_data as $d ) :
                 $pct = round( ( $d['views'] / $max_v ) * 100 );
             ?>
-            <div class="cspv-dbg-bar" style="height:<?php echo max( 2, $pct ); ?>%">
+            <div class="cspv-dbg-bar" style="height:<?php echo (int) max( 2, $pct ); ?>%">
                 <span class="cspv-dbg-bar-tip"><?php echo esc_html( wp_date( 'j M', strtotime( $d['day'] ) ) . ': ' . number_format( $d['views'] ) ); ?></span>
             </div>
             <?php endforeach; ?>
@@ -224,11 +224,11 @@ function cspv_render_debug_panel() {
 
         <?php if ( $jetpack_imported > 0 ) : ?>
         <div class="cspv-dbg-warn">
-            All <?php echo number_format( $meta_count ); ?> views came from Jetpack import. No log table rows exist for this post.
+            All <?php echo esc_html( number_format( $meta_count ) ); ?> views came from Jetpack import. No log table rows exist for this post.
         </div>
         <?php elseif ( $mismatch ) : ?>
         <div class="cspv-dbg-warn">
-            ⚠ Meta count (<?php echo number_format( $meta_count ); ?>) does not match log count (<?php echo number_format( $log_count ); ?>) and no Jetpack import accounts for the difference. The meta may have been corrupted.
+            ⚠ Meta count (<?php echo esc_html( number_format( $meta_count ) ); ?>) does not match log count (<?php echo esc_html( number_format( $log_count ) ); ?>) and no Jetpack import accounts for the difference. The meta may have been corrupted.
             <br>
             <button class="cspv-dbg-fix-btn" id="cspv-dbg-resync">Resync meta from log table</button>
         </div>
@@ -384,7 +384,7 @@ add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
  * Used to correct counts that were lost or corrupted during a data restore.
  * Requires manage_options capability and a valid nonce.
  *
- * @since 2.9.102
+ * @since 2.9.119
  * @return void Sends JSON response.
  */
 function cspv_ajax_set_view_count() {

@@ -301,7 +301,7 @@ function cspv_auto_display_style() {
               . '.search-results .hentry:last-child,.search .hentry:last-child{border-bottom:none;}';
     }
 
-    wp_register_style( 'cspv-auto-display', false );
+    wp_register_style( 'cspv-auto-display', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-auto-display' );
     wp_add_inline_style( 'cspv-auto-display', $css );
 }

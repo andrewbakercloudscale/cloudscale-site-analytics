@@ -29,7 +29,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  * The WP admin does not output a viewport meta tag by default, causing phones to
  * render the page at the default 980px viewport where max-width:782px never fires.
  *
- * @since 2.9.118
+ * @since 2.9.119
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -1529,7 +1529,7 @@ function cspv_render_stats_page() {
                         <?php echo esc_html( $ftb_rules['summary'] ); ?>
                     </div>
                     <div class="cspv-ftb-rule-details">
-                        <span>Page limit: <strong><?php echo number_format( $ftb_rules['page_limit'] ); ?></strong></span>
+                        <span>Page limit: <strong><?php echo esc_html( number_format( $ftb_rules['page_limit'] ) ); ?></strong></span>
                         <span>Window: <strong><?php echo esc_html( $ftb_rules['window_label'] ); ?></strong></span>
                         <span>Block duration: <strong>2 hours (auto clear)</strong></span>
                     </div>
@@ -1599,7 +1599,7 @@ function cspv_render_stats_page() {
                         <div style="font-size:13px;color:#444;line-height:1.8;">
                             Ran on <strong><?php echo esc_html( $migration_lock['date'] ?? '—' ); ?></strong> ·
                             <strong><?php echo (int) ( $migration_lock['posts_migrated'] ?? 0 ); ?></strong> posts ·
-                            <strong><?php echo number_format( (int) ( $migration_lock['views_imported'] ?? 0 ) ); ?></strong> views imported ·
+                            <strong><?php echo esc_html( number_format( (int) ( $migration_lock['views_imported'] ?? 0 ) ) ); ?></strong> views imported ·
                             Mode: <strong><?php echo esc_html( $migration_lock['mode'] ?? '—' ); ?></strong>
                         </div>
                         <div style="font-size:12px;color:#888;margin-top:6px;">
@@ -1697,7 +1697,7 @@ function cspv_render_stats_page() {
                 <div style="display:flex;gap:16px;padding:8px 0;border-bottom:1px solid #f0f4ff;font-size:12px;color:#555;flex-wrap:wrap;">
                     <span style="color:#888;"><?php echo esc_html( $entry['date'] ); ?></span>
                     <span><strong><?php echo (int) $entry['posts_migrated']; ?></strong> posts migrated</span>
-                    <span><strong><?php echo number_format( (int) $entry['views_imported'] ); ?></strong> views imported</span>
+                    <span><strong><?php echo esc_html( number_format( (int) $entry['views_imported'] ) ); ?></strong> views imported</span>
                     <span><?php echo (int) $entry['posts_skipped']; ?> skipped</span>
                     <span style="background:<?php echo $entry['mode']==='replace' ? '#fff3e8' : '#e8f5ff'; ?>;padding:1px 6px;border-radius:3px;">
                         <?php echo esc_html( $entry['mode'] ); ?>
@@ -1771,13 +1771,13 @@ function cspv_render_stats_page() {
                             <a class="cspv-ph-view-link" href="<?php echo esc_url( get_permalink( $p->ID ) ); ?>" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">↗</a>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
-                            <?php echo number_format( $views ); ?>
+                            <?php echo esc_html( number_format( $views ) ); ?>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">
-                            <?php echo number_format( $ph_logged ); ?>
+                            <?php echo esc_html( number_format( $ph_logged ) ); ?>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:<?php echo $jetpack > 0 ? '#f47c20' : '#ccc'; ?>;font-variant-numeric:tabular-nums;">
-                            <?php echo $jetpack > 0 ? number_format( $jetpack ) : '—'; ?>
+                            <?php echo $jetpack > 0 ? esc_html( number_format( $jetpack ) ) : '—'; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>

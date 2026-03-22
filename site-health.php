@@ -324,10 +324,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
-                <?php echo number_format( $g['current'] ); ?> current
+                <?php echo esc_html( number_format( $g['current'] ) ); ?> current
             </div>
             <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.7;margin-top:2px;font-weight:500;">
-                <?php echo number_format( $g['previous'] ); ?> prior
+                <?php echo esc_html( number_format( $g['previous'] ) ); ?> prior
             </div>
         </div>
     <?php else : ?>

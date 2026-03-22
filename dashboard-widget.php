@@ -82,7 +82,7 @@ function cspv_dashboard_widget_enqueue( $hook ) {
          . '.cspv-dw-shield.on{color:#1db954;font-weight:600;}'
          . '.cspv-dw-shield.off{color:#e53e3e;}';
 
-    wp_register_style( 'cspv-dashboard-widget', false );
+    wp_register_style( 'cspv-dashboard-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-dashboard-widget' );
     wp_add_inline_style( 'cspv-dashboard-widget', $css );
 }

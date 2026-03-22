@@ -3,6 +3,15 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.121] - 2026-03-22
+
+### Fixed
+- Wrap all boolean ternary echoes in `esc_html()` (text) or `esc_attr()` (class/style) in stats-page.php: toggle labels, status pills, CSS class suffixes, inline colour values, and the Fail2Ban/dedup/pause state strings (PCP `EscapeOutput`).
+- Restructure compound HTML attribute echo (`disabled title="..."`) to use conditional PHP tags instead of bare echo (PCP `EscapeOutput`).
+- Cast `count($blocklist)` and `$p->ID` to `(int)` at echo point in stats-page.php.
+- Apply `esc_attr()` to all CSS variable echoes in site-health.php inline styles: `$pc['light']`, `$pc['border']`, `$pc['text']`, `$pc['grad']`, `$val_color`, `$ps`, `$rag_bg`, `$overall_color` (PCP `EscapeOutput`).
+- Cast all integer-only CSS dimension ternaries to `(int)` in site-health.php (`$w ? '9' : '10'` etc.) and cast `$gs` and day-calculation echoes to `(int)`.
+
 ## [2.9.120] - 2026-03-22
 
 ### Fixed

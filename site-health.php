@@ -290,9 +290,9 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     $gs = $w ? '6'  : '10';
     $ps = $w ? '8px 6px' : '12px 14px';
     ?>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:<?php echo $w ? '10' : '14'; ?>px;">
-        <span style="font-size:<?php echo $w ? '13' : '15'; ?>px;font-weight:800;color:#1a2332;">🏥 Site Health</span>
-        <span style="background:<?php echo $rag_bg[ $health['overall'] ]; ?>;color:<?php echo $overall_color; ?>;
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
+        <span style="font-size:<?php echo (int) ( $w ? '13' : '15' ); ?>px;font-weight:800;color:#1a2332;">🏥 Site Health</span>
+        <span style="background:<?php echo esc_attr( $rag_bg[ $health['overall'] ] ); ?>;color:<?php echo esc_attr( $overall_color ); ?>;
             font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;text-transform:uppercase;
             box-shadow:0 1px 4px rgba(0,0,0,.08);">
             <?php echo esc_html( $overall_emoji ); ?> <?php echo esc_html( $overall_label ); ?>
@@ -306,42 +306,42 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.05em;margin-bottom:6px;">
         📈 Traffic Growth per Time Window
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo $gs; ?>px;margin-bottom:<?php echo $w ? '12' : '18'; ?>px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '12' : '18' ); ?>px;">
     <?php foreach ( $health['growth'] as $label => $g ) :
         $pc = $period_colors[ $label ];
         if ( $g['sufficient'] ) :
             $arrow     = $g['pct_change'] >= 0 ? '▲' : '▼';
             $val_color = $rag_colors[ $g['rag'] ];
     ?>
-        <div style="background:<?php echo $pc['light']; ?>;border-radius:8px;padding:<?php echo $ps; ?>;text-align:center;
-            border:2px solid <?php echo $pc['border']; ?>;box-shadow:0 2px 8px <?php echo $pc['text']; ?>15;">
-            <div style="background:<?php echo $pc['grad']; ?>;color:#fff;font-size:<?php echo $w ? '9' : '10'; ?>px;font-weight:800;
+        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
+            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
+            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
                 text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo $w ? '16' : '22'; ?>px;font-weight:900;color:<?php echo $val_color; ?>;
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;
                 font-variant-numeric:tabular-nums;line-height:1.1;">
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
             </div>
-            <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;margin-top:4px;font-weight:600;">
                 <?php echo esc_html( number_format( $g['current'] ) ); ?> current
             </div>
-            <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.7;margin-top:2px;font-weight:500;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;opacity:.7;margin-top:2px;font-weight:500;">
                 <?php echo esc_html( number_format( $g['previous'] ) ); ?> prior
             </div>
         </div>
     <?php else : ?>
-        <div style="background:<?php echo $pc['light']; ?>;border-radius:8px;padding:<?php echo $ps; ?>;text-align:center;
-            border:2px solid <?php echo $pc['border']; ?>;box-shadow:0 2px 8px <?php echo $pc['text']; ?>15;">
-            <div style="background:<?php echo $pc['grad']; ?>;color:#fff;font-size:<?php echo $w ? '9' : '10'; ?>px;font-weight:800;
+        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
+            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
+            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
                 text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo $w ? '11' : '13'; ?>px;font-weight:700;color:<?php echo $pc['text']; ?>;padding:2px 0;">
+            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:<?php echo esc_attr( $pc['text'] ); ?>;padding:2px 0;">
                 Insufficient Data
             </div>
-            <div style="font-size:<?php echo $w ? '9' : '10'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.6;margin-top:2px;">
-                need <?php echo $g['days'] * 2; ?> days
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;opacity:.6;margin-top:2px;">
+                need <?php echo (int) ( $g['days'] * 2 ); ?> days
             </div>
         </div>
     <?php endif; endforeach; ?>
@@ -354,38 +354,38 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <div style="font-size:9px;color:#888;margin-bottom:6px;line-height:1.4;">
         Content diversity indicator. Shows how many pages account for &gt;= 50% of traffic. The lower the number, the less SEO value you are getting, as visitors are only reaching narrow content.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo $gs; ?>px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;">
     <?php foreach ( $health['hot_pages'] as $label => $h ) :
         $pc = $period_colors[ $label ];
         if ( $h['sufficient'] ) :
             $arrow     = $h['pct_change'] >= 0 ? '▲' : '▼';
             $val_color = $rag_colors[ $h['rag'] ];
     ?>
-        <div style="background:<?php echo $pc['light']; ?>;border-radius:8px;padding:<?php echo $ps; ?>;text-align:center;
-            border:2px solid <?php echo $pc['border']; ?>;box-shadow:0 2px 8px <?php echo $pc['text']; ?>15;">
-            <div style="background:<?php echo $pc['grad']; ?>;color:#fff;font-size:<?php echo $w ? '9' : '10'; ?>px;font-weight:800;
+        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
+            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
+            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
                 text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo $w ? '16' : '22'; ?>px;font-weight:900;color:<?php echo $val_color; ?>;
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;
                 font-variant-numeric:tabular-nums;line-height:1.1;">
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
             </div>
-            <div style="font-size:<?php echo $w ? '9' : '11'; ?>px;color:<?php echo $pc['text']; ?>;margin-top:4px;font-weight:600;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;margin-top:4px;font-weight:600;">
                 <?php echo (int) $h['current_count']; ?> page<?php echo (int) $h['current_count'] !== 1 ? 's' : ''; ?> &gt;= 50% traffic
             </div>
         </div>
     <?php else : ?>
-        <div style="background:<?php echo $pc['light']; ?>;border-radius:8px;padding:<?php echo $ps; ?>;text-align:center;
-            border:2px solid <?php echo $pc['border']; ?>;box-shadow:0 2px 8px <?php echo $pc['text']; ?>15;">
-            <div style="background:<?php echo $pc['grad']; ?>;color:#fff;font-size:<?php echo $w ? '9' : '10'; ?>px;font-weight:800;
+        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
+            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
+            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
                 text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo $w ? '11' : '13'; ?>px;font-weight:700;color:<?php echo $pc['text']; ?>;padding:2px 0;">
+            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:<?php echo esc_attr( $pc['text'] ); ?>;padding:2px 0;">
                 Insufficient Data
             </div>
-            <div style="font-size:<?php echo $w ? '9' : '10'; ?>px;color:<?php echo $pc['text']; ?>;opacity:.6;margin-top:2px;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;opacity:.6;margin-top:2px;">
                 need <?php echo (int) $h['days'] * 2; ?> days
             </div>
         </div>

@@ -29,7 +29,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  * The WP admin does not output a viewport meta tag by default, causing phones to
  * render the page at the default 980px viewport where max-width:782px never fires.
  *
- * @since 2.9.119
+ * @since 2.9.120
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -41,7 +41,7 @@ function cspv_admin_menu_styles() {
 /**
  * Enqueue inline CSS to highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.119
+ * @since 2.9.120
  * @return void
  */
 function cspv_admin_menu_enqueue() {
@@ -57,7 +57,7 @@ function cspv_admin_menu_enqueue() {
 /**
  * Enqueue inline CSS to style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.119
+ * @since 2.9.120
  * @return void
  */
 function cspv_frontend_nav_enqueue() {
@@ -1141,17 +1141,17 @@ function cspv_render_stats_page() {
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
                 <h3 style="margin:0 0 10px;font-size:14px;">🎨 Counter Style <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-style" title="Info">i</a></h3>
                 <div class="cspv-dsp-styles">
-                    <label class="cspv-dsp-style-card<?php echo $dsp_style === 'badge' ? ' active' : ''; ?>">
+                    <label class="cspv-dsp-style-card<?php echo esc_attr( $dsp_style === 'badge' ? ' active' : '' ); ?>">
                         <input type="radio" name="cspv_display_style" value="badge" <?php checked( $dsp_style, 'badge' ); ?>>
                         <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#1a3a8f,#1e6fd9);color:#fff;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:700;">👁 1,234 <span style="opacity:.8;font-size:11px;">views</span></span>
                         <span class="cspv-dsp-style-name">Badge</span>
                     </label>
-                    <label class="cspv-dsp-style-card<?php echo $dsp_style === 'pill' ? ' active' : ''; ?>">
+                    <label class="cspv-dsp-style-card<?php echo esc_attr( $dsp_style === 'pill' ? ' active' : '' ); ?>">
                         <input type="radio" name="cspv_display_style" value="pill" <?php checked( $dsp_style, 'pill' ); ?>>
                         <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;background:#f0f6ff;border:1px solid #d0dfff;color:#1a3a8f;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;">👁 1,234 <span style="color:#5a7abf;font-size:11px;">views</span></span>
                         <span class="cspv-dsp-style-name">Pill</span>
                     </label>
-                    <label class="cspv-dsp-style-card<?php echo $dsp_style === 'minimal' ? ' active' : ''; ?>">
+                    <label class="cspv-dsp-style-card<?php echo esc_attr( $dsp_style === 'minimal' ? ' active' : '' ); ?>">
                         <input type="radio" name="cspv_display_style" value="minimal" <?php checked( $dsp_style, 'minimal' ); ?>>
                         <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;color:#6b7280;font-size:12px;">👁 1,234 <span style="font-size:11px;">views</span></span>
                         <span class="cspv-dsp-style-name">Minimal</span>
@@ -1172,7 +1172,7 @@ function cspv_render_stats_page() {
                         'grey'   => array( 'grad' => 'linear-gradient(135deg,#4b5563,#9ca3af)', 'text' => '#fff', 'label' => 'Grey' ),
                     );
                     foreach ( $color_map as $ckey => $cval ) : ?>
-                    <label class="cspv-dsp-style-card<?php echo $dsp_color === $ckey ? ' active' : ''; ?>">
+                    <label class="cspv-dsp-style-card<?php echo esc_attr( $dsp_color === $ckey ? ' active' : '' ); ?>">
                         <input type="radio" name="cspv_display_color" value="<?php echo esc_attr( $ckey ); ?>" <?php checked( $dsp_color, $ckey ); ?>>
                         <span class="cspv-dsp-preview" style="display:inline-flex;align-items:center;gap:5px;background:<?php echo esc_attr( $cval['grad'] ); ?>;color:<?php echo esc_attr( $cval['text'] ); ?>;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:700;">👁 1,234 <span style="opacity:.8;font-size:11px;">views</span></span>
                         <span class="cspv-dsp-style-name"><?php echo esc_html( $cval['label'] ); ?></span>
@@ -1274,7 +1274,7 @@ function cspv_render_stats_page() {
                             ?>
                         </div>
                         <button type="button" id="cspv-download-dbip" style="background:#0f766e;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">
-                            <?php echo file_exists( $mmdb_path ) ? '🔄 Update DB-IP Lite' : '⬇️ Download DB-IP Lite'; ?>
+                            <?php echo esc_html( file_exists( $mmdb_path ) ? '🔄 Update DB-IP Lite' : '⬇️ Download DB-IP Lite' ); ?>
                         </button>
                     </div>
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
@@ -1347,7 +1347,7 @@ function cspv_render_stats_page() {
                     <label class="cspv-toggle-wrap">
                         <input type="checkbox" id="cspv-throttle-enabled" <?php checked( $throttle_enabled ); ?>>
                         <span class="cspv-toggle"></span>
-                        <span id="cspv-toggle-label" class="cspv-toggle-text"><?php echo $throttle_enabled ? 'Enabled' : 'Disabled'; ?></span>
+                        <span id="cspv-toggle-label" class="cspv-toggle-text"><?php echo esc_html( $throttle_enabled ? 'Enabled' : 'Disabled' ); ?></span>
                     </label>
                 </div>
 
@@ -1386,8 +1386,8 @@ function cspv_render_stats_page() {
             <!-- View Deduplication -->
             <div class="cspv-section-header" style="margin-top:24px;background:linear-gradient(135deg,#1a5276,#2980b9);">
                 <span>🔁 View Deduplication <a class="cspv-info-btn" data-info="dedup" title="Info">i</a></span>
-                <span class="cspv-ftb-status-pill <?php echo $dedup_enabled ? 'cspv-ftb-on' : 'cspv-ftb-off'; ?>" id="cspv-dedup-status">
-                    <?php echo $dedup_enabled ? 'DEDUP ON' : 'DEDUP OFF'; ?>
+                <span class="cspv-ftb-status-pill <?php echo esc_attr( $dedup_enabled ? 'cspv-ftb-on' : 'cspv-ftb-off' ); ?>" id="cspv-dedup-status">
+                    <?php echo esc_html( $dedup_enabled ? 'DEDUP ON' : 'DEDUP OFF' ); ?>
                 </span>
             </div>
             <div id="cspv-dedup-body" style="background:#fff;padding:16px 24px 20px;border:1.5px solid #dce3ef;border-top:none;border-radius:0 0 8px 8px;">
@@ -1398,7 +1398,7 @@ function cspv_render_stats_page() {
                     <label class="cspv-toggle-wrap">
                         <input type="checkbox" id="cspv-dedup-enabled" <?php checked( $dedup_enabled ); ?>>
                         <span class="cspv-toggle"></span>
-                        <span id="cspv-dedup-toggle-label" class="cspv-toggle-text"><?php echo $dedup_enabled ? 'Enabled' : 'Disabled'; ?></span>
+                        <span id="cspv-dedup-toggle-label" class="cspv-toggle-text"><?php echo esc_html( $dedup_enabled ? 'Enabled' : 'Disabled' ); ?></span>
                     </label>
                 </div>
 
@@ -1426,7 +1426,7 @@ function cspv_render_stats_page() {
 
             <!-- Blocklist -->
             <div class="cspv-section-header cspv-section-header-red" style="margin-top:24px;">
-                <span>Blocked IPs <a class="cspv-info-btn" data-info="blocklist" title="Info">i</a> <span class="cspv-badge-count"><?php echo count( $blocklist ); ?></span></span>
+                <span>Blocked IPs <a class="cspv-info-btn" data-info="blocklist" title="Info">i</a> <span class="cspv-badge-count"><?php echo (int) count( $blocklist ); ?></span></span>
                 <?php if ( ! empty( $blocklist ) ) : ?>
                 <button id="cspv-clear-blocklist" class="cspv-btn-danger-sm">Clear All</button>
                 <?php endif; ?>
@@ -1453,11 +1453,11 @@ function cspv_render_stats_page() {
         </div>
 
         <!-- ═══════════════════════ EMERGENCY TRACKING PAUSE ═══════════════════════ -->
-        <div style="margin-top:24px;background:#fff;border:2px solid <?php echo $tracking_paused ? '#fecaca' : '#dce3ef'; ?>;border-radius:8px;overflow:hidden;" id="cspv-pause-wrapper">
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,<?php echo $tracking_paused ? '#991b1b,#dc2626' : '#374151,#6b7280'; ?>);" id="cspv-pause-header">
+        <div style="margin-top:24px;background:#fff;border:2px solid <?php echo esc_attr( $tracking_paused ? '#fecaca' : '#dce3ef' ); ?>;border-radius:8px;overflow:hidden;" id="cspv-pause-wrapper">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,<?php echo esc_attr( $tracking_paused ? '#991b1b,#dc2626' : '#374151,#6b7280' ); ?>);" id="cspv-pause-header">
                 <span>⏸ Page Tracking <a class="cspv-info-btn" data-info="tracking-pause" title="Info">i</a></span>
-                <span class="cspv-ftb-status-pill <?php echo $tracking_paused ? 'cspv-ftb-on' : 'cspv-ftb-off'; ?>" id="cspv-pause-status" style="<?php echo $tracking_paused ? 'background:rgba(255,255,255,.3);' : ''; ?>">
-                    <?php echo $tracking_paused ? '⏸ TRACKING PAUSED' : '● TRACKING ACTIVE'; ?>
+                <span class="cspv-ftb-status-pill <?php echo esc_attr( $tracking_paused ? 'cspv-ftb-on' : 'cspv-ftb-off' ); ?>" id="cspv-pause-status" style="<?php echo esc_attr( $tracking_paused ? 'background:rgba(255,255,255,.3);' : '' ); ?>">
+                    <?php echo esc_html( $tracking_paused ? '⏸ TRACKING PAUSED' : '● TRACKING ACTIVE' ); ?>
                 </span>
             </div>
             <div style="padding:20px 24px;">
@@ -1466,8 +1466,8 @@ function cspv_render_stats_page() {
                     <span class="cspv-throttle-label">Pause all tracking<br><small>Stops tracking + API recording immediately</small></span>
                     <label class="cspv-toggle-wrap">
                         <input type="checkbox" id="cspv-tracking-paused" <?php checked( $tracking_paused ); ?>>
-                        <span class="cspv-toggle" style="<?php echo $tracking_paused ? 'background:#dc2626;' : ''; ?>" id="cspv-pause-toggle"></span>
-                        <span id="cspv-pause-label" class="cspv-toggle-text" style="<?php echo $tracking_paused ? 'color:#dc2626;' : ''; ?>"><?php echo $tracking_paused ? 'Paused' : 'Active'; ?></span>
+                        <span class="cspv-toggle" style="<?php echo esc_attr( $tracking_paused ? 'background:#dc2626;' : '' ); ?>" id="cspv-pause-toggle"></span>
+                        <span id="cspv-pause-label" class="cspv-toggle-text" style="<?php echo esc_attr( $tracking_paused ? 'color:#dc2626;' : '' ); ?>"><?php echo esc_html( $tracking_paused ? 'Paused' : 'Active' ); ?></span>
                     </label>
                 </div>
                 <div class="cspv-throttle-actions" style="margin-top:8px;">
@@ -1481,8 +1481,8 @@ function cspv_render_stats_page() {
         <div id="cspv-ftb-inner" style="margin-top:24px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#b91c1c,#dc2626);">
                 <span>🔥 Fail2Ban Protection <a class="cspv-info-btn" data-info="ftb" title="Info">i</a></span>
-                <span class="cspv-ftb-status-pill <?php echo $ftb_enabled ? 'cspv-ftb-on' : 'cspv-ftb-off'; ?>" id="cspv-ftb-status-pill">
-                    <?php echo $ftb_enabled ? '● FTB ACTIVE' : '○ FTB OFF'; ?>
+                <span class="cspv-ftb-status-pill <?php echo esc_attr( $ftb_enabled ? 'cspv-ftb-on' : 'cspv-ftb-off' ); ?>" id="cspv-ftb-status-pill">
+                    <?php echo esc_html( $ftb_enabled ? '● FTB ACTIVE' : '○ FTB OFF' ); ?>
                 </span>
             </div>
             <div id="cspv-ftb-body">
@@ -1493,7 +1493,7 @@ function cspv_render_stats_page() {
                     <label class="cspv-toggle-wrap">
                         <input type="checkbox" id="cspv-ftb-enabled" <?php checked( $ftb_enabled ); ?>>
                         <span class="cspv-toggle"></span>
-                        <span id="cspv-ftb-toggle-label" class="cspv-toggle-text"><?php echo $ftb_enabled ? 'Enabled' : 'Disabled'; ?></span>
+                        <span id="cspv-ftb-toggle-label" class="cspv-toggle-text"><?php echo esc_html( $ftb_enabled ? 'Enabled' : 'Disabled' ); ?></span>
                     </label>
                 </div>
 
@@ -1522,8 +1522,8 @@ function cspv_render_stats_page() {
             </div>
             <div id="cspv-ftb-rules-body" style="padding:16px 24px;">
                 <div class="cspv-ftb-rule-card">
-                    <div class="cspv-ftb-rule-status <?php echo $ftb_rules['enabled'] ? 'cspv-ftb-active' : 'cspv-ftb-inactive'; ?>">
-                        <?php echo $ftb_rules['enabled'] ? '● Active' : '○ Inactive'; ?>
+                    <div class="cspv-ftb-rule-status <?php echo esc_attr( $ftb_rules['enabled'] ? 'cspv-ftb-active' : 'cspv-ftb-inactive' ); ?>">
+                        <?php echo esc_html( $ftb_rules['enabled'] ? '● Active' : '○ Inactive' ); ?>
                     </div>
                     <div class="cspv-ftb-rule-summary" id="cspv-ftb-rule-summary">
                         <?php echo esc_html( $ftb_rules['summary'] ); ?>
@@ -1627,7 +1627,7 @@ function cspv_render_stats_page() {
 
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
                     <button id="cspv-btn-check" class="cspv-btn-primary" style="background:linear-gradient(135deg,#5a1a8f,#8b2be2);"
-                            <?php echo $migration_locked ? 'disabled title="Reset the migration lock first to re-check"' : ''; ?>>
+                            <?php if ( $migration_locked ) : ?>disabled title="Reset the migration lock first to re-check"<?php endif; ?>>
                         🔍 Check Jetpack Data
                     </button>
                     <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px;">
@@ -1699,7 +1699,7 @@ function cspv_render_stats_page() {
                     <span><strong><?php echo (int) $entry['posts_migrated']; ?></strong> posts migrated</span>
                     <span><strong><?php echo esc_html( number_format( (int) $entry['views_imported'] ) ); ?></strong> views imported</span>
                     <span><?php echo (int) $entry['posts_skipped']; ?> skipped</span>
-                    <span style="background:<?php echo $entry['mode']==='replace' ? '#fff3e8' : '#e8f5ff'; ?>;padding:1px 6px;border-radius:3px;">
+                    <span style="background:<?php echo esc_attr( $entry['mode'] === 'replace' ? '#fff3e8' : '#e8f5ff' ); ?>;padding:1px 6px;border-radius:3px;">
                         <?php echo esc_html( $entry['mode'] ); ?>
                     </span>
                 </div>
@@ -1758,7 +1758,7 @@ function cspv_render_stats_page() {
                         $jetpack  = max( 0, $views - $ph_logged );
                         $bg = $i % 2 === 0 ? '#fff' : '#f8f9fa';
                     ?>
-                    <div class="cspv-ph-row" data-id="<?php echo $p->ID; ?>"
+                    <div class="cspv-ph-row" data-id="<?php echo (int) $p->ID; ?>"
                          data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
                          data-views="<?php echo esc_attr( (int) $views ); ?>"
                          data-pageviews="<?php echo esc_attr( (int) $ph_logged ); ?>"
@@ -1776,7 +1776,7 @@ function cspv_render_stats_page() {
                         <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">
                             <?php echo esc_html( number_format( $ph_logged ) ); ?>
                         </div>
-                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:<?php echo $jetpack > 0 ? '#f47c20' : '#ccc'; ?>;font-variant-numeric:tabular-nums;">
+                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:<?php echo esc_attr( $jetpack > 0 ? '#f47c20' : '#ccc' ); ?>;font-variant-numeric:tabular-nums;">
                             <?php echo $jetpack > 0 ? esc_html( number_format( $jetpack ) ) : '—'; ?>
                         </div>
                     </div>

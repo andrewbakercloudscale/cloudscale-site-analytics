@@ -194,11 +194,11 @@ function cspv_render_debug_panel() {
         <div class="cspv-dbg-section">Timeline</div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">First logged view</span>
-            <span class="cspv-dbg-value"><?php echo $first_log ? esc_html( $first_log ) : 'none'; ?></span>
+            <span class="cspv-dbg-value"><?php echo esc_html( $first_log ?: 'none' ); ?></span>
         </div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Last logged view</span>
-            <span class="cspv-dbg-value"><?php echo $last_log ? esc_html( $last_log ) : 'none'; ?></span>
+            <span class="cspv-dbg-value"><?php echo esc_html( $last_log ?: 'none' ); ?></span>
         </div>
 
         <?php if ( ! empty( $daily_data ) ) : ?>
@@ -384,7 +384,7 @@ add_action( 'wp_ajax_cspv_set_view_count', 'cspv_ajax_set_view_count' );
  * Used to correct counts that were lost or corrupted during a data restore.
  * Requires manage_options capability and a valid nonce.
  *
- * @since 2.9.119
+ * @since 2.9.121
  * @return void Sends JSON response.
  */
 function cspv_ajax_set_view_count() {

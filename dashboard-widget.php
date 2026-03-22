@@ -355,7 +355,7 @@ function cspv_render_dashboard_widget() {
 <!-- Banner -->
 <div class="cspv-dw-banner">
     <div>
-        <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo $delta_html; ?></div>
+        <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo wp_kses_post( $delta_html ); ?></div>
         <div class="cspv-dw-today-label">
             <span id="cspv-dw-main-label">Last 7 hours</span>
         </div>
@@ -422,10 +422,10 @@ function cspv_render_dashboard_widget() {
 <!-- Footer -->
 <div class="cspv-dw-footer">
     <a href="<?php echo esc_url( $stats_url ); ?>" class="cspv-dw-link">View Full Statistics</a>
-    <span class="cspv-dw-shield <?php echo $throttle_on ? 'on' : 'off'; ?>">
-        <?php echo $throttle_on
+    <span class="cspv-dw-shield <?php echo esc_attr( $throttle_on ? 'on' : 'off' ); ?>">
+        <?php echo esc_html( $throttle_on
             ? '🛡 ' . ( $blocked > 0 ? number_format( $blocked ) . ' blocked' : 'Protection on' )
-            : '⚠ Protection off'; ?>
+            : '⚠ Protection off' ); ?>
     </span>
 </div>
 

@@ -3,6 +3,15 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.122] - 2026-03-22
+
+### Fixed
+- `esc_attr()` on hit-count colour ternary in not-found.php inline style (PCP `EscapeOutput`).
+- `wp_kses_post()` on pre-built `$delta_html` in dashboard-widget.php (PCP `EscapeOutput`).
+- `esc_attr()` on throttle shield CSS class ternary in dashboard-widget.php.
+- `esc_html()` on throttle shield text ternary in dashboard-widget.php.
+- Simplify `$first_log`/`$last_log` conditional echoes to `esc_html( $x ?: 'none' )` in debug-panel.php.
+
 ## [2.9.121] - 2026-03-22
 
 ### Fixed

@@ -269,7 +269,7 @@ function cspv_render_404_html() {
 						<span style="color:#9ca3af;font-size:12px;font-style:italic;">direct / unknown</span>
 						<?php endif; ?>
 					</td>
-					<td style="padding:8px 12px;text-align:center;font-weight:700;color:<?php echo (int) $row->hit_count > 10 ? '#dc2626' : '#374151'; ?>;">
+					<td style="padding:8px 12px;text-align:center;font-weight:700;color:<?php echo esc_attr( (int) $row->hit_count > 10 ? '#dc2626' : '#374151' ); ?>;">
 						<?php echo esc_html( number_format( (int) $row->hit_count ) ); ?>
 					</td>
 					<td style="padding:8px 12px;font-size:12px;color:#6b7280;white-space:nowrap;">

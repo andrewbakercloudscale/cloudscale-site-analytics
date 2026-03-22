@@ -25,7 +25,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 /**
  * Highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.116
+ * @since 2.9.117
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -49,7 +49,7 @@ function cspv_admin_menu_styles() {
 /**
  * Style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.116
+ * @since 2.9.117
  * @return void
  */
 function cspv_frontend_nav_styles() {
@@ -2058,7 +2058,7 @@ ob_start();
             var postsCls   = postsPct > 0 ? 'cspv-delta-up' : (postsPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             postsDeltaEl.textContent = postsArrow + ' ' + Math.abs(postsPct) + '%';
             postsDeltaEl.className   = 'cspv-card-value ' + postsCls;
-            postsDetailEl.textContent = data.unique_posts.toLocaleString() + ' vs ' + data.prev_posts.toLocaleString();
+            postsDetailEl.textContent = data.unique_posts.toLocaleString() + ' (was ' + data.prev_posts.toLocaleString() + ')';
         } else {
             postsDeltaEl.textContent = data.unique_posts.toLocaleString();
             postsDeltaEl.className   = 'cspv-card-value';
@@ -2074,7 +2074,7 @@ ob_start();
             var visCls   = visPct > 0 ? 'cspv-delta-up' : (visPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             visDeltaEl.textContent = visArrow + ' ' + Math.abs(visPct) + '%';
             visDeltaEl.className   = 'cspv-card-value ' + visCls;
-            visDetailEl.textContent = data.unique_visitors.toLocaleString() + ' vs ' + data.prev_visitors.toLocaleString();
+            visDetailEl.textContent = data.unique_visitors.toLocaleString() + ' (was ' + data.prev_visitors.toLocaleString() + ')';
         } else {
             visDeltaEl.textContent = data.unique_visitors.toLocaleString();
             visDeltaEl.className   = 'cspv-card-value';
@@ -2106,7 +2106,7 @@ ob_start();
             var cls   = pct > 0 ? 'cspv-delta-up' : (pct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             deltaEl.textContent = arrow + ' ' + Math.abs(pct) + '%';
             deltaEl.className   = 'cspv-card-value ' + cls;
-            detailEl.textContent = data.total_views.toLocaleString() + ' vs ' + data.prev_total.toLocaleString();
+            detailEl.textContent = data.total_views.toLocaleString() + ' (was ' + data.prev_total.toLocaleString() + ')';
         } else {
             deltaEl.textContent = data.total_views.toLocaleString();
             deltaEl.className   = 'cspv-card-value';

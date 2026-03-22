@@ -25,7 +25,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 /**
  * Highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.115
+ * @since 2.9.116
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -49,7 +49,7 @@ function cspv_admin_menu_styles() {
 /**
  * Style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.115
+ * @since 2.9.116
  * @return void
  */
 function cspv_frontend_nav_styles() {
@@ -2090,7 +2090,7 @@ ob_start();
             var hotCls   = hotPct > 0 ? 'cspv-delta-up' : (hotPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             hotDeltaEl.textContent = hotArrow + ' ' + Math.abs(hotPct) + '%';
             hotDeltaEl.className   = 'cspv-card-value ' + hotCls;
-            hotDetailEl.textContent = data.hot_pages.toLocaleString() + ' vs ' + data.prev_hot_pages.toLocaleString();
+            hotDetailEl.textContent = data.hot_pages.toLocaleString() + ' pages (was ' + data.prev_hot_pages.toLocaleString() + ')';
         } else {
             hotDeltaEl.textContent = data.hot_pages.toLocaleString();
             hotDeltaEl.className   = 'cspv-card-value';

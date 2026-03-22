@@ -291,7 +291,7 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
  * Used for the "Hot Pages" summary card: pages that received genuine engagement
  * (more than a single hit) within the selected period.
  *
- * @since 2.9.115
+ * @since 2.9.116
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $min_views Minimum views threshold (default 2).
@@ -299,16 +299,30 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
  */
 function cspv_hot_pages_for_range( $from_str, $to_str, $min_views = 2 ) {
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT COUNT(*) FROM (
-            SELECT post_id FROM `{$table}`
-            WHERE viewed_at BETWEEN %s AND %s
-            GROUP BY post_id
-            HAVING {$cnt} >= %d
-         ) AS hot",
-        $from_str, $to_str, $min_views ) );
+    $table      = cspv_views_table();
+    $cnt        = cspv_count_expr();
+    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY post_id ORDER BY views DESC",
+        $from_str, $to_str ) );
+
+    if ( empty( $post_views ) ) { return 0; }
+
+    $total_views = 0;
+    foreach ( $post_views as $pv ) { $total_views += (int) $pv->views; }
+    if ( $total_views === 0 ) { return 0; }
+
+    $half      = $total_views * 0.5;
+    $cumul     = 0;
+    $hot_count = 0;
+    foreach ( $post_views as $pv ) {
+        $cumul += (int) $pv->views;
+        $hot_count++;
+        if ( $cumul >= $half ) { break; }
+    }
+
+    return $hot_count;
 }
 
 /**

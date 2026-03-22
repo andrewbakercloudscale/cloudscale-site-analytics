@@ -158,7 +158,7 @@ function cspv_views_inline_style() {
          . '.cspv-views-icon{line-height:1;font-style:normal;}'
          . '.cspv-views-number{font-variant-numeric:tabular-nums;}'
          . '.cspv-views-suffix{font-size:.9em;}';
-    wp_register_style( 'cspv-views', false );
+    wp_register_style( 'cspv-views', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-views' );
     wp_add_inline_style( 'cspv-views', $css );
 }

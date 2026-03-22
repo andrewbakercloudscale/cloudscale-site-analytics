@@ -36,7 +36,7 @@ function cspv_recent_posts_widget_enqueue() {
     if ( ! is_active_widget( false, false, 'cspv_recent_posts_widget' ) ) {
         return;
     }
-    wp_register_style( 'cspv-recent-posts-widget', false );
+    wp_register_style( 'cspv-recent-posts-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-recent-posts-widget' );
     wp_add_inline_style( 'cspv-recent-posts-widget', cspv_recent_posts_widget_css() );
 }
@@ -111,10 +111,10 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
             'no_found_rows'  => false,
         ) );
 
-        echo $args['before_widget'];
+        echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
 
         if ( $title ) {
-            echo $args['before_title'] . esc_html( $title ) . $args['after_title'];
+            echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
         }
 
         if ( $query->have_posts() ) {
@@ -142,7 +142,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
                 }
 
                 if ( ! empty( $meta_parts ) ) {
-                    echo '<span class="cspv-rp-meta">' . implode( ' ', $meta_parts ) . '</span>';
+                    echo '<span class="cspv-rp-meta">' . wp_kses_post( implode( ' ', $meta_parts ) ) . '</span>';
                 }
 
                 echo '</li>';
@@ -174,16 +174,16 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
                 for ( $i = $start; $i <= $end; $i++ ) {
                     $query_vars[ $param_key ] = $i;
                     if ( $i === $page ) {
-                        echo '<span class="cspv-rp-page cspv-rp-current">' . $i . '</span>';
+                        echo '<span class="cspv-rp-page cspv-rp-current">' . (int) $i . '</span>';
                     } else {
-                        echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . $i . '</a>';
+                        echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $i . '</a>';
                     }
                 }
 
                 if ( $end < $total_pages ) {
                     if ( $end < $total_pages - 1 ) echo '<span class="cspv-rp-ellipsis">&hellip;</span>';
                     $query_vars[ $param_key ] = $total_pages;
-                    echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . $total_pages . '</a>';
+                    echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $total_pages . '</a>';
                 }
 
                 if ( $page < $total_pages ) {
@@ -199,7 +199,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
             echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No posts found.', 'cloudscale-wordpress-free-analytics' ) . '</p>';
         }
 
-        echo $args['after_widget'];
+        echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
     }
 
     /**

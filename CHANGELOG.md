@@ -3,6 +3,18 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.120] - 2026-03-22
+
+### Fixed
+- Wrap `implode()` result in `wp_kses_post()` in Recent Posts widget meta output (PCP `EscapeOutput`).
+- Cast pagination integers `$i` and `$total_pages` to `(int)` at echo point in Recent Posts widget (PCP `EscapeOutput`).
+- Wrap all `number_format()` echo calls in `esc_html()` across debug-panel.php, not-found.php, site-health.php, and stats-page.php (PCP `EscapeOutput`).
+- Use `esc_attr()` for pre-computed CSS class string in debug-panel.php (`$mismatch ? 'red' : 'green'`).
+- Cast bar chart height integer to `(int)` in debug-panel.php style attribute.
+- Add `phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped` on all `$args['before_widget']`, `$args['after_widget']`, `$args['before_title']`, `$args['after_title']` echo calls (standard WP widget pattern).
+- Add `CSPV_VERSION` as version argument to all virtual `wp_register_style( 'handle', false )` calls across template-functions.php, recent-posts-widget.php, top-posts-widget.php, dashboard-widget.php, auto-display.php, search.php, and debug-panel.php (PCP `MissingVersion`).
+- Align `Contributors:` field in plugin PHP header to match readme.txt (`andrewbaker`).
+
 ## [2.9.119] - 2026-03-22
 
 ### Fixed

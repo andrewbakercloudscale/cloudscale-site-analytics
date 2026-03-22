@@ -3,6 +3,47 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.119] - 2026-03-22
+
+### Fixed
+- Replace echoed `<style>` tags in `cspv_admin_menu_styles` and `cspv_frontend_nav_styles` with `wp_add_inline_style()` to comply with PCP `EscapeOutput` / no-inline-styles rule (critical PCP violation).
+- Replace `unlink()` with `wp_delete_file()` throughout deactivation hook, admin_init upgrade handler, and GeoIP download handler (PCP `AlternativeFunctions.unlink_unlink`).
+- Replace `rmdir()` with WP Filesystem `$wp_filesystem->rmdir()` in deactivation and upgrade cleanup (PCP `AlternativeFunctions` violation).
+- Add `wp_unslash()` to nonce read in display settings form handler (`wp_verify_nonce( wp_unslash( $_POST['cspv_display_nonce'] ), ... )`) — PCP `MissingUnslash`.
+- Sanitize `$_GET` superglobal via `array_map( 'sanitize_text_field', wp_unslash( ... ) )` in Recent Posts widget pagination — PCP `InputNotSanitized`.
+
+## [2.9.118] - 2026-03-22
+
+### Changed
+- All four summary cards (Views, Posts Viewed, Unique Visitors, Hot Pages) now show `N (was X)` detail format instead of `N vs X`.
+
+### Fixed
+- Hot Pages card now shows the traffic-concentration count (how many top pages account for 50% of traffic) instead of all pages with ≥ 2 views. Value now matches the metric shown in the Site Health panel.
+
+## [2.9.117] - 2026-03-22
+
+### Fixed
+- Hot Pages summary card was showing inflated numbers (e.g. 150) by counting all distinct pages with ≥ 2 views. Rewrote `cspv_hot_pages_for_range()` to use the 50%-traffic-concentration algorithm consistent with the Site Health panel.
+
+## [2.9.116] - 2026-03-22
+
+### Changed
+- WordPress admin menu icon changed from storm cloud 🌩️ to bar chart 📊 for clearer analytics identity.
+- Post History tab: timeline entries are now clickable links opening the post in a new tab.
+- Added timeline slider to Post History tab.
+- Updated help documentation.
+
+## [2.9.115] - 2026-03-19
+
+### Added
+- Hot Pages summary card on Statistics page showing traffic-concentration percentage vs prior period.
+
+### Fixed
+- Mobile layout improvements across the Statistics page.
+
+### Changed
+- Deploy scripts hardened with safe atomic swap pattern.
+
 ## [2.9.94] - 2026-03-15
 
 ### Fixed

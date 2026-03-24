@@ -95,7 +95,7 @@ add_action( 'wp_dashboard_setup', 'cspv_register_dashboard_widget' );
 function cspv_register_dashboard_widget() {
     wp_add_dashboard_widget(
         'cspv_dashboard_widget',
-        '📊 CloudScale Analytics v' . CSPV_VERSION,
+        '<img src="' . esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) ) . '" style="height:18px;width:auto;vertical-align:middle;margin-right:6px;" alt=""> CloudScale Analytics v' . CSPV_VERSION,
         'cspv_render_dashboard_widget',
         null,
         null,

@@ -29,7 +29,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  * The WP admin does not output a viewport meta tag by default, causing phones to
  * render the page at the default 980px viewport where max-width:782px never fires.
  *
- * @since 2.9.120
+ * @since 2.9.128
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -41,7 +41,7 @@ function cspv_admin_menu_styles() {
 /**
  * Enqueue inline CSS to highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.120
+ * @since 2.9.128
  * @return void
  */
 function cspv_admin_menu_enqueue() {
@@ -57,7 +57,7 @@ function cspv_admin_menu_enqueue() {
 /**
  * Enqueue inline CSS to style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.120
+ * @since 2.9.128
  * @return void
  */
 function cspv_frontend_nav_enqueue() {
@@ -932,7 +932,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ HEADER BANNER ═══════════════════════ -->
     <div id="cspv-banner">
         <div id="cspv-banner-left">
-            <div id="cspv-banner-title">☁ CloudScale Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
+            <div id="cspv-banner-title"><img src="<?php echo esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) ); ?>" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;position:relative;top:-1px;" alt=""> CloudScale Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
             <div id="cspv-banner-sub">Cloudflare-accurate view tracking · v<?php echo esc_html( CSPV_VERSION ); ?></div>
         </div>
         <div id="cspv-banner-right">

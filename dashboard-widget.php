@@ -418,7 +418,7 @@ function cspv_render_dashboard_widget() {
 
 <!-- Footer -->
 <div class="cspv-dw-footer">
-    <a href="<?php echo esc_url( $stats_url ); ?>" class="cspv-dw-link">View Full Statistics</a>
+    <a href="<?php echo esc_url( $stats_url ); ?>" class="cspv-dw-link">View Analytics...</a>
 </div>
 
 <?php

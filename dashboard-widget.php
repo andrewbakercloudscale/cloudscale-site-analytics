@@ -46,10 +46,12 @@ function cspv_dashboard_widget_enqueue( $hook ) {
         'cspv-dashboard-widget',
         'document.addEventListener("DOMContentLoaded",function(){' .
             'var h=document.querySelector("#cspv_dashboard_widget .hndle");' .
-            'if(h){var i=document.createElement("img");' .
-            'i.src=' . wp_json_encode( $logo_url ) . ';' .
-            'i.style.cssText="height:20px;width:auto;vertical-align:middle;margin-right:6px;position:relative;top:-2px;border-radius:4px;";' .
-            'i.alt="";h.insertBefore(i,h.firstChild);}' .
+            'if(h){' .
+                'h.style.cssText="display:flex !important;align-items:center;justify-content:center;gap:6px;";' .
+                'var i=document.createElement("img");' .
+                'i.src=' . wp_json_encode( $logo_url ) . ';' .
+                'i.style.cssText="height:20px;width:auto;flex-shrink:0;border-radius:4px;";' .
+                'i.alt="";h.insertBefore(i,h.firstChild);}' .
         '});',
         'before'
     );

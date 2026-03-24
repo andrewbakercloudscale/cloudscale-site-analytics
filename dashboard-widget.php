@@ -75,12 +75,9 @@ function cspv_dashboard_widget_enqueue( $hook ) {
          . '.cspv-dw-ref-toggle:last-child{border-radius:0 3px 3px 0;}'
          . '.cspv-dw-ref-toggle:hover{background:rgba(0,0,0,.12);}'
          . '.cspv-dw-ref-toggle.active{background:#059669;color:#fff;font-weight:800;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}'
-         . '.cspv-dw-footer{padding:8px 16px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;}'
-         . '.cspv-dw-link{display:inline-block;padding:5px 12px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:11px;font-weight:700;text-decoration:none;border-radius:20px;letter-spacing:.03em;transition:opacity .15s;}'
-         . '.cspv-dw-link:hover{opacity:.85;color:#fff;text-decoration:none;}'
-         . '.cspv-dw-shield{font-size:11px;}'
-         . '.cspv-dw-shield.on{color:#1db954;font-weight:600;}'
-         . '.cspv-dw-shield.off{color:#e53e3e;}';
+         . '.cspv-dw-footer{padding:8px 16px;border-top:1px solid #eee;}'
+         . '.cspv-dw-link{display:block;width:100%;padding:8px 12px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:11px;font-weight:700;text-decoration:none;border-radius:20px;letter-spacing:.03em;transition:opacity .15s;text-align:center;box-sizing:border-box;}'
+         . '.cspv-dw-link:hover{opacity:.85;color:#fff;text-decoration:none;}';
 
     wp_register_style( 'cspv-dashboard-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-dashboard-widget' );
@@ -422,11 +419,6 @@ function cspv_render_dashboard_widget() {
 <!-- Footer -->
 <div class="cspv-dw-footer">
     <a href="<?php echo esc_url( $stats_url ); ?>" class="cspv-dw-link">View Full Statistics</a>
-    <span class="cspv-dw-shield <?php echo esc_attr( $throttle_on ? 'on' : 'off' ); ?>">
-        <?php echo esc_html( $throttle_on
-            ? '🛡 ' . ( $blocked > 0 ? number_format( $blocked ) . ' blocked' : 'Protection on' )
-            : '⚠ Protection off' ); ?>
-    </span>
 </div>
 
 <?php

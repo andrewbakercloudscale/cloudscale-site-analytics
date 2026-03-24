@@ -42,7 +42,7 @@ function cspv_dashboard_widget_enqueue( $hook ) {
     wp_enqueue_script( 'cspv-dashboard-widget' );
 
     $logo_url = esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) );
-    $css = '#cspv_dashboard_widget .hndle span::before{content:"";display:inline-block;width:18px;height:18px;background:url("' . $logo_url . '") no-repeat center/contain;vertical-align:middle;margin-right:6px;position:relative;top:-1px;}'
+    $css = '#cspv_dashboard_widget .hndle::before{content:"";display:inline-block;width:18px;height:18px;background:url("' . $logo_url . '") no-repeat center/contain;vertical-align:middle;margin-right:6px;position:relative;top:-1px;}'
          . '#cspv_dashboard_widget .inside{padding:0;margin:0;}'
          . '.cspv-dw-banner{background:linear-gradient(135deg,#2d1b69 0%,#5b21b6 50%,#7c3aed 100%);padding:14px 16px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}'
          . '.cspv-dw-today-count{font-size:38px;font-weight:800;color:#1db954;line-height:1;}'

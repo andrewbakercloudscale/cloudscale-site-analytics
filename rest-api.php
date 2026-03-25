@@ -107,7 +107,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     }
 
     // Check post type filter — only record views for tracked types
-    $track_types = get_option( 'cspv_track_post_types', array( 'post' ) );
+    $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
     if ( ! empty( $track_types ) && ! in_array( $post->post_type, $track_types, true ) ) {
         return new WP_REST_Response( array(
             'post_id' => $post_id,
@@ -149,12 +149,17 @@ function cspv_record_view( WP_REST_Request $request ) {
     // the HTTP Referer header on the REST POST is the current page, not
     // the original referring site. Fall back to HTTP_REFERER only when
     // the beacon sends nothing.
-    $referrer = '';
-    $body     = $request->get_json_params();
+    $referrer   = '';
+    $session_id = '';
+    $body       = $request->get_json_params();
     if ( ! empty( $body['referrer'] ) && is_string( $body['referrer'] ) ) {
         $referrer = esc_url_raw( substr( $body['referrer'], 0, 2048 ) );
     } elseif ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
         $referrer = esc_url_raw( substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ), 0, 2048 ) );
+    }
+    if ( ! empty( $body['session_id'] ) && is_string( $body['session_id'] ) ) {
+        // Strip everything except alphanumeric — the token contains only [a-z0-9]
+        $session_id = substr( preg_replace( '/[^a-z0-9]/i', '', $body['session_id'] ), 0, 64 );
     }
 
     // --- IP throttle check -----------------------------------------
@@ -255,6 +260,18 @@ function cspv_record_view( WP_REST_Request $request ) {
              VALUES (%s, %d, %s)",
             $visitor_hash, $post_id, $visitor_date
         ) );
+    }
+
+    // Session depth tracking (one row per session+post, INSERT IGNORE deduplicates)
+    if ( $session_id !== '' ) {
+        $sess_table  = $wpdb->prefix . 'cspv_sessions_v2';
+        $sess_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) );
+        if ( $sess_exists ) {
+            $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+                "INSERT IGNORE INTO `{$sess_table}` (session_id, post_id, viewed_at) VALUES (%s, %d, %s)",
+                $session_id, $post_id, current_time( 'Y-m-d' )
+            ) );
+        }
     }
 
     // Increment denormalised meta counter

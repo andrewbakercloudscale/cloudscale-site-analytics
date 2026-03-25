@@ -50,7 +50,7 @@ function cspv_enqueue_beacon() {
 
     // Check post type filter for recording (not listing/fetch mode)
     if ( $is_singular ) {
-        $track_types = get_option( 'cspv_track_post_types', array( 'post' ) );
+        $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
         if ( ! empty( $track_types ) && ! in_array( get_post_type(), $track_types, true ) ) {
             // Post type not tracked — still allow fetch mode for listings
             if ( ! $is_listing ) {

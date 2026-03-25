@@ -193,7 +193,7 @@ function cspv_auto_display_above_title( $title, $post_id = 0 ) {
         return $title;
     }
 
-    $post_types = get_option( 'cspv_display_post_types', array( 'post' ) );
+    $post_types = get_option( 'cspv_display_post_types', get_option( 'cspv_track_post_types', array( 'post' ) ) );
     if ( ! in_array( get_post_type(), $post_types, true ) ) {
         return $title;
     }
@@ -221,7 +221,7 @@ function cspv_auto_display_views( $content ) {
         return $content;
     }
 
-    $post_types = get_option( 'cspv_display_post_types', array( 'post' ) );
+    $post_types = get_option( 'cspv_display_post_types', get_option( 'cspv_track_post_types', array( 'post' ) ) );
     if ( ! in_array( get_post_type(), $post_types, true ) ) {
         return $content;
     }
@@ -249,7 +249,7 @@ function cspv_search_results_counter( $excerpt ) {
 		return $excerpt;
 	}
 
-	$post_types = get_option( 'cspv_display_post_types', array( 'post' ) );
+	$post_types = get_option( 'cspv_display_post_types', get_option( 'cspv_track_post_types', array( 'post' ) ) );
 	if ( ! in_array( get_post_type(), $post_types, true ) ) {
 		return $excerpt;
 	}

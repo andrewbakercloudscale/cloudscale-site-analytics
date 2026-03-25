@@ -24,6 +24,7 @@ function cspv_activate() {
     cspv_create_table_geo_v2();
     cspv_create_table_visitors_v2();
     cspv_create_table_404_v2();
+    cspv_create_table_sessions_v2();
     add_option( 'cspv_version', CSPV_VERSION );
 }
 
@@ -137,6 +138,34 @@ function cspv_create_table_visitors_v2() {
         UNIQUE KEY hash_post_day (visitor_hash, post_id, viewed_at),
         KEY viewed_at (viewed_at),
         KEY post_id (post_id)
+    ) {$charset_collate};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+}
+
+/**
+ * Create the session depth tracking table.
+ *
+ * One row per session+post pair (INSERT IGNORE deduplication).
+ * session_id is a browser-generated random token stored in sessionStorage —
+ * it contains no PII and is scoped to a single browser tab session.
+ * Enables computing pages-per-session percentiles (P50 / P95 / P99).
+ */
+function cspv_create_table_sessions_v2() {
+    global $wpdb;
+    $table           = $wpdb->prefix . 'cspv_sessions_v2';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE IF NOT EXISTS {$table} (
+        id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        session_id  VARCHAR(64)         NOT NULL,
+        post_id     BIGINT(20) UNSIGNED NOT NULL,
+        viewed_at   DATE                NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY session_post (session_id, post_id),
+        KEY viewed_at (viewed_at),
+        KEY session_id (session_id)
     ) {$charset_collate};";
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';

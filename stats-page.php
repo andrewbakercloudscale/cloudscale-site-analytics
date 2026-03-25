@@ -29,7 +29,7 @@ add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
  * The WP admin does not output a viewport meta tag by default, causing phones to
  * render the page at the default 980px viewport where max-width:782px never fires.
  *
- * @since 2.9.128
+ * @since 2.9.135
  * @return void
  */
 function cspv_admin_menu_styles() {
@@ -41,7 +41,7 @@ function cspv_admin_menu_styles() {
 /**
  * Enqueue inline CSS to highlight CloudScale menu items in Tools with a light blue colour.
  *
- * @since 2.9.128
+ * @since 2.9.135
  * @return void
  */
 function cspv_admin_menu_enqueue() {
@@ -57,7 +57,7 @@ function cspv_admin_menu_enqueue() {
 /**
  * Enqueue inline CSS to style the CloudScale nav menu item on the frontend.
  *
- * @since 2.9.128
+ * @since 2.9.135
  * @return void
  */
 function cspv_frontend_nav_enqueue() {
@@ -358,6 +358,18 @@ function cspv_ajax_chart_data() {
     $referrers      = cspv_top_referrer_domains( $from_str, $to_str, 10 );
     $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
     $countries      = cspv_top_countries( $from_str, $to_str, 20 );
+    $session_depth = cspv_session_depth_percentiles( $from_str, $to_str );
+    if ( $rolling7h ) {
+        // Sessions table is DATE-only; compare today vs yesterday
+        $prev_day = ( new DateTime( 'now', wp_timezone() ) )->modify( '-1 day' )->format( 'Y-m-d' );
+        $prev_session_depth = cspv_session_depth_percentiles( $prev_day, $prev_day );
+    } elseif ( isset( $prev_from_str ) ) {
+        $prev_session_depth = cspv_session_depth_percentiles( $prev_from_str, $prev_to_str );
+    } elseif ( isset( $prev_48h ) ) {
+        $prev_session_depth = cspv_session_depth_percentiles( $prev_48h, $prev_24h_ts );
+    } else {
+        $prev_session_depth = null;
+    }
 
     // ── Unique visitors ──────────────────────────────────────────────
     $unique_visitors      = cspv_unique_visitors_for_range( $from_str, $to_str );
@@ -412,6 +424,8 @@ function cspv_ajax_chart_data() {
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
         'countries'       => $countries,
+        'session_depth'      => $session_depth,
+        'prev_session_depth' => $prev_session_depth,
         'hot_pages'          => $hot_pages,
         'prev_hot_pages'     => $prev_hot_pages,
         'unique_visitors'    => $unique_visitors,
@@ -848,7 +862,7 @@ function cspv_render_stats_page() {
         $pt = isset( $_POST['cspv_display_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_display_post_types'] ) : array( 'post' );
         update_option( 'cspv_display_post_types', $pt );
 
-        $tpt = isset( $_POST['cspv_track_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_track_post_types'] ) : array( 'post' );
+        $tpt = isset( $_POST['cspv_track_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_track_post_types'] ) : array( 'post', 'page' );
         update_option( 'cspv_track_post_types', $tpt );
 
         $valid_colors = array( 'blue', 'pink', 'red', 'purple', 'grey' );
@@ -922,7 +936,7 @@ function cspv_render_stats_page() {
     $dsp_icon        = get_option( 'cspv_display_icon', '👁' );
     $dsp_suffix      = get_option( 'cspv_display_suffix', ' views' );
     $dsp_style       = get_option( 'cspv_display_style', 'badge' );
-    $dsp_track_types = get_option( 'cspv_track_post_types', array( 'post' ) );
+    $dsp_track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
     $dsp_all_types   = get_post_types( array( 'public' => true ), 'objects' );
     $dsp_color       = get_option( 'cspv_display_color', 'blue' );
     ?>
@@ -975,28 +989,46 @@ function cspv_render_stats_page() {
         <!-- Summary cards -->
         <div id="cspv-cards">
             <div class="cspv-card" id="cspv-card-views">
-                <div class="cspv-card-icon">👁</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cspv-card-icon" style="margin:0;">👁</div>
+                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
+                </div>
                 <div class="cspv-card-value" id="stat-delta">—</div>
-                <div class="cspv-card-label">Views</div>
                 <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
             <div class="cspv-card" id="cspv-card-posts">
-                <div class="cspv-card-icon">📄</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cspv-card-icon" style="margin:0;">📄</div>
+                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
+                </div>
                 <div class="cspv-card-value" id="stat-posts-delta">—</div>
-                <div class="cspv-card-label">Posts Viewed</div>
                 <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
             <div class="cspv-card" id="cspv-card-visitors">
-                <div class="cspv-card-icon">👤</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cspv-card-icon" style="margin:0;">👤</div>
+                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
+                </div>
                 <div class="cspv-card-value" id="stat-visitors-delta">—</div>
-                <div class="cspv-card-label">Unique Visitors</div>
                 <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
             </div>
             <div class="cspv-card" id="cspv-card-hotpages">
-                <div class="cspv-card-icon">🔥</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cspv-card-icon" style="margin:0;">🔥</div>
+                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
+                </div>
                 <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
-                <div class="cspv-card-label">Hot Pages</div>
                 <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+            </div>
+            <div class="cspv-card" id="cspv-card-depth">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="cspv-card-icon" style="margin:0;">📊</div>
+                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
+                </div>
+                <div class="cspv-card-sub" id="stat-depth-p50" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:6px;"></div>
+                <div class="cspv-card-sub" id="stat-depth-avg" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
+                <div class="cspv-card-sub" id="stat-depth-max" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
+                <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
             </div>
         </div>
 
@@ -1061,6 +1093,19 @@ function cspv_render_stats_page() {
                     <div id="cspv-geo-drill-header" style="font-size:13px;font-weight:700;color:#0f766e;margin-bottom:8px;"></div>
                     <div id="cspv-geo-drill-list"></div>
                     <button id="cspv-geo-drill-back" style="margin-top:8px;font-size:11px;color:#6b7280;cursor:pointer;border:none;background:none;padding:0;text-decoration:underline;">Back to all countries</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session depth panel -->
+        <div id="cspv-depth-panel" style="margin-top:16px;">
+            <div class="cspv-panel" style="flex:1;">
+                <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:6px 6px 0 0;">
+                    <span>📊 Pages Served Per Session: <span id="cspv-depth-range" style="font-weight:400;opacity:0.8;"></span></span>
+                </div>
+                <div id="cspv-depth-content" style="padding:16px;">
+                    <div id="cspv-depth-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;"></div>
+                    <div id="cspv-depth-no-data" style="display:none;color:#6b7280;font-size:13px;padding:8px 0;">No session data yet for this period.</div>
                 </div>
             </div>
         </div>
@@ -1297,7 +1342,7 @@ function cspv_render_stats_page() {
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="font-size:12px;color:#666;">Older than</label>
-                        <select id="cspv-purge-days" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                        <select id="cspv-purge-days" style="padding:4px 28px 4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
                             <option value="30">30 days</option>
                             <option value="60">60 days</option>
                             <option value="90" selected>90 days</option>
@@ -2129,6 +2174,9 @@ ob_start();
         // Geography
         renderGeo(data.countries || [], from, to);
 
+        // Session depth percentiles
+        renderDepth(data.session_depth || null, data.prev_session_depth || null, from, to);
+
         // Lifetime totals (includes Jetpack imports)
         document.getElementById('stat-lifetime-views').textContent =
             (data.lifetime_total || 0).toLocaleString();
@@ -2379,6 +2427,70 @@ ob_start();
             geoMarkers.push(marker);
         });
         setTimeout(function() { geoMap.invalidateSize(); }, 100);
+    }
+
+    function renderDepth(depth, prev, from, to) {
+        var statsEl   = document.getElementById('cspv-depth-stats');
+        var noDataEl  = document.getElementById('cspv-depth-no-data');
+        var rangeEl   = document.getElementById('cspv-depth-range');
+        var p50El      = document.getElementById('stat-depth-p50');
+        var avgEl      = document.getElementById('stat-depth-avg');
+        var maxEl      = document.getElementById('stat-depth-max');
+        var sessionsEl = document.getElementById('stat-depth-sessions');
+
+        if ( rangeEl ) {
+            var activeBtn = document.querySelector('.cspv-quick.active');
+            var r = activeBtn ? activeBtn.dataset.range : null;
+            var rangeLabels = { '7h': '7 hrs', 'today': '24 hrs', '7': '7 days', '30': '30 days', '90': '90 days', '180': '180 days' };
+            if (r && rangeLabels[r]) {
+                rangeEl.textContent = rangeLabels[r];
+            } else {
+                var fd = from.slice(0, 10), td = to.slice(0, 10);
+                rangeEl.textContent = fd === td ? fd : fd + ' \u2013 ' + td;
+            }
+        }
+
+        if ( ! depth || depth.sessions === 0 ) {
+            if (statsEl)  statsEl.style.display  = 'none';
+            if (noDataEl) noDataEl.style.display  = '';
+            if (p50El)      p50El.textContent      = '—';
+            if (avgEl)      avgEl.textContent      = '';
+            if (maxEl)      maxEl.textContent      = '';
+            if (sessionsEl) sessionsEl.textContent = 'No data';
+            return;
+        }
+
+        if (noDataEl) noDataEl.style.display = 'none';
+        if (statsEl)  statsEl.style.display  = 'grid';
+
+        var hasPrev = prev != null;
+        var metrics = [
+            { label: 'Median (P50)', value: depth.p50,      prev: hasPrev ? prev.p50      : null },
+            { label: 'P95',          value: depth.p95,      prev: hasPrev ? prev.p95      : null },
+            { label: 'P99',          value: depth.p99,      prev: hasPrev ? prev.p99      : null },
+            { label: 'Average',      value: depth.avg,      prev: hasPrev ? prev.avg      : null },
+            { label: 'Max',          value: depth.max,      prev: hasPrev ? prev.max      : null },
+            { label: 'Sessions',     value: depth.sessions, prev: hasPrev ? prev.sessions : null },
+        ];
+
+        statsEl.innerHTML = metrics.map(function(m) {
+            var cmpHtml = '';
+            if (m.prev !== null) {
+                var diff = Number(m.value) - Number(m.prev);
+                var cmpColor = diff > 0 ? '#16a34a' : (diff < 0 ? '#dc2626' : '#9ca3af');
+                var cmpArrow = diff > 0 ? '↑' : (diff < 0 ? '↓' : '=');
+                cmpHtml = ' <span style="font-size:13px;font-weight:500;color:' + cmpColor + ';">' + cmpArrow + ' ' + Number(m.prev).toLocaleString() + '</span>';
+            }
+            return '<div style="background:#f5f3ff;border-radius:8px;padding:12px 10px;text-align:center;">'
+                + '<div style="font-size:22px;font-weight:700;color:#7c3aed;">' + Number(m.value).toLocaleString() + cmpHtml + '</div>'
+                + '<div style="font-size:12px;font-weight:600;color:#374151;margin-top:4px;">' + m.label + '</div>'
+                + '</div>';
+        }).join('');
+
+        if (p50El)      p50El.textContent      = depth.p50 + ' ' + (depth.p50 === 1 ? 'Page' : 'Pages') + ' Per Session Median';
+        if (avgEl)      avgEl.textContent      = depth.avg + ' ' + (depth.avg === 1 ? 'Page' : 'Pages') + ' Per Session Average';
+        if (maxEl)      maxEl.textContent      = depth.max + ' ' + (depth.max === 1 ? 'Page' : 'Pages') + ' Per Session Max';
+        if (sessionsEl) sessionsEl.textContent = depth.sessions.toLocaleString() + ' Sessions';
     }
 
     function renderGeo(items, from, to) {

@@ -34,6 +34,25 @@
     var debug   = cspvData.debug === true;
     var postId  = cspvData.postId ? String( cspvData.postId ) : null;
 
+    // ------------------------------------------------------------------
+    // Session ID — persists for the lifetime of the browser tab via
+    // sessionStorage. Scoped to the tab so a new session starts when
+    // the tab is closed and reopened, exactly like a traditional session.
+    // Contains no PII.
+    // ------------------------------------------------------------------
+    function getSessionId() {
+        try {
+            var k = 'cspv_sid';
+            var sid = sessionStorage.getItem( k );
+            if ( ! sid ) {
+                sid = Math.random().toString( 36 ).slice( 2 ) +
+                      Math.random().toString( 36 ).slice( 2 );
+                sessionStorage.setItem( k, sid );
+            }
+            return sid;
+        } catch ( e ) { return ''; }
+    }
+
     function log() {
         if ( debug && typeof console !== 'undefined' ) {
             console.log.apply( console, ['[CloudScale PV]'].concat(
@@ -140,7 +159,7 @@
         fetch( cspvData.apiUrl, {
             method:      'POST',
             headers:     { 'Content-Type': 'application/json', 'X-WP-Nonce': cspvData.nonce },
-            body:        JSON.stringify( { referrer: document.referrer || '' } ),
+            body:        JSON.stringify( { referrer: document.referrer || '', session_id: getSessionId() } ),
             credentials: 'same-origin',
             keepalive:   true,
         } )

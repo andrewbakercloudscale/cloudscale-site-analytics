@@ -291,7 +291,7 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
  * Used for the "Hot Pages" summary card: pages that received genuine engagement
  * (more than a single hit) within the selected period.
  *
- * @since 2.9.116
+ * @since 2.9.135
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).
  * @param  int    $min_views Minimum views threshold (default 2).
@@ -530,6 +530,63 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
         "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_date, $to_date
     ) );
+}
+
+/**
+ * Return pages-per-session percentiles (P50, P95, P99) for a date range.
+ *
+ * Queries the sessions table for distinct post counts per session_id, sorts
+ * the distribution in PHP, and returns the requested percentiles. Also
+ * returns avg, max, and total session count.
+ *
+ * Returns null when the sessions table does not exist (pre-upgrade).
+ * Returns an array with all zeros when no sessions are recorded yet.
+ *
+ * @since  2.9.152
+ * @param  string $from_str  Start datetime or date (Y-m-d H:i:s or Y-m-d).
+ * @param  string $to_str    End datetime or date.
+ * @return array|null { p50, p95, p99, avg, max, sessions } or null.
+ */
+function cspv_session_depth_percentiles( $from_str, $to_str ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'cspv_sessions_v2';
+
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    if ( ! $table_exists ) {
+        return null; // Table not yet created — caller should hide the UI
+    }
+
+    $from_date = substr( $from_str, 0, 10 );
+    $to_date   = substr( $to_str,   0, 10 );
+
+    // One count per session: how many distinct pages did this session view?
+    $counts = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+        "SELECT COUNT(post_id) AS pages FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY session_id",
+        $from_date, $to_date
+    ) );
+
+    if ( empty( $counts ) ) {
+        return array( 'p50' => 0, 'p95' => 0, 'p99' => 0, 'avg' => 0.0, 'max' => 0, 'sessions' => 0 );
+    }
+
+    $counts = array_map( 'intval', $counts );
+    sort( $counts, SORT_NUMERIC );
+    $n = count( $counts );
+
+    $pct = function( $p ) use ( $counts, $n ) {
+        return $counts[ (int) floor( $p * ( $n - 1 ) ) ];
+    };
+
+    return array(
+        'p50'      => $pct( 0.50 ),
+        'p95'      => $pct( 0.95 ),
+        'p99'      => $pct( 0.99 ),
+        'avg'      => round( array_sum( $counts ) / $n, 1 ),
+        'max'      => max( $counts ),
+        'sessions' => $n,
+    );
 }
 
 /**

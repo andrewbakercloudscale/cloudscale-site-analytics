@@ -71,7 +71,9 @@ function cspv_create_table_404_v2() {
 // -------------------------------------------------------------------------
 // 2. Frontend tracking hook
 // -------------------------------------------------------------------------
-add_action( 'template_redirect', 'cspv_track_404' );
+// Priority 0 — must run before cloudscale-plugin-crash-recovery which hooks at
+// priority 1 and calls exit(), which would prevent this tracker from firing.
+add_action( 'template_redirect', 'cspv_track_404', 0 );
 
 /**
  * Log a frontend 404 hit to the tracking table.
@@ -87,11 +89,6 @@ function cspv_track_404() {
 	if ( ! is_404() ) {
 		return;
 	}
-	// Skip admins — their 404s (typos, draft previews) pollute the log.
-	if ( current_user_can( 'manage_options' ) ) {
-		return;
-	}
-
 	global $wpdb;
 	$table = $wpdb->prefix . 'cspv_404_v2';
 

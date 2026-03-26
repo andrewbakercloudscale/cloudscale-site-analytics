@@ -1025,8 +1025,7 @@ function cspv_render_stats_page() {
                     <div class="cspv-card-icon" style="margin:0;">📊</div>
                     <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
                 </div>
-                <div class="cspv-card-sub" id="stat-depth-p50" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:6px;"></div>
-                <div class="cspv-card-sub" id="stat-depth-avg" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
+                <div class="cspv-card-sub" id="stat-depth-avg" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:6px;"></div>
                 <div class="cspv-card-sub" id="stat-depth-max" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
                 <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
             </div>
@@ -2433,7 +2432,7 @@ ob_start();
         var statsEl   = document.getElementById('cspv-depth-stats');
         var noDataEl  = document.getElementById('cspv-depth-no-data');
         var rangeEl   = document.getElementById('cspv-depth-range');
-        var p50El      = document.getElementById('stat-depth-p50');
+        var p50El      = null;
         var avgEl      = document.getElementById('stat-depth-avg');
         var maxEl      = document.getElementById('stat-depth-max');
         var sessionsEl = document.getElementById('stat-depth-sessions');
@@ -2487,9 +2486,9 @@ ob_start();
                 + '</div>';
         }).join('');
 
-        if (p50El)      p50El.textContent      = depth.p50 + ' ' + (depth.p50 === 1 ? 'Page' : 'Pages') + ' Per Session Median';
-        if (avgEl)      avgEl.textContent      = depth.avg + ' ' + (depth.avg === 1 ? 'Page' : 'Pages') + ' Per Session Average';
-        if (maxEl)      maxEl.textContent      = depth.max + ' ' + (depth.max === 1 ? 'Page' : 'Pages') + ' Per Session Max';
+        if (p50El)      p50El.textContent      = depth.p50 + ' Median';
+        if (avgEl)      avgEl.textContent      = depth.avg + ' Average';
+        if (maxEl)      maxEl.textContent      = depth.max + ' Max';
         if (sessionsEl) sessionsEl.textContent = depth.sessions.toLocaleString() + ' Sessions';
     }
 

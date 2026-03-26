@@ -542,7 +542,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
  * Returns null when the sessions table does not exist (pre-upgrade).
  * Returns an array with all zeros when no sessions are recorded yet.
  *
- * @since  2.9.152
+ * @since  2.9.161
  * @param  string $from_str  Start datetime or date (Y-m-d H:i:s or Y-m-d).
  * @param  string $to_str    End datetime or date.
  * @return array|null { p50, p95, p99, avg, max, sessions } or null.

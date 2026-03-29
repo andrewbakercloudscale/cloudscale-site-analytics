@@ -85,11 +85,11 @@ class CSPV_Search_Widget extends WP_Widget {
 		<form role="search" method="get" class="cspv-search-form"
 			  style="--cspv-btn-color:<?php echo esc_attr( $btn_color ); ?>;--cspv-btn-hover:<?php echo esc_attr( $btn_hover ); ?>;"
 			  action="<?php echo esc_url( home_url( '/' ) ); ?>">
-			<label class="screen-reader-text" for="cspv-search-<?php echo esc_attr( $args['widget_id'] ); ?>">
+			<label class="screen-reader-text" for="cspv-search-<?php echo esc_attr( $args['widget_id'] ?? '' ); ?>">
 				<?php echo esc_html( $title ); ?>
 			</label>
 			<input type="search"
-				   id="cspv-search-<?php echo esc_attr( $args['widget_id'] ); ?>"
+				   id="cspv-search-<?php echo esc_attr( $args['widget_id'] ?? '' ); ?>"
 				   class="cspv-search-input"
 				   name="s"
 				   placeholder="<?php echo esc_attr( $placeholder ); ?>"

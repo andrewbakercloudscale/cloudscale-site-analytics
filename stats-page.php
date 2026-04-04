@@ -1038,11 +1038,7 @@ function cspv_render_stats_page() {
                 <span class="cspv-lifetime-value" id="stat-lifetime-views">—</span>
             </div>
             <div class="cspv-lifetime-stat">
-                <span class="cspv-lifetime-label">📚 Posts With Views</span>
-                <span class="cspv-lifetime-value" id="stat-lifetime-posts">—</span>
-            </div>
-            <div class="cspv-lifetime-stat">
-                <span class="cspv-lifetime-label">👤 Unique Visitors</span>
+                <span class="cspv-lifetime-label">👤 All Time Unique Visitors</span>
                 <span class="cspv-lifetime-value" id="stat-lifetime-visitors">—</span>
             </div>
         </div>

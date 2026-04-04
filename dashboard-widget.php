@@ -90,8 +90,8 @@ function cspv_dashboard_widget_enqueue( $hook ) {
          . '.cspv-dw-ref-toggle:hover{background:rgba(0,0,0,.12);}'
          . '.cspv-dw-ref-toggle.active{background:#059669;color:#fff;font-weight:800;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}'
          . '.cspv-dw-footer{padding:8px 16px;border-top:1px solid #eee;}'
-         . '.cspv-dw-link{display:block;width:100%;padding:8px 12px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:11px;font-weight:700;text-decoration:none;border-radius:20px;letter-spacing:.03em;transition:opacity .15s;text-align:center;box-sizing:border-box;}'
-         . '.cspv-dw-link:hover{opacity:.85;color:#fff;text-decoration:none;}';
+         . '.cspv-dw-link{display:block;width:100%;padding:10px 16px;background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);color:#fff;font-size:13px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;box-shadow:0 3px 10px rgba(124,58,237,0.35);transition:background 0.15s ease,box-shadow 0.15s ease,letter-spacing 0.15s ease;text-align:center;box-sizing:border-box;}'
+         . '.cspv-dw-link:hover{background:linear-gradient(135deg,#8b5cf6 0%,#c084fc 100%);box-shadow:0 8px 24px rgba(124,58,237,0.55);letter-spacing:0.06em;color:#fff;text-decoration:none;}';
 
     wp_register_style( 'cspv-dashboard-widget', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-dashboard-widget' );
@@ -176,62 +176,92 @@ function cspv_render_dashboard_widget() {
     // Delta badge placeholder (computed after rolling 24h data is ready)
     $delta_html = '';
 
-    // Build all four period datasets in PHP so no AJAX needed
-    // 7 Hours: last 7 complete hours + current hour
+    // Build all four period datasets in PHP so no AJAX needed.
+    // Each chart period uses a single GROUP BY query instead of one query per bucket.
+
+    $now_hour = (int) current_time( 'G' ); // 0-23
+
+    // ── 7 Hours: single query covering the 7-hour window, grouped by bucket ──
     $hour_labels = array();
     $hour_values = array();
-    $now_hour    = (int) current_time( 'G' ); // 0-23
-    for ( $h = 6; $h >= 0; $h-- ) {
-        $hr       = ( $now_hour - $h + 24 ) % 24;
-        $label    = sprintf( '%02d:00', $hr );
-        $hour_labels[] = $label;
-        if ( $table_exists ) {
-            $hr_s = current_time( 'Y-m-d' ) . ' ' . sprintf( '%02d:00:00', $hr );
-            $hr_e = current_time( 'Y-m-d' ) . ' ' . sprintf( '%02d:59:59', $hr );
-            // Handle midnight wrap: if hour rolled back to yesterday
-            if ( $h > $now_hour ) {
-                $hr_s = $yest . ' ' . sprintf( '%02d:00:00', $hr );
-                $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
-            }
-            $hour_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-                $hr_s, $hr_e ) );
-        } else {
-            $hour_values[] = 0;
+    {
+        // Build the 7 datetime buckets we need (handles midnight wrap)
+        $hr_buckets = array();
+        for ( $h = 6; $h >= 0; $h-- ) {
+            $hr    = ( $now_hour - $h + 24 ) % 24;
+            $date  = ( $h > $now_hour ) ? $yest : current_time( 'Y-m-d' );
+            $key   = $date . ' ' . sprintf( '%02d:00:00', $hr );
+            $hr_buckets[] = $key;
+            $hour_labels[] = sprintf( '%02d:00', $hr );
         }
+        $hour_map = array_fill_keys( $hr_buckets, 0 );
+        if ( $table_exists ) {
+            $win_s = min( $hr_buckets );
+            $win_e = max( $hr_buckets );
+            // Extend end to :59:59 of the latest bucket
+            $win_e = substr( $win_e, 0, 13 ) . ':59:59';
+            $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views
+                 FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+                 GROUP BY bucket",
+                $win_s, $win_e
+            ) );
+            foreach ( $rows as $row ) {
+                if ( isset( $hour_map[ $row->bucket ] ) ) {
+                    $hour_map[ $row->bucket ] = (int) $row->views;
+                }
+            }
+        }
+        $hour_values = array_values( $hour_map );
     }
 
-    // Prior 7 hours: same hours yesterday for comparison
+    // ── Prior 7 hours: same window but yesterday — single SUM query ──────────
     $prev_7h_views = 0;
     if ( $table_exists ) {
+        $p_buckets = array();
         for ( $h = 6; $h >= 0; $h-- ) {
-            $hr = ( $now_hour - $h + 24 ) % 24;
-            $hr_s = $yest . ' ' . sprintf( '%02d:00:00', $hr );
-            $hr_e = $yest . ' ' . sprintf( '%02d:59:59', $hr );
-            $prev_7h_views += (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-                $hr_s, $hr_e ) );
+            $hr          = ( $now_hour - $h + 24 ) % 24;
+            $p_buckets[] = sprintf( '%02d:00:00', $hr );
         }
+        $p_hr_min = min( $p_buckets );
+        $p_hr_max = substr( max( $p_buckets ), 0, 2 ) . ':59:59';
+        // Prev 7h always spans within yesterday (same-day hours, shifted back 24h)
+        $prev_7h_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            "SELECT {$cnt} FROM `{$table}`
+             WHERE viewed_at BETWEEN %s AND %s",
+            $yest . ' ' . $p_hr_min,
+            $yest . ' ' . $p_hr_max
+        ) );
     }
 
-    // 1 Day: 24 hourly buckets from this hour yesterday to this hour today
+    // ── 1 Day: 24-hour window grouped by hour bucket — single query ───────────
     $day1_labels = array();
     $day1_values = array();
-    for ( $h = 23; $h >= 0; $h-- ) {
-        $ts       = strtotime( "-{$h} hours", strtotime( current_time( 'Y-m-d H:00:00' ) ) );
-        $hr       = (int) wp_date( 'G', $ts );
-        $d        = wp_date( 'Y-m-d', $ts );
-        $label    = sprintf( '%02d:00', $hr );
-        $day1_labels[] = $label;
-        if ( $table_exists ) {
-            $hr_s = $d . ' ' . sprintf( '%02d:00:00', $hr );
-            $hr_e = $d . ' ' . sprintf( '%02d:59:59', $hr );
-            $day1_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-                $hr_s, $hr_e ) );
-        } else {
-            $day1_values[] = 0;
+    {
+        $d1_buckets = array();
+        for ( $h = 23; $h >= 0; $h-- ) {
+            $ts    = strtotime( "-{$h} hours", strtotime( current_time( 'Y-m-d H:00:00' ) ) );
+            $key   = wp_date( 'Y-m-d H', $ts ) . ':00:00';
+            $d1_buckets[] = $key;
+            $day1_labels[] = sprintf( '%02d:00', (int) wp_date( 'G', $ts ) );
         }
+        $d1_map = array_fill_keys( $d1_buckets, 0 );
+        if ( $table_exists ) {
+            $d1_s = min( $d1_buckets );
+            $d1_e = substr( max( $d1_buckets ), 0, 13 ) . ':59:59';
+            $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views
+                 FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+                 GROUP BY bucket",
+                $d1_s, $d1_e
+            ) );
+            foreach ( $rows as $row ) {
+                if ( isset( $d1_map[ $row->bucket ] ) ) {
+                    $d1_map[ $row->bucket ] = (int) $row->views;
+                }
+            }
+        }
+        $day1_values = array_values( $d1_map );
     }
 
     // Previous 24 hours (for comparison)
@@ -262,19 +292,33 @@ function cspv_render_dashboard_widget() {
         $delta_html = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
     }
 
-    // 7 Days
+    // ── 7 Days: single GROUP BY query instead of one query per day ───────────
     $day7_labels = array();
     $day7_values = array();
     $prev7_views = 0;
-    for ( $i = 6; $i >= 0; $i-- ) {
-        $d = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
-        $day7_labels[] = wp_date( 'j M', strtotime( $d ) );
-        if ( $table_exists ) {
-            $day7_values[] = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT {$cnt} FROM `{$table}` WHERE DATE(viewed_at) = %s", $d ) );
-        } else {
-            $day7_values[] = 0;
+    {
+        $d7_days = array();
+        for ( $i = 6; $i >= 0; $i-- ) {
+            $d7_days[] = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
         }
+        foreach ( $d7_days as $d ) {
+            $day7_labels[] = wp_date( 'j M', strtotime( $d ) );
+        }
+        $d7_map = array_fill_keys( $d7_days, 0 );
+        if ( $table_exists ) {
+            $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT DATE(viewed_at) AS day, {$cnt} AS views
+                 FROM `{$table}` WHERE viewed_at >= %s
+                 GROUP BY DATE(viewed_at)",
+                $d7_days[0] . ' 00:00:00'
+            ) );
+            foreach ( $rows as $row ) {
+                if ( isset( $d7_map[ $row->day ] ) ) {
+                    $d7_map[ $row->day ] = (int) $row->views;
+                }
+            }
+        }
+        $day7_values = array_values( $d7_map );
     }
     if ( $table_exists ) {
         $prev7_start = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';

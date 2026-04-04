@@ -177,16 +177,21 @@ function cspv_record_view( WP_REST_Request $request ) {
     $v2_table    = $wpdb->prefix . 'cspv_views_v2';
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
-    // Confirm V2 table exists
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) );
-    if ( ! $table_exists ) {
+    // Confirm V2 table exists — result cached for 1 hour to avoid SHOW TABLES on every view.
+    $table_exists = get_transient( 'cspv_v2_table_exists' );
+    if ( $table_exists === false ) {
+        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0';
+        set_transient( 'cspv_v2_table_exists', $table_exists, HOUR_IN_SECONDS );
+    }
+    if ( $table_exists !== '1' ) {
         if ( function_exists( 'cspv_create_table_v2' ) ) {
             cspv_create_table_v2();
         }
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) );
-        if ( ! $table_exists ) {
+        $created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) );
+        if ( ! $created ) {
             return new WP_REST_Response( array( 'error' => 'Database table unavailable.' ), 500 );
         }
+        set_transient( 'cspv_v2_table_exists', '1', HOUR_IN_SECONDS );
     }
 
     // Upsert hourly view bucket
@@ -265,8 +270,12 @@ function cspv_record_view( WP_REST_Request $request ) {
     // Session depth tracking (one row per session+post, INSERT IGNORE deduplicates)
     if ( $session_id !== '' ) {
         $sess_table  = $wpdb->prefix . 'cspv_sessions_v2';
-        $sess_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) );
-        if ( $sess_exists ) {
+        $sess_exists = get_transient( 'cspv_sessions_table_exists' );
+        if ( $sess_exists === false ) {
+            $sess_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0';
+            set_transient( 'cspv_sessions_table_exists', $sess_exists, HOUR_IN_SECONDS );
+        }
+        if ( $sess_exists === '1' ) {
             $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
                 "INSERT IGNORE INTO `{$sess_table}` (session_id, post_id, viewed_at) VALUES (%s, %d, %s)",
                 $session_id, $post_id, current_time( 'Y-m-d' )

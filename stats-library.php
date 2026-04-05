@@ -167,6 +167,50 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
 }
 
 /**
+ * Return top pages (by post) that received traffic from a given referrer hostname.
+ *
+ * @since 2.9.175
+ * @param  string $host      Referrer hostname (e.g. "www.google.com").
+ * @param  string $from_str  Start datetime (Y-m-d H:i:s).
+ * @param  string $to_str    End datetime (Y-m-d H:i:s).
+ * @param  int    $limit     Max pages to return.
+ * @return array  Array of { title, url, views } sorted by views desc.
+ */
+function cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, $limit = 10 ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+    $cnt       = $src['cnt'];
+
+    $http_like  = 'http://'  . $wpdb->esc_like( $host ) . '%';
+    $https_like = 'https://' . $wpdb->esc_like( $host ) . '%';
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt and $ref_table are trusted internal values
+        "SELECT post_id, {$cnt} AS views
+         FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s
+           AND ( referrer LIKE %s OR referrer LIKE %s )
+         GROUP BY post_id ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $http_like, $https_like, $limit ) );
+
+    if ( empty( $rows ) || ! is_array( $rows ) ) {
+        return array();
+    }
+
+    $result = array();
+    foreach ( $rows as $r ) {
+        $pid      = absint( $r->post_id );
+        $post     = get_post( $pid );
+        $result[] = array(
+            'title' => $post ? html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ) : 'Post #' . $pid,
+            'url'   => ( $post && 'publish' === $post->post_status ) ? get_permalink( $post ) : '',
+            'views' => (int) $r->views,
+        );
+    }
+    return $result;
+}
+
+/**
  * Return view counts for the rolling 24-hour window and its prior 24-hour period.
  *
  * Uses WordPress timezone. Results are memoised in a static variable so multiple
@@ -542,7 +586,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
  * Returns null when the sessions table does not exist (pre-upgrade).
  * Returns an array with all zeros when no sessions are recorded yet.
  *
- * @since  2.9.162
+ * @since  2.9.167
  * @param  string $from_str  Start datetime or date (Y-m-d H:i:s or Y-m-d).
  * @param  string $to_str    End datetime or date.
  * @return array|null { p50, p95, p99, avg, max, sessions } or null.

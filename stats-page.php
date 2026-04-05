@@ -19,7 +19,8 @@ add_action( 'wp_ajax_cspv_chart_data', 'cspv_ajax_chart_data' );
 add_action( 'wp_ajax_cspv_post_history', 'cspv_ajax_post_history' );
 add_action( 'wp_ajax_cspv_post_search', 'cspv_ajax_post_search' );
 add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
-add_action( 'wp_ajax_cspv_country_drill', 'cspv_ajax_country_drill' );
+add_action( 'wp_ajax_cspv_country_drill',   'cspv_ajax_country_drill' );
+add_action( 'wp_ajax_cspv_referrer_drill', 'cspv_ajax_referrer_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
 
@@ -692,6 +693,49 @@ function cspv_ajax_country_drill() {
     $to_str   = $to . ' 23:59:59';
 
     $pages = cspv_top_pages_by_country( $country, $from_str, $to_str, 10 );
+    wp_send_json_success( array( 'pages' => $pages ) );
+}
+
+/**
+ * AJAX handler: return per-post breakdown for a selected referrer hostname.
+ *
+ * @since 2.9.175
+ * @return void
+ */
+function cspv_ajax_referrer_drill() {
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
+
+    $host       = sanitize_text_field( wp_unslash( $_POST['host']      ?? '' ) );
+    $from       = sanitize_text_field( wp_unslash( $_POST['from']      ?? '' ) );
+    $to         = sanitize_text_field( wp_unslash( $_POST['to']        ?? '' ) );
+    $rolling24h = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
+
+    if ( ! $host || ! $from || ! $to ) {
+        wp_send_json_error( 'Invalid parameters' );
+    }
+    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ||
+         ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
+        wp_send_json_error( 'Invalid date format.' );
+    }
+
+    if ( $rolling24h && $from === $to ) {
+        $tz       = wp_timezone();
+        $now      = new DateTime( 'now', $tz );
+        $to_str   = $now->format( 'Y-m-d H:i:s' );
+        $from_str = ( clone $now )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+    } else {
+        $from_str = $from . ' 00:00:00';
+        $to_str   = $to   . ' 23:59:59';
+    }
+
+    $pages = cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, 10 );
     wp_send_json_success( array( 'pages' => $pages ) );
 }
 
@@ -1895,6 +1939,17 @@ function cspv_render_stats_page() {
 
     </div><!-- /history tab -->
 
+    <!-- ══════════════════ REFERRER DRILL MODAL ═════════════════════ -->
+    <div class="cspv-modal-overlay" id="cspv-ref-drill-modal">
+        <div class="cspv-modal" style="max-width:580px;">
+            <div class="cspv-modal-header" style="background:linear-gradient(135deg,#c2410c,#ea580c);border-radius:12px 12px 0 0;">
+                <h3 id="cspv-ref-drill-title" style="color:#fff;font-size:15px;"></h3>
+                <button class="cspv-modal-close" id="cspv-ref-drill-close" style="color:rgba(255,255,255,.8);">&times;</button>
+            </div>
+            <div class="cspv-modal-body" style="padding:16px 0 8px;" id="cspv-ref-drill-list"></div>
+        </div>
+    </div>
+
     <!-- ═══════════════════════ INFO MODAL ══════════════════════════ -->
     <div class="cspv-modal-overlay" id="cspv-modal">
         <div class="cspv-modal">
@@ -2036,7 +2091,6 @@ ob_start();
         document.getElementById('cspv-referrers').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-lifetime-top').innerHTML = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('stat-lifetime-views').textContent = '—';
-        document.getElementById('stat-lifetime-posts').textContent = '—';
         document.getElementById('cspv-chart-range-label').textContent = '';
 
         var fd = new FormData();
@@ -2175,8 +2229,6 @@ ob_start();
         // Lifetime totals (includes Jetpack imports)
         document.getElementById('stat-lifetime-views').textContent =
             (data.lifetime_total || 0).toLocaleString();
-        document.getElementById('stat-lifetime-posts').textContent =
-            (data.lifetime_posts || 0).toLocaleString();
         document.getElementById('stat-lifetime-visitors').textContent =
             (data.lifetime_visitors || 0).toLocaleString();
         renderList('cspv-lifetime-top', data.lifetime_top || [], true);
@@ -2281,11 +2333,13 @@ ob_start();
                     ? '<a href="' + esc(item.url) + '" target="_blank">' + esc(item.title || item.url) + '</a>'
                     : esc(item.title))
                 : esc(item.host);
+            var drillBtn = isPost ? '' : '<button class="cspv-ref-drill-btn" data-host="' + esc(item.host) + '">Details</button>';
             return '<div class="cspv-row">'
                  + '<div class="cspv-bar-wrap">'
                  +   '<div class="cspv-bar-fill" style="width:' + pct + '%"></div>'
                  +   '<span class="cspv-bar-label">' + label + '</span>'
                  + '</div>'
+                 + drillBtn
                  + '<span class="cspv-row-views">' + item.views.toLocaleString() + '</span>'
                  + '</div>';
         }).join('');
@@ -2339,6 +2393,72 @@ ob_start();
             refMode = btn.dataset.refMode;
             renderReferrers();
         });
+    });
+
+    // ── Referrer drill modal ──────────────────────────────────────
+    function closeRefDrillModal() {
+        document.getElementById('cspv-ref-drill-modal').classList.remove('active');
+    }
+
+    function drillReferrer(host) {
+        var modal   = document.getElementById('cspv-ref-drill-modal');
+        var titleEl = document.getElementById('cspv-ref-drill-title');
+        var listEl  = document.getElementById('cspv-ref-drill-list');
+        var fromVal = document.getElementById('cspv-from').value;
+        var toVal   = document.getElementById('cspv-to').value;
+        titleEl.textContent = host + ' \u2014 Top Pages';
+        listEl.innerHTML = '<div class="cspv-loading" style="padding:20px 20px 12px;">Loading\u2026</div>';
+        modal.classList.add('active');
+        var fd = new FormData();
+        fd.append('action', 'cspv_referrer_drill');
+        fd.append('nonce', nonce);
+        fd.append('host', host);
+        fd.append('from', fromVal);
+        fd.append('to', toVal);
+        var todayBtn2 = document.querySelector('.cspv-quick[data-range="today"]');
+        if (todayBtn2 && todayBtn2.classList.contains('active') && fromVal === toVal) {
+            fd.append('rolling24h', '1');
+        }
+        fetch(ajaxurl, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(resp) {
+                if (resp.success && resp.data && resp.data.pages) {
+                    if (resp.data.pages.length === 0) {
+                        listEl.innerHTML = '<div class="cspv-empty" style="padding:20px;">No page data for this referrer.</div>';
+                        return;
+                    }
+                    var mx = resp.data.pages[0].views || 1;
+                    listEl.innerHTML = resp.data.pages.map(function(p) {
+                        var pct  = Math.round((p.views / mx) * 100);
+                        var link = p.url
+                            ? '<a href="' + esc(p.url) + '" target="_blank">' + esc(p.title) + '</a>'
+                            : esc(p.title);
+                        return '<div class="cspv-row">'
+                             + '<div class="cspv-bar-wrap">'
+                             +   '<div class="cspv-bar-fill" style="width:' + pct + '%;background:#fff3e8;"></div>'
+                             +   '<span class="cspv-bar-label">' + link + '</span>'
+                             + '</div>'
+                             + '<span class="cspv-row-views">' + p.views.toLocaleString() + '</span>'
+                             + '</div>';
+                    }).join('');
+                } else {
+                    listEl.innerHTML = '<div class="cspv-empty" style="padding:20px;">Error loading data.</div>';
+                }
+            });
+    }
+
+    // Close: × button, backdrop click, Escape key
+    document.getElementById('cspv-ref-drill-close').addEventListener('click', closeRefDrillModal);
+    document.getElementById('cspv-ref-drill-modal').addEventListener('click', function(e) {
+        if (e.target === this) { closeRefDrillModal(); }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { closeRefDrillModal(); }
+    });
+
+    document.getElementById('cspv-referrers').addEventListener('click', function(e) {
+        var btn = e.target.closest('.cspv-ref-drill-btn');
+        if (btn) { drillReferrer(btn.dataset.host); }
     });
 
 

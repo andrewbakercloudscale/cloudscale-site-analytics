@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KEY="/Users/cp363412/Desktop/github/CPT_Default_Key.pem"
-HOST="ec2-user@ec2-15-240-13-91.af-south-1.compute.amazonaws.com"
+PI_KEY="/Users/cp363412/Desktop/github/pi-monitor/deploy/pi_key"
+PI_HOST="pi@andrew-pi-5.local"
+CONTAINER="pi_wordpress"
 WP_PATH="/var/www/html"
+WP_CLI="php ${WP_PATH}/wp-cli.phar --allow-root"
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/tests" && pwd)"
 
 # ── SSH ControlMaster — single persistent connection reused for all commands ──
 CTRL_SOCK="/tmp/pw-ui-test-$$"
-SSH_OPTS="-i ${KEY} -o StrictHostKeyChecking=no -o LogLevel=ERROR \
+SSH_OPTS="-i ${PI_KEY} -o StrictHostKeyChecking=no -o LogLevel=ERROR \
     -o ControlMaster=auto -o ControlPath=${CTRL_SOCK} -o ControlPersist=yes \
     -o ServerAliveInterval=15 -o ServerAliveCountMax=10"
 
-run_remote()  { ssh ${SSH_OPTS} "${HOST}" "$@"; }
-run_wp_php()  { ssh ${SSH_OPTS} "${HOST}" "wp eval-file - --path=${WP_PATH} --allow-root"; }
+run_remote()  { ssh ${SSH_OPTS} "${PI_HOST}" "$@"; }
+run_wp()      { run_remote "docker exec ${CONTAINER} ${WP_CLI} $*"; }
+run_wp_php()  { ssh ${SSH_OPTS} "${PI_HOST}" "docker exec -i ${CONTAINER} ${WP_CLI} eval-file - --path=${WP_PATH}"; }
 
 close_ssh() {
-    ssh -i "${KEY}" -o ControlPath="${CTRL_SOCK}" -o LogLevel=ERROR \
-        -O exit "${HOST}" 2>/dev/null || true
+    ssh -i "${PI_KEY}" -o ControlPath="${CTRL_SOCK}" -o LogLevel=ERROR \
+        -O exit "${PI_HOST}" 2>/dev/null || true
 }
 
 # ── Load config from .env ─────────────────────────────────────────────────────
@@ -35,7 +38,7 @@ echo "--- Connecting to server..."
 run_remote "echo 'Connection OK'"
 
 # ── Check wp-cli ──────────────────────────────────────────────────────────────
-if ! run_remote "command -v wp >/dev/null 2>&1"; then
+if ! run_remote "docker exec ${CONTAINER} ${WP_CLI} --info >/dev/null 2>&1"; then
     echo "ERROR: wp-cli not found on server. Install: https://wp-cli.org/#installing"
     close_ssh; exit 1
 fi
@@ -50,7 +53,7 @@ cleanup() {
     echo ""
     if [[ -n "${TEST_USER:-}" ]]; then
         echo "--- Deleting test account ${TEST_USER}..."
-        run_remote "wp user delete '${TEST_USER}' --yes --path=${WP_PATH} --allow-root 2>/dev/null || true"
+        run_wp "user delete '${TEST_USER}' --yes --path=${WP_PATH} 2>/dev/null || true"
         echo "--- Test account deleted."
     fi
     close_ssh
@@ -59,11 +62,10 @@ trap cleanup EXIT
 
 # ── Create the temporary admin account ────────────────────────────────────────
 echo "--- Creating temporary test account: ${TEST_USER}"
-run_remote "wp user create '${TEST_USER}' '${TEST_EMAIL}' \
+run_wp "user create '${TEST_USER}' '${TEST_EMAIL}' \
     --role=administrator \
     --user_pass='${TEST_PASS}' \
-    --path=${WP_PATH} \
-    --allow-root"
+    --path=${WP_PATH}"
 echo "--- Test account created."
 
 # ── Mark test user as excluded from 2FA enforcement ───────────────────────────

@@ -12,6 +12,7 @@
     color: #1a2332;
     max-width: 1200px;
     margin-top: 10px;
+    padding-right: 20px;
 }
 
 /* ── Banner ─────────────────────────────────────── */
@@ -70,7 +71,7 @@
 .cspv-tab.active { color: #fff; border-bottom-color: #f47c20; }
 
 /* ── Tab content ─────────────────────────────────── */
-.cspv-tab-content { display: none; padding: 20px 0 0; }
+.cspv-tab-content { display: none; padding: 20px 0 20px; }
 .cspv-tab-content.active { display: block; }
 
 /* ── Display tab ─────────────────────────────────── */
@@ -357,6 +358,15 @@
 .cspv-bar-label a { color: #1a3a8f; text-decoration: none; }
 .cspv-bar-label a:hover { text-decoration: underline; }
 .cspv-row-views { font-size: 13px; font-weight: 700; color: #1a2332; min-width: 36px; text-align: right; flex-shrink: 0; }
+.cspv-ref-drill-btn {
+    flex-shrink: 0;
+    font-size: 11px; font-weight: 600;
+    color: #c2410c; background: #fff7ed;
+    border: 1px solid #fed7aa; border-radius: 4px;
+    padding: 2px 8px; cursor: pointer; line-height: 1.6;
+    white-space: nowrap;
+}
+.cspv-ref-drill-btn:hover { background: #ffedd5; border-color: #fb923c; }
 .cspv-empty { padding: 18px 14px; color: #aaa; font-size: 13px; font-style: italic; }
 .cspv-loading { padding: 18px 14px; color: #bbb; font-size: 13px; }
 

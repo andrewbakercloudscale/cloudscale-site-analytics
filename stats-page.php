@@ -699,7 +699,7 @@ function cspv_ajax_country_drill() {
 /**
  * AJAX handler: return per-post breakdown for a selected referrer hostname.
  *
- * @since 2.9.175
+ * @since 2.9.177
  * @return void
  */
 function cspv_ajax_referrer_drill() {
@@ -1944,7 +1944,10 @@ function cspv_render_stats_page() {
         <div class="cspv-modal" style="max-width:580px;">
             <div class="cspv-modal-header" style="background:linear-gradient(135deg,#c2410c,#ea580c);border-radius:12px 12px 0 0;">
                 <h3 id="cspv-ref-drill-title" style="color:#fff;font-size:15px;"></h3>
-                <button class="cspv-modal-close" id="cspv-ref-drill-close" style="color:rgba(255,255,255,.8);">&times;</button>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button class="cspv-modal-copy" id="cspv-ref-drill-copy" style="color:#fff;" title="Copy to clipboard">Copy</button>
+                    <button class="cspv-modal-close" id="cspv-ref-drill-close" style="color:rgba(255,255,255,.8);">&times;</button>
+                </div>
             </div>
             <div class="cspv-modal-body" style="padding:16px 0 8px;" id="cspv-ref-drill-list"></div>
         </div>
@@ -2395,9 +2398,21 @@ ob_start();
         });
     });
 
+    // ── Modal helpers (body scroll lock) ─────────────────────────
+    function openModal(el) {
+        el.classList.add('active');
+        document.body.classList.add('cspv-modal-open');
+    }
+    function closeModal(el) {
+        el.classList.remove('active');
+        if (!document.querySelector('.cspv-modal-overlay.active')) {
+            document.body.classList.remove('cspv-modal-open');
+        }
+    }
+
     // ── Referrer drill modal ──────────────────────────────────────
     function closeRefDrillModal() {
-        document.getElementById('cspv-ref-drill-modal').classList.remove('active');
+        closeModal(document.getElementById('cspv-ref-drill-modal'));
     }
 
     function drillReferrer(host) {
@@ -2408,7 +2423,7 @@ ob_start();
         var toVal   = document.getElementById('cspv-to').value;
         titleEl.textContent = host + ' \u2014 Top Pages';
         listEl.innerHTML = '<div class="cspv-loading" style="padding:20px 20px 12px;">Loading\u2026</div>';
-        modal.classList.add('active');
+        openModal(modal);
         var fd = new FormData();
         fd.append('action', 'cspv_referrer_drill');
         fd.append('nonce', nonce);
@@ -2454,6 +2469,26 @@ ob_start();
     });
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') { closeRefDrillModal(); }
+    });
+
+    // Copy to clipboard
+    document.getElementById('cspv-ref-drill-copy').addEventListener('click', function() {
+        var btn     = this;
+        var titleEl = document.getElementById('cspv-ref-drill-title');
+        var listEl  = document.getElementById('cspv-ref-drill-list');
+        var lines   = [titleEl.textContent, ''];
+        listEl.querySelectorAll('.cspv-row').forEach(function(row) {
+            var label = row.querySelector('.cspv-bar-label');
+            var views = row.querySelector('.cspv-row-views');
+            if (label && views) {
+                lines.push(label.textContent.trim() + '\t' + views.textContent.trim());
+            }
+        });
+        navigator.clipboard.writeText(lines.join('\n')).then(function() {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+        });
     });
 
     document.getElementById('cspv-referrers').addEventListener('click', function(e) {
@@ -3135,16 +3170,16 @@ ob_start();
         if (!data) return;
         document.getElementById('cspv-help-modal-title').textContent = data.title;
         document.getElementById('cspv-help-modal-body').innerHTML = renderHelpCards(data.cards);
-        document.getElementById('cspv-help-modal').classList.add('active');
+        openModal(document.getElementById('cspv-help-modal'));
     });
     document.getElementById('cspv-help-modal-close').addEventListener('click', function() {
-        document.getElementById('cspv-help-modal').classList.remove('active');
+        closeModal(document.getElementById('cspv-help-modal'));
     });
     document.getElementById('cspv-help-modal-ok').addEventListener('click', function() {
-        document.getElementById('cspv-help-modal').classList.remove('active');
+        closeModal(document.getElementById('cspv-help-modal'));
     });
     document.getElementById('cspv-help-modal').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('active');
+        if (e.target === this) closeModal(this);
     });
 
     // ── Boot (restore saved date range) ──────────────────────────
@@ -3653,14 +3688,14 @@ ob_start();
             if (!info) return;
             document.getElementById('cspv-modal-title').textContent = info.title;
             document.getElementById('cspv-modal-body').innerHTML = info.body;
-            document.getElementById('cspv-modal').classList.add('active');
+            openModal(document.getElementById('cspv-modal'));
         });
     });
     document.getElementById('cspv-modal-close').addEventListener('click', function() {
-        document.getElementById('cspv-modal').classList.remove('active');
+        closeModal(document.getElementById('cspv-modal'));
     });
     document.getElementById('cspv-modal').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('active');
+        if (e.target === this) closeModal(this);
     });
 
     // ── Post History tab ────────────────────────────────────────────

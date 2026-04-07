@@ -558,10 +558,16 @@
 .cspv-modal {
     background: #fff; border-radius: 12px; max-width: 560px; width: 100%;
     max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
+/* Prevent body scroll while any modal is open */
+body.cspv-modal-open { overflow: hidden; }
 .cspv-modal-header {
     padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
     display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 1;
+    background: #fff;
 }
 .cspv-modal-header h3 { margin: 0; font-size: 16px; color: #1a2332; }
 .cspv-modal-close {
@@ -569,6 +575,14 @@
     cursor: pointer; padding: 0 4px; line-height: 1;
 }
 .cspv-modal-close:hover { color: #333; }
+.cspv-modal-copy {
+    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 6px; font-size: 12px; color: inherit;
+    cursor: pointer; padding: 4px 10px; line-height: 1.4; margin-right: 4px;
+    transition: background .15s;
+}
+.cspv-modal-copy:hover { background: rgba(255,255,255,.32); }
+.cspv-modal-copy.copied { background: rgba(255,255,255,.45); }
 .cspv-modal-body {
     padding: 20px; font-size: 13px; line-height: 1.7; color: #374151;
 }

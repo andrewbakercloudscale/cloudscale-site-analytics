@@ -30,8 +30,8 @@ helpLib.run({
 
     docs: {
         'statistics': `
-<div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
-<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Free Analytics?</h2>
+<div style="background:#f0f9ff!important;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
+<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a!important;">Why CloudScale Free Analytics?</h2>
 <p style="margin:0 0 10px;">If your site runs behind Cloudflare, WP Rocket, or any other caching layer, server-side analytics see only the 5–20% of requests that reach PHP. Your stats are lying to you — by a factor of 5 to 10.</p>
 <p style="margin:0 0 10px;">CloudScale solves this with a JavaScript beacon that fires after the browser loads the page, regardless of where the HTML came from. The beacon POSTs to a REST endpoint that bypasses the CDN cache, so every real visit is counted. <strong>You finally see your actual traffic.</strong></p>
 <p style="margin:0 0 10px;">Unlike Google Analytics or Jetpack, your visitor data never leaves your server. No third-party scripts, no tracking pixels, no GDPR headaches from external data processors. IP addresses are hashed before storage — the raw IP is never written to the database.</p>

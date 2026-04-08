@@ -561,6 +561,10 @@
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
 }
+.cspv-modal::-webkit-scrollbar { width: 6px; }
+.cspv-modal::-webkit-scrollbar-track { background: transparent; }
+.cspv-modal::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.cspv-modal::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 /* Prevent body scroll while any modal is open */
 body.cspv-modal-open { overflow: hidden; }
 .cspv-modal-header {

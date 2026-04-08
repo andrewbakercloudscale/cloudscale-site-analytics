@@ -699,7 +699,7 @@ function cspv_ajax_country_drill() {
 /**
  * AJAX handler: return per-post breakdown for a selected referrer hostname.
  *
- * @since 2.9.177
+ * @since 2.9.186
  * @return void
  */
 function cspv_ajax_referrer_drill() {
@@ -735,7 +735,7 @@ function cspv_ajax_referrer_drill() {
         $to_str   = $to   . ' 23:59:59';
     }
 
-    $pages = cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, 10 );
+    $pages = cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, 25 );
     wp_send_json_success( array( 'pages' => $pages ) );
 }
 
@@ -2158,7 +2158,9 @@ ob_start();
             var postsPct   = Math.round(((data.unique_posts - data.prev_posts) / data.prev_posts) * 100);
             var postsArrow = postsPct > 0 ? '↑' : (postsPct < 0 ? '↓' : '–');
             var postsCls   = postsPct > 0 ? 'cspv-delta-up' : (postsPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
-            postsDeltaEl.textContent = postsArrow + ' ' + Math.abs(postsPct) + '%';
+            var postsAbsPct = Math.abs(postsPct);
+            var postsDisplay = postsAbsPct > 999 ? '>999' : postsAbsPct;
+            postsDeltaEl.textContent = postsArrow + ' ' + postsDisplay + '%';
             postsDeltaEl.className   = 'cspv-card-value ' + postsCls;
             postsDetailEl.textContent = data.unique_posts.toLocaleString() + ' (was ' + data.prev_posts.toLocaleString() + ')';
         } else {
@@ -2174,7 +2176,9 @@ ob_start();
             var visPct   = Math.round(((data.unique_visitors - data.prev_visitors) / data.prev_visitors) * 100);
             var visArrow = visPct > 0 ? '↑' : (visPct < 0 ? '↓' : '–');
             var visCls   = visPct > 0 ? 'cspv-delta-up' : (visPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
-            visDeltaEl.textContent = visArrow + ' ' + Math.abs(visPct) + '%';
+            var visAbsPct = Math.abs(visPct);
+            var visDisplay = visAbsPct > 999 ? '>999' : visAbsPct;
+            visDeltaEl.textContent = visArrow + ' ' + visDisplay + '%';
             visDeltaEl.className   = 'cspv-card-value ' + visCls;
             visDetailEl.textContent = data.unique_visitors.toLocaleString() + ' (was ' + data.prev_visitors.toLocaleString() + ')';
         } else {
@@ -2190,7 +2194,9 @@ ob_start();
             var hotPct   = Math.round(((data.hot_pages - data.prev_hot_pages) / data.prev_hot_pages) * 100);
             var hotArrow = hotPct > 0 ? '↑' : (hotPct < 0 ? '↓' : '–');
             var hotCls   = hotPct > 0 ? 'cspv-delta-up' : (hotPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
-            hotDeltaEl.textContent = hotArrow + ' ' + Math.abs(hotPct) + '%';
+            var hotAbsPct = Math.abs(hotPct);
+            var hotDisplay = hotAbsPct > 999 ? '>999' : hotAbsPct;
+            hotDeltaEl.textContent = hotArrow + ' ' + hotDisplay + '%';
             hotDeltaEl.className   = 'cspv-card-value ' + hotCls;
             hotDetailEl.textContent = data.hot_pages.toLocaleString() + ' pages (was ' + data.prev_hot_pages.toLocaleString() + ')';
         } else {
@@ -2206,7 +2212,9 @@ ob_start();
             var pct   = Math.round(((data.total_views - data.prev_total) / data.prev_total) * 100);
             var arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '–');
             var cls   = pct > 0 ? 'cspv-delta-up' : (pct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
-            deltaEl.textContent = arrow + ' ' + Math.abs(pct) + '%';
+            var absPct = Math.abs(pct);
+            var pctDisplay = absPct > 999 ? '>999' : absPct;
+            deltaEl.textContent = arrow + ' ' + pctDisplay + '%';
             deltaEl.className   = 'cspv-card-value ' + cls;
             detailEl.textContent = data.total_views.toLocaleString() + ' (was ' + data.prev_total.toLocaleString() + ')';
         } else {

@@ -169,7 +169,7 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
 /**
  * Return top pages (by post) that received traffic from a given referrer hostname.
  *
- * @since 2.9.175
+ * @since 2.9.186
  * @param  string $host      Referrer hostname (e.g. "www.google.com").
  * @param  string $from_str  Start datetime (Y-m-d H:i:s).
  * @param  string $to_str    End datetime (Y-m-d H:i:s).

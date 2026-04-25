@@ -316,7 +316,13 @@ function cspv_ajax_chart_data() {
 
     $top_posts = cspv_top_pages( $from_str, $to_str, 10 );
 
-    if ( $rolling24h && $diff_days === 0 ) {
+    if ( $rolling12h ) {
+        // Rolling 12h prior: same 12h window shifted back 24h (matches dashboard widget)
+        $prev_12h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-36 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_12h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_total    = cspv_views_for_range( $prev_12h_from, $prev_12h_to );
+        $prev_posts    = cspv_unique_posts_for_range( $prev_12h_from, $prev_12h_to );
+    } elseif ( $rolling24h && $diff_days === 0 ) {
         // Rolling 24h: use shared stats library so total matches banner + site health
         $r24         = cspv_rolling_24h_views();
         $total_views = $r24['current'];  // override the BETWEEN query above

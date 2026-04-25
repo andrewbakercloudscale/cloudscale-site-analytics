@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:  CloudScale Free Analytics
+ * Plugin Name:  CloudScale Site Analytics
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.175
+ * Version:      2.9.188
  * Author:       Andrew Baker
  * Author URI:   https://andrewbaker.ninja
  * Contributors: andrewbaker
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.175' );
+define( 'CSPV_VERSION',    '2.9.188' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -55,6 +55,8 @@ require_once CSPV_PLUGIN_DIR . 'debug-panel.php';
 register_activation_hook( __FILE__, 'cspv_activate' );
 
 register_deactivation_hook( __FILE__, function () {
+    wp_clear_scheduled_hook( 'cspv_dbip_auto_update' );
+
     $dir = plugin_dir_path( __FILE__ );
     foreach ( glob( $dir . '*.{js,css}', GLOB_BRACE ) as $f ) {
         if ( is_file( $f ) ) { wp_delete_file( $f ); }
@@ -68,6 +70,13 @@ register_deactivation_hook( __FILE__, function () {
             if ( is_file( $f ) ) { wp_delete_file( $f ); }
         }
         if ( $wp_filesystem ) { $wp_filesystem->rmdir( $subdir ); }
+    }
+} );
+
+// Ensure the daily DB-IP auto-update cron is always scheduled while the plugin is active.
+add_action( 'init', function () {
+    if ( ! wp_next_scheduled( 'cspv_dbip_auto_update' ) ) {
+        wp_schedule_event( time(), 'daily', 'cspv_dbip_auto_update' );
     }
 } );
 

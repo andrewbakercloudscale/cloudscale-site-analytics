@@ -1,113 +1,77 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_KEY="/Users/cp363412/Desktop/github/pi-monitor/deploy/pi_key"
-PI_HOST="pi@andrew-pi-5.local"
-CONTAINER="pi_wordpress"
-WP_PATH="/var/www/html"
-WP_CLI="php ${WP_PATH}/wp-cli.phar --allow-root"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TESTS_DIR="${SCRIPT_DIR}/tests"
+ENV_TEST="${CSDT_ENV_TEST:-${SCRIPT_DIR}/.env.test}"
 
-TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/tests" && pwd)"
-
-# ── SSH ControlMaster — single persistent connection reused for all commands ──
-CTRL_SOCK="/tmp/pw-ui-test-$$"
-SSH_OPTS="-i ${PI_KEY} -o StrictHostKeyChecking=no -o LogLevel=ERROR \
-    -o ControlMaster=auto -o ControlPath=${CTRL_SOCK} -o ControlPersist=yes \
-    -o ServerAliveInterval=15 -o ServerAliveCountMax=10"
-
-run_remote()  { ssh ${SSH_OPTS} "${PI_HOST}" "$@"; }
-run_wp()      { run_remote "docker exec ${CONTAINER} ${WP_CLI} $*"; }
-run_wp_php()  { ssh ${SSH_OPTS} "${PI_HOST}" "docker exec -i ${CONTAINER} ${WP_CLI} eval-file - --path=${WP_PATH}"; }
-
-close_ssh() {
-    ssh -i "${PI_KEY}" -o ControlPath="${CTRL_SOCK}" -o LogLevel=ERROR \
-        -O exit "${PI_HOST}" 2>/dev/null || true
-}
-
-# ── Load config from .env ─────────────────────────────────────────────────────
-if [[ ! -f "$TESTS_DIR/.env" ]]; then
-    echo "ERROR: $TESTS_DIR/.env not found."
-    echo "  cp $TESTS_DIR/.env.example $TESTS_DIR/.env  then set WP_BASE_URL"
+# ── Load CSDT session credentials ────────────────────────────────────────────
+if [[ ! -f "$ENV_TEST" ]]; then
+    echo "ERROR: $ENV_TEST not found."
+    echo "  Run: bash setup-playwright-test-account.sh"
     exit 1
 fi
-WP_BASE_URL=$(grep '^WP_BASE_URL=' "$TESTS_DIR/.env" | cut -d'=' -f2- | tr -d '\r')
-[[ -z "$WP_BASE_URL" ]] && { echo "ERROR: WP_BASE_URL not set in .env"; exit 1; }
 
-# ── Open the persistent SSH connection ───────────────────────────────────────
-echo "--- Connecting to server..."
-run_remote "echo 'Connection OK'"
+CSDT_SECRET=$(grep '^CSDT_TEST_SECRET='        "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
+CSDT_ROLE=$(grep '^CSDT_TEST_ROLE='            "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
+CSDT_SESSION_URL=$(grep '^CSDT_TEST_SESSION_URL=' "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
+CSDT_LOGOUT_URL=$(grep '^CSDT_TEST_LOGOUT_URL='   "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
 
-# ── Check wp-cli ──────────────────────────────────────────────────────────────
-if ! run_remote "docker exec ${CONTAINER} ${WP_CLI} --info >/dev/null 2>&1"; then
-    echo "ERROR: wp-cli not found on server. Install: https://wp-cli.org/#installing"
-    close_ssh; exit 1
+for var in CSDT_SECRET CSDT_ROLE CSDT_SESSION_URL CSDT_LOGOUT_URL; do
+    [[ -z "${!var}" ]] && { echo "ERROR: $var not set in $ENV_TEST"; exit 1; }
+done
+
+# ── Load WP_BASE_URL ──────────────────────────────────────────────────────────
+if [[ -f "$TESTS_DIR/.env" ]]; then
+    WP_BASE_URL=$(grep '^WP_BASE_URL=' "$TESTS_DIR/.env" | cut -d'=' -f2- | tr -d '\r')
+fi
+[[ -z "${WP_BASE_URL:-}" ]] && WP_BASE_URL=$(grep '^WP_SITE=' "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
+[[ -z "${WP_BASE_URL:-}" ]] && { echo "ERROR: WP_BASE_URL not set in $TESTS_DIR/.env or $ENV_TEST"; exit 1; }
+
+# ── Obtain test session via CSDT API ─────────────────────────────────────────
+echo "--- Obtaining test session via CSDT API (role: ${CSDT_ROLE})..."
+SESSION_JSON=$(curl -s -X POST "$CSDT_SESSION_URL" \
+    --data-urlencode "secret=${CSDT_SECRET}" \
+    --data-urlencode "role=${CSDT_ROLE}" \
+    -d "ttl=7200")
+
+if ! echo "$SESSION_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if 'session_token' in d else 1)" 2>/dev/null; then
+    echo "ERROR: Test session API failed. Response: $SESSION_JSON"
+    exit 1
 fi
 
-# ── Generate one-time credentials ─────────────────────────────────────────────
-TEST_USER="pw_runner_$(date +%s)"
-TEST_EMAIL="${TEST_USER}@test.invalid"
-TEST_PASS="$(openssl rand -hex 12)"
+SESSION_TOKEN=$(echo "$SESSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['session_token'])")
+echo "    Session obtained."
 
-# ── Cleanup: always runs on exit, Ctrl+C, or test failure ─────────────────────
-cleanup() {
+# Map CSDT response to WP_COOKIES JSON for Playwright cookie injection.
+WP_COOKIES=$(echo "$SESSION_JSON" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(json.dumps({
+    'auth_name':   d['secure_auth_cookie_name'],
+    'auth_value':  d['secure_auth_cookie'],
+    'sec_name':    d['secure_auth_cookie_name'],
+    'sec_value':   d['secure_auth_cookie'],
+    'login_name':  d['logged_in_cookie_name'],
+    'login_value': d['logged_in_cookie'],
+    'domain':      d['cookie_domain'],
+    'expiration':  d['expires_at'],
+}))
+")
+
+# ── Cleanup: invalidate session on exit ──────────────────────────────────────
+_cleanup() {
     echo ""
-    if [[ -n "${TEST_USER:-}" ]]; then
-        echo "--- Deleting test account ${TEST_USER}..."
-        run_wp "user delete '${TEST_USER}' --yes --path=${WP_PATH} 2>/dev/null || true"
-        echo "--- Test account deleted."
-    fi
-    close_ssh
+    echo "--- Closing test session..."
+    curl -s -X POST "$CSDT_LOGOUT_URL" \
+        --data-urlencode "secret=${CSDT_SECRET}" \
+        --data-urlencode "role=${CSDT_ROLE}" \
+        --data-urlencode "session_token=${SESSION_TOKEN}" > /dev/null
+    echo "--- Test session closed."
 }
-trap cleanup EXIT
+trap _cleanup EXIT
 
-# ── Create the temporary admin account ────────────────────────────────────────
-echo "--- Creating temporary test account: ${TEST_USER}"
-run_wp "user create '${TEST_USER}' '${TEST_EMAIL}' \
-    --role=administrator \
-    --user_pass='${TEST_PASS}' \
-    --path=${WP_PATH}"
-echo "--- Test account created."
-
-# ── Mark test user as excluded from 2FA enforcement ───────────────────────────
-printf '<?php
-$user = get_user_by("login", "%s");
-if (!$user) { die("User not found: %s\n"); }
-$hash = get_option(WP_2FA_PREFIX . "settings_hash", "");
-update_user_meta($user->ID, "wp_2fa_enforcement_state",    "excluded");
-update_user_meta($user->ID, "wp_2fa_global_settings_hash", $hash);
-echo "OK (hash=" . $hash . ")\n";
-' "$TEST_USER" "$TEST_USER" | run_wp_php
-echo "--- 2FA excluded."
-
-# ── Generate WordPress auth cookies via PHP ────────────────────────────────────
-echo "--- Generating auth cookies for test session..."
-WP_COOKIES=$(printf '<?php
-$user = get_user_by("login", "%s");
-if (!$user) { echo json_encode(["error"=>"user not found"]); exit(1); }
-$expiration = time() + 7200;
-$manager = WP_Session_Tokens::get_instance($user->ID);
-$token   = $manager->create($expiration);
-$hash    = md5(get_option("siteurl"));
-$domain  = parse_url(get_option("siteurl"), PHP_URL_HOST);
-echo json_encode([
-    "auth_name"    => "wordpress_" . $hash,
-    "auth_value"   => wp_generate_auth_cookie($user->ID, $expiration, "auth",        $token),
-    "sec_name"     => "wordpress_sec_" . $hash,
-    "sec_value"    => wp_generate_auth_cookie($user->ID, $expiration, "secure_auth", $token),
-    "login_name"   => "wordpress_logged_in_" . $hash,
-    "login_value"  => wp_generate_auth_cookie($user->ID, $expiration, "logged_in",   $token),
-    "domain"       => $domain,
-    "expiration"   => $expiration,
-]);' "$TEST_USER" | run_wp_php)
-
-if echo "$WP_COOKIES" | grep -q '"error"'; then
-    echo "ERROR: Failed to generate auth cookies: $WP_COOKIES"
-    exit 1
-fi
-echo "--- Auth cookies generated."
-echo ""
-
-# ── Install Node deps + Playwright browser on first run ───────────────────────
+# ── Install Node deps + Playwright browser on first run ──────────────────────
 cd "$TESTS_DIR"
 if [[ ! -d node_modules ]]; then
     echo "--- Installing Playwright dependencies..."
@@ -116,6 +80,7 @@ if [[ ! -d node_modules ]]; then
 fi
 
 # ── Run tests ─────────────────────────────────────────────────────────────────
-echo "--- Running UI regression tests..."
+echo ""
+echo "--- Running UI tests..."
 WP_BASE_URL="${WP_BASE_URL}" WP_COOKIES="${WP_COOKIES}" \
     npx playwright test "$@"

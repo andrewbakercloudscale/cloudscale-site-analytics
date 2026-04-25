@@ -79,8 +79,8 @@ function cspv_frontend_nav_enqueue() {
  */
 function cspv_add_tools_page() {
     add_management_page(
-        'CloudScale Free Analytics',
-        '📊 CloudScale Analytics',
+        'CloudScale Site Analytics',
+        '📊 Site Analytics',
         'manage_options',
         'cloudscale-wordpress-free-analytics',
         'cspv_render_stats_page'
@@ -425,6 +425,7 @@ function cspv_ajax_chart_data() {
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
         'countries'       => $countries,
+        'geo_source'      => get_option( 'cspv_geo_source', 'auto' ),
         'session_depth'      => $session_depth,
         'prev_session_depth' => $prev_session_depth,
         'hot_pages'          => $hot_pages,
@@ -740,6 +741,91 @@ function cspv_ajax_referrer_drill() {
 }
 
 /**
+ * Download and install the DB-IP Lite mmdb file for the current month.
+ *
+ * Returns an associative array on success or WP_Error on failure.
+ * Called by the AJAX handler (manual button) and the daily cron.
+ *
+ * @since  2.9.187
+ * @return array|WP_Error  { size, updated, ip_version, node_count } on success.
+ */
+function cspv_download_dbip_file() {
+    $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
+    $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
+    $gz_path   = $mmdb_dir . '/dbip-city-lite.mmdb.gz';
+
+    if ( ! file_exists( $mmdb_dir ) ) {
+        wp_mkdir_p( $mmdb_dir );
+    }
+
+    $year  = gmdate( 'Y' );
+    $month = gmdate( 'm' );
+    $url   = "https://download.db-ip.com/free/dbip-city-lite-{$year}-{$month}.mmdb.gz";
+
+    $response = wp_remote_get( $url, array(
+        'timeout'  => 120,
+        'stream'   => true,
+        'filename' => $gz_path,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        return new WP_Error( 'download_failed', 'Download failed: ' . $response->get_error_message() );
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    if ( $code !== 200 ) {
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
+        return new WP_Error( 'http_error', "Download failed with HTTP {$code}. The file may not be available yet for this month." );
+    }
+
+    $gz = gzopen( $gz_path, 'rb' );
+    if ( ! $gz ) {
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
+        return new WP_Error( 'gz_open_failed', 'Failed to open gzipped file.' );
+    }
+    $out = fopen( $mmdb_path, 'wb' );
+    if ( ! $out ) {
+        gzclose( $gz );
+        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
+        return new WP_Error( 'write_failed', 'Failed to write mmdb file.' );
+    }
+    while ( ! gzeof( $gz ) ) {
+        fwrite( $out, gzread( $gz, 8192 ) );
+    }
+    gzclose( $gz );
+    fclose( $out );
+    if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
+
+    $size = filesize( $mmdb_path );
+    if ( $size < 1000000 ) {
+        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
+        return new WP_Error( 'file_too_small', 'Downloaded file is too small (' . size_format( $size ) . '). May be corrupt.' );
+    }
+
+    try {
+        require_once plugin_dir_path( __FILE__ ) . 'lib/maxmind-db/autoload.php';
+        $reader = new \MaxMind\Db\Reader( $mmdb_path );
+        $meta   = $reader->metadata();
+        $reader->close();
+    } catch ( \Exception $e ) {
+        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
+        return new WP_Error( 'db_invalid', 'Database file invalid: ' . $e->getMessage() );
+    }
+
+    $now = current_time( 'mysql' );
+    update_option( 'cspv_dbip_last_updated', $now );
+    // Record the year-month of the installed file so the cron can skip same-month re-downloads
+    update_option( 'cspv_dbip_installed_ym', gmdate( 'Y-m' ) );
+
+    return array(
+        'size'       => size_format( $size ),
+        'updated'    => $now,
+        'ip_version' => $meta->ipVersion,
+        'node_count' => $meta->nodeCount,
+    );
+}
+
+/**
  * AJAX handler: download and install the DB-IP Lite geolocation database.
  *
  * @since 1.0.0
@@ -755,83 +841,41 @@ function cspv_ajax_download_dbip() {
         return;
     }
 
-    $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
-    $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
-    $gz_path   = $mmdb_dir . '/dbip-city-lite.mmdb.gz';
+    $result = cspv_download_dbip_file();
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( $result->get_error_message() );
+    } else {
+        wp_send_json_success( $result );
+    }
+}
 
-    // Create directory
-    if ( ! file_exists( $mmdb_dir ) ) {
-        wp_mkdir_p( $mmdb_dir );
+// ---------------------------------------------------------------------------
+// WP-Cron: auto-update DB-IP Lite once per month
+// ---------------------------------------------------------------------------
+add_action( 'cspv_dbip_auto_update', 'cspv_dbip_auto_update_run' );
+
+/**
+ * Cron callback: download a fresh DB-IP Lite file when the installed copy
+ * is from a previous calendar month.
+ *
+ * Only runs when geo source is 'auto' or 'dbip' — skipped for sites using
+ * Cloudflare-only or with geo tracking disabled entirely.
+ *
+ * @since  2.9.187
+ * @return void
+ */
+function cspv_dbip_auto_update_run() {
+    $geo_source = get_option( 'cspv_geo_source', 'auto' );
+    if ( 'cloudflare' === $geo_source || 'disabled' === $geo_source ) {
+        return;
     }
 
-    // DB-IP Lite download URL (current month)
-    $year  = gmdate( 'Y' );
-    $month = gmdate( 'm' );
-    $url   = "https://download.db-ip.com/free/dbip-city-lite-{$year}-{$month}.mmdb.gz";
-
-    // Download the gzipped file
-    $response = wp_remote_get( $url, array(
-        'timeout'  => 120,
-        'stream'   => true,
-        'filename' => $gz_path,
-    ) );
-
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( 'Download failed: ' . $response->get_error_message() );
+    $installed_ym = get_option( 'cspv_dbip_installed_ym', '' );
+    if ( $installed_ym === gmdate( 'Y-m' ) ) {
+        return; // Already on the current month's database
     }
 
-    $code = wp_remote_retrieve_response_code( $response );
-    if ( $code !== 200 ) {
-        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
-        wp_send_json_error( 'Download failed with HTTP ' . $code . '. The file may not be available yet for this month.' );
-    }
-
-    // Decompress gzip
-    $gz = gzopen( $gz_path, 'rb' );
-    if ( ! $gz ) {
-        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
-        wp_send_json_error( 'Failed to open gzipped file.' );
-    }
-    $out = fopen( $mmdb_path, 'wb' );
-    if ( ! $out ) {
-        gzclose( $gz );
-        if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
-        wp_send_json_error( 'Failed to write mmdb file.' );
-    }
-    while ( ! gzeof( $gz ) ) {
-        fwrite( $out, gzread( $gz, 8192 ) );
-    }
-    gzclose( $gz );
-    fclose( $out );
-    if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
-
-    // Verify the file is valid
-    $size = filesize( $mmdb_path );
-    if ( $size < 1000000 ) {
-        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
-        wp_send_json_error( 'Downloaded file is too small (' . size_format( $size ) . '). May be corrupt.' );
-    }
-
-    // Test the reader can open it
-    try {
-        require_once plugin_dir_path( __FILE__ ) . 'lib/maxmind-db/autoload.php';
-        $reader = new \MaxMind\Db\Reader( $mmdb_path );
-        $meta   = $reader->metadata();
-        $reader->close();
-    } catch ( \Exception $e ) {
-        if ( file_exists( $mmdb_path ) ) { wp_delete_file( $mmdb_path ); }
-        wp_send_json_error( 'Database file invalid: ' . $e->getMessage() );
-    }
-
-    $now = current_time( 'mysql' );
-    update_option( 'cspv_dbip_last_updated', $now );
-
-    wp_send_json_success( array(
-        'size'       => size_format( $size ),
-        'updated'    => $now,
-        'ip_version' => $meta->ipVersion,
-        'node_count' => $meta->nodeCount,
-    ) );
+    cspv_download_dbip_file();
 }
 
 /**
@@ -918,9 +962,23 @@ function cspv_render_stats_page() {
         $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_geo_source'] ) ) : 'auto';
         update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
 
+        // Auto-download DB-IP when source requires it and the file is missing
+        $geo_notice = '';
+        if ( in_array( $geo, array( 'auto', 'dbip' ), true ) ) {
+            $mmdb_path = WP_CONTENT_DIR . '/uploads/cspv-geo/dbip-city-lite.mmdb';
+            if ( ! file_exists( $mmdb_path ) ) {
+                $dl = cspv_download_dbip_file();
+                if ( is_wp_error( $dl ) ) {
+                    $geo_notice = ' DB-IP download failed: ' . esc_html( $dl->get_error_message() );
+                } else {
+                    $geo_notice = ' DB-IP Lite (' . esc_html( $dl['size'] ) . ') downloaded automatically.';
+                }
+            }
+        }
+
         printf(
             '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' )
+            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' ) . $geo_notice
         );
     }
 
@@ -990,7 +1048,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ HEADER BANNER ═══════════════════════ -->
     <div id="cspv-banner">
         <div id="cspv-banner-left">
-            <div id="cspv-banner-title"><img src="<?php echo esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) ); ?>" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;position:relative;top:-1px;" alt=""> CloudScale Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
+            <div id="cspv-banner-title"><img src="<?php echo esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) ); ?>" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;position:relative;top:-1px;" alt=""> CloudScale Site Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
             <div id="cspv-banner-sub">Cloudflare-accurate view tracking · v<?php echo esc_html( CSPV_VERSION ); ?></div>
         </div>
         <div id="cspv-banner-right">
@@ -1349,11 +1407,15 @@ function cspv_render_stats_page() {
                                 $mmdb_size = size_format( filesize( $mmdb_path ) );
                                 echo '<span style="font-size:12px;color:#059669;">✅ Installed (' . esc_html( $mmdb_size ) . ')';
                                 if ( $mmdb_last ) {
-                                    echo ' &mdash; downloaded ' . esc_html( wp_date( 'j M Y H:i', strtotime( $mmdb_last ) ) );
+                                    echo ' &mdash; updated ' . esc_html( wp_date( 'j M Y', strtotime( $mmdb_last ) ) );
                                 }
                                 echo '</span>';
                             } else {
                                 echo '<span style="font-size:12px;color:#dc2626;">❌ Not installed</span>';
+                            }
+                            $next_cron = wp_next_scheduled( 'cspv_dbip_auto_update' );
+                            if ( $next_cron ) {
+                                echo '<br><span style="font-size:11px;color:#6b7280;">🔄 Auto-update active &mdash; next check ' . esc_html( wp_date( 'j M Y H:i', $next_cron ) ) . '</span>';
                             }
                             ?>
                         </div>
@@ -2233,7 +2295,7 @@ ob_start();
         renderReferrers();
 
         // Geography
-        renderGeo(data.countries || [], from, to);
+        renderGeo(data.countries || [], from, to, data.geo_source || 'auto');
 
         // Session depth percentiles
         renderDepth(data.session_depth || null, data.prev_session_depth || null, from, to);
@@ -2652,7 +2714,7 @@ ob_start();
         if (sessionsEl) sessionsEl.textContent = depth.sessions.toLocaleString() + ' Sessions';
     }
 
-    function renderGeo(items, from, to) {
+    function renderGeo(items, from, to, geoSource) {
         var el = document.getElementById('cspv-geo-list');
         var drillEl = document.getElementById('cspv-geo-drill');
         var rangeEl = document.getElementById('cspv-geo-range');
@@ -2662,7 +2724,15 @@ ob_start();
         }
         updateGeoMap(items);
         if (!items || items.length === 0) {
-            el.innerHTML = '<div class="cspv-empty" style="padding:12px 16px;">No geography data yet. Requires CloudFlare.</div>';
+            var geoMsg = 'No geography data for this period.';
+            if (geoSource === 'disabled') {
+                geoMsg = 'Geography tracking is disabled. Enable it in Settings → Geo Source.';
+            } else if (geoSource === 'cloudflare') {
+                geoMsg = 'No geography data yet. Ensure your site is proxied through Cloudflare so the CF-IPCountry header is forwarded.';
+            } else if (geoSource === 'dbip') {
+                geoMsg = 'No geography data yet. Ensure the DB-IP Lite database is installed (Settings → Download DB-IP).';
+            }
+            el.innerHTML = '<div class="cspv-empty" style="padding:12px 16px;">' + geoMsg + '</div>';
             return;
         }
         var max = items[0].views || 1;

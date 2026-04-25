@@ -181,56 +181,41 @@ function cspv_render_dashboard_widget() {
 
     $now_hour = (int) current_time( 'G' ); // 0-23
 
-    // ── 7 Hours: single query covering the 7-hour window, grouped by bucket ──
+    // ── 7 Hours: rolling window now-7h → now, bucketed by hour (matches stats page) ──
     $hour_labels = array();
     $hour_values = array();
     {
-        // Build the 7 datetime buckets we need (handles midnight wrap)
-        $hr_buckets = array();
-        for ( $h = 6; $h >= 0; $h-- ) {
-            $hr    = ( $now_hour - $h + 24 ) % 24;
-            $date  = ( $h > $now_hour ) ? $yest : current_time( 'Y-m-d' );
-            $key   = $date . ' ' . sprintf( '%02d:00:00', $hr );
-            $hr_buckets[] = $key;
-            $hour_labels[] = sprintf( '%02d:00', $hr );
-        }
-        $hour_map = array_fill_keys( $hr_buckets, 0 );
+        $now_dt      = new DateTime( 'now', wp_timezone() );
+        $from_7      = ( clone $now_dt )->modify( '-7 hours' );
+        $from_7h_str = $from_7->format( 'Y-m-d H:i:s' );
+        $to_7h_str   = $now_dt->format( 'Y-m-d H:i:s' );
+
+        $by_hour = array();
         if ( $table_exists ) {
-            $win_s = min( $hr_buckets );
-            $win_e = max( $hr_buckets );
-            // Extend end to :59:59 of the latest bucket
-            $win_e = substr( $win_e, 0, 13 ) . ':59:59';
-            $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views
+            $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-                 GROUP BY bucket",
-                $win_s, $win_e
+                 GROUP BY hr_key ORDER BY hr_key ASC",
+                $from_7h_str, $to_7h_str
             ) );
-            foreach ( $rows as $row ) {
-                if ( isset( $hour_map[ $row->bucket ] ) ) {
-                    $hour_map[ $row->bucket ] = (int) $row->views;
-                }
-            }
+            foreach ( $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
         }
-        $hour_values = array_values( $hour_map );
+        $cur = clone $from_7;
+        for ( $i = 0; $i < 7; $i++ ) {
+            $hour_labels[] = $cur->format( 'H:00' );
+            $hour_values[] = $by_hour[ $cur->format( 'Y-m-d H' ) ] ?? 0;
+            $cur->modify( '+1 hour' );
+        }
     }
 
-    // ── Prior 7 hours: same window but yesterday — single SUM query ──────────
+    // ── Prior 7 hours: same rolling window shifted back 24h (matches stats page) ──
     $prev_7h_views = 0;
     if ( $table_exists ) {
-        $p_buckets = array();
-        for ( $h = 6; $h >= 0; $h-- ) {
-            $hr          = ( $now_hour - $h + 24 ) % 24;
-            $p_buckets[] = sprintf( '%02d:00:00', $hr );
-        }
-        $p_hr_min = min( $p_buckets );
-        $p_hr_max = substr( max( $p_buckets ), 0, 2 ) . ':59:59';
-        // Prev 7h always spans within yesterday (same-day hours, shifted back 24h)
+        $prev_7h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-31 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_7h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
         $prev_7h_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            "SELECT {$cnt} FROM `{$table}`
-             WHERE viewed_at BETWEEN %s AND %s",
-            $yest . ' ' . $p_hr_min,
-            $yest . ' ' . $p_hr_max
+            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
+            $prev_7h_from, $prev_7h_to
         ) );
     }
 
@@ -399,7 +384,7 @@ function cspv_render_dashboard_widget() {
     $widget_id   = 'cspv-dw-' . substr( md5( uniqid() ), 0, 6 );
 
     $periods = array(
-        'hours'  => array( 'label' => '7 Hours',  'labels' => $hour_labels,  'values' => $hour_values,  'total' => $today_views,  'summary' => 'Views today' ),
+        'hours'  => array( 'label' => '7 Hours',  'labels' => $hour_labels,  'values' => $hour_values,  'total' => array_sum( $hour_values ),  'summary' => 'Last 7 hours' ),
         'day'    => array( 'label' => '1 Day',    'labels' => $day1_labels,  'values' => $day1_values,  'total' => array_sum( $day1_values ),  'summary' => 'Last 24 hours' ),
         'days'   => array( 'label' => '7 Days',   'labels' => $day7_labels,  'values' => $day7_values,  'total' => array_sum( $day7_values ),  'summary' => 'Last 7 days' ),
         'month'  => array( 'label' => '1 Month',  'labels' => $month_labels, 'values' => $month_values, 'total' => array_sum( $month_values ), 'summary' => 'Last 30 days' ),

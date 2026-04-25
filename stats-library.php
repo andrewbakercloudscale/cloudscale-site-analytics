@@ -35,11 +35,11 @@ function cspv_use_v2() {
  * Return the active views table name (always the V2 hourly-bucket table).
  *
  * @since  1.0.0
- * @return string Fully-qualified table name, e.g. wp_cspv_views_v2.
+ * @return string Fully-qualified table name, e.g. wp_cs_analytics_views_v2.
  */
 function cspv_views_table() {
     global $wpdb;
-    return $wpdb->prefix . 'cspv_views_v2';
+    return $wpdb->prefix . 'cs_analytics_views_v2';
 }
 
 /**
@@ -64,7 +64,7 @@ function cspv_count_expr() {
 function cspv_referrer_source() {
     global $wpdb;
     return array(
-        'table' => $wpdb->prefix . 'cspv_referrers_v2',
+        'table' => $wpdb->prefix . 'cs_analytics_referrers_v2',
         'cnt'   => 'COALESCE(SUM(view_count),0)',
     );
 }
@@ -412,7 +412,7 @@ function cspv_top_pages( $from_str, $to_str, $limit = 3 ) {
  */
 function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_geo_v2';
+    $table = $wpdb->prefix . 'cs_analytics_geo_v2';
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -453,7 +453,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
  */
 function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 10 ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_geo_v2';
+    $table = $wpdb->prefix . 'cs_analytics_geo_v2';
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -559,7 +559,7 @@ function cspv_geo_lookup_dbip( $ip ) {
  */
 function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_visitors_v2';
+    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -593,7 +593,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
  */
 function cspv_session_depth_percentiles( $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_sessions_v2';
+    $table = $wpdb->prefix . 'cs_analytics_sessions_v2';
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -644,7 +644,7 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
  */
 function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_visitors_v2';
+    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {

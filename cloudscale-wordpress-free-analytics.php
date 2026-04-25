@@ -3,7 +3,7 @@
  * Plugin Name:  CloudScale Site Analytics
  * Plugin URI:   https://andrewbaker.ninja
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.193
+ * Version:      2.9.209
  * Author:       Andrew Baker
  * Author URI:   https://andrewbaker.ninja
  * Contributors: andrewbaker
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.193' );
+define( 'CSPV_VERSION',    '2.9.209' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -40,7 +40,6 @@ require_once CSPV_PLUGIN_DIR . 'ip-throttle.php';
 require_once CSPV_PLUGIN_DIR . 'rest-api.php';
 require_once CSPV_PLUGIN_DIR . 'beacon.php';
 require_once CSPV_PLUGIN_DIR . 'template-functions.php';
-require_once CSPV_PLUGIN_DIR . 'jetpack-migration.php';
 require_once CSPV_PLUGIN_DIR . 'top-posts-widget.php';
 require_once CSPV_PLUGIN_DIR . 'recent-posts-widget.php';
 require_once CSPV_PLUGIN_DIR . 'search.php';
@@ -64,7 +63,7 @@ register_deactivation_hook( __FILE__, function () {
     require_once ABSPATH . 'wp-admin/includes/file.php';
     WP_Filesystem();
     global $wp_filesystem;
-    foreach ( array( $dir . 'assets/', $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
+    foreach ( array( $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
         if ( ! is_dir( $subdir ) ) { continue; }
         foreach ( glob( $subdir . '*' ) as $f ) {
             if ( is_file( $f ) ) { wp_delete_file( $f ); }
@@ -89,7 +88,7 @@ add_action( 'admin_init', function () {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
         global $wp_filesystem;
-        foreach ( array( $dir . 'assets/', $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
+        foreach ( array( $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
             if ( ! is_dir( $subdir ) ) { continue; }
             foreach ( glob( $subdir . '*' ) as $f ) {
                 if ( is_file( $f ) ) { wp_delete_file( $f ); }

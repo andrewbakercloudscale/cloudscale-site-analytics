@@ -4,7 +4,7 @@
  *
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number
- *   - Log table total (SUM of view_count in wp_cspv_views_v2 for this post)
+ *   - Log table total (SUM of view_count in wp_cs_analytics_views_v2 for this post)
  *   - Jetpack imported count (only when log table is empty = true Jetpack import)
  *   - Restore offset delta (meta ahead of log, permanent gap from log wipe/restore)
  *   - Daily view chart from the log table
@@ -169,7 +169,7 @@ function cspv_render_debug_panel() {
             <span class="cspv-dbg-value <?php echo esc_attr( $mismatch ? 'red' : 'green' ); ?>"><?php echo esc_html( number_format( $meta_count ) ); ?></span>
         </div>
         <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cspv_views_v2</span>
+            <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cs_analytics_views_v2</span>
             <span class="cspv-dbg-value blue"><?php echo esc_html( number_format( $log_count ) ); ?></span>
         </div>
         <?php if ( $jetpack_imported > 0 ) : ?>

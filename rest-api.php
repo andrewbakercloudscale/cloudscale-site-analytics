@@ -203,7 +203,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // --- Write to database -----------------------------------------
     global $wpdb;
-    $v2_table    = $wpdb->prefix . 'cspv_views_v2';
+    $v2_table    = $wpdb->prefix . 'cs_analytics_views_v2';
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     // Confirm V2 table exists — result cached for 1 hour to avoid SHOW TABLES on every view.
@@ -225,8 +225,8 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Upsert hourly view bucket
     $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count, source)
-         VALUES (%d, %s, 1, 'tracked')
+        "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+         VALUES (%d, %s, 1)
          ON DUPLICATE KEY UPDATE view_count = view_count + 1",
         $post_id, $hour_bucket
     ) );
@@ -242,7 +242,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Upsert referrer bucket (only if referrer is non empty)
     if ( $referrer !== '' ) {
-        $ref_table = $wpdb->prefix . 'cspv_referrers_v2';
+        $ref_table = $wpdb->prefix . 'cs_analytics_referrers_v2';
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$ref_table}` (post_id, viewed_at, referrer, view_count)
              VALUES (%d, %s, %s, 1)
@@ -273,7 +273,7 @@ function cspv_record_view( WP_REST_Request $request ) {
             $country = 'ZZ';
         }
         // Write to geo table — every view is recorded, ZZ = unknown/unresolved.
-        $geo_table = $wpdb->prefix . 'cspv_geo_v2';
+        $geo_table = $wpdb->prefix . 'cs_analytics_geo_v2';
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
              VALUES (%d, %s, %s, 1)
@@ -287,7 +287,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     $visitor_ip  = filter_var( trim( explode( ',', $visitor_raw )[0] ), FILTER_VALIDATE_IP ) ?: '';
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
         $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
-        $visitor_table = $wpdb->prefix . 'cspv_visitors_v2';
+        $visitor_table = $wpdb->prefix . 'cs_analytics_visitors_v2';
         $visitor_date  = current_time( 'Y-m-d' );
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT IGNORE INTO `{$visitor_table}` (visitor_hash, post_id, viewed_at)
@@ -298,11 +298,15 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Session depth tracking (one row per session+post, INSERT IGNORE deduplicates)
     if ( $session_id !== '' ) {
-        $sess_table  = $wpdb->prefix . 'cspv_sessions_v2';
+        $sess_table  = $wpdb->prefix . 'cs_analytics_sessions_v2';
         $sess_exists = get_transient( 'cspv_sessions_table_exists' );
-        if ( $sess_exists === false ) {
-            $sess_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0';
-            set_transient( 'cspv_sessions_table_exists', $sess_exists, HOUR_IN_SECONDS );
+        if ( $sess_exists !== '1' ) {
+            $found       = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0';
+            $sess_exists = $found;
+            // Only cache a positive result — a negative could be stale after table creation
+            if ( $found === '1' ) {
+                set_transient( 'cspv_sessions_table_exists', '1', HOUR_IN_SECONDS );
+            }
         }
         if ( $sess_exists === '1' ) {
             $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name

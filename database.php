@@ -2,7 +2,7 @@
 /**
  * CloudScale Analytics - Database
  *
- * Creates the wp_cspv_views_v2 and wp_cspv_referrers_v2 tables.
+ * Creates the wp_cs_analytics_views_v2 and wp_cs_analytics_referrers_v2 tables.
  * Plugin uses V2 hourly bucket schema exclusively.
  *
  * @package CloudScale_Free_Analytics
@@ -31,20 +31,18 @@ function cspv_activate() {
 /**
  * Create the V2 hourly bucketed views table.
  *
- * One row per post per hour per source, with a view_count column.
- * Imported data lands as a single row with the full count on the import hour.
- * Tracked views increment the bucket for the current hour.
+ * One row per post per hour, with a view_count column.
+ * The beacon increments the bucket for the current hour on each view.
  *
  * Schema:
  *   post_id     — the post
  *   viewed_at   — hour bucket, always truncated to :00:00
- *   view_count  — number of views in this bucket (1 for real time, N for imports)
- *   source      — 'tracked' | 'imported' | 'manual'
+ *   view_count  — number of views in this bucket
  */
 function cspv_create_table_v2() {
     global $wpdb;
 
-    $table           = $wpdb->prefix . 'cspv_views_v2';
+    $table           = $wpdb->prefix . 'cs_analytics_views_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -52,9 +50,8 @@ function cspv_create_table_v2() {
         post_id     BIGINT(20) UNSIGNED NOT NULL,
         viewed_at   DATETIME            NOT NULL COMMENT 'Hour bucket, always :00:00',
         view_count  INT UNSIGNED        NOT NULL DEFAULT 1,
-        source      VARCHAR(32)         NOT NULL DEFAULT 'tracked',
         PRIMARY KEY (id),
-        UNIQUE KEY post_hour_source (post_id, viewed_at, source),
+        UNIQUE KEY post_hour (post_id, viewed_at),
         KEY viewed_at (viewed_at),
         KEY post_id   (post_id)
     ) {$charset_collate};";
@@ -69,7 +66,7 @@ function cspv_create_table_v2() {
 function cspv_create_table_referrers_v2() {
     global $wpdb;
 
-    $table           = $wpdb->prefix . 'cspv_referrers_v2';
+    $table           = $wpdb->prefix . 'cs_analytics_referrers_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -97,7 +94,7 @@ function cspv_create_table_referrers_v2() {
  */
 function cspv_create_table_geo_v2() {
     global $wpdb;
-    $table           = $wpdb->prefix . 'cspv_geo_v2';
+    $table           = $wpdb->prefix . 'cs_analytics_geo_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -126,7 +123,7 @@ function cspv_create_table_geo_v2() {
  */
 function cspv_create_table_visitors_v2() {
     global $wpdb;
-    $table           = $wpdb->prefix . 'cspv_visitors_v2';
+    $table           = $wpdb->prefix . 'cs_analytics_visitors_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -154,7 +151,7 @@ function cspv_create_table_visitors_v2() {
  */
 function cspv_create_table_sessions_v2() {
     global $wpdb;
-    $table           = $wpdb->prefix . 'cspv_sessions_v2';
+    $table           = $wpdb->prefix . 'cs_analytics_sessions_v2';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS {$table} (

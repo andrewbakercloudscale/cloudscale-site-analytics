@@ -3,7 +3,7 @@
  * CloudScale Analytics — 404 Tracking
  *
  * Logs every frontend 404 (destination URL + referrer source) to
- * wp_cspv_404_v2. Repeated hits on the same URL+referrer pair increment
+ * wp_cs_analytics_404_v2. Repeated hits on the same URL+referrer pair increment
  * the hit_count rather than adding new rows.
  *
  * Results displayed in the stats page above Site Health.
@@ -32,13 +32,13 @@ add_action( 'admin_init', 'cspv_maybe_create_404_table', 5 );
  */
 function cspv_maybe_create_404_table() {
 	global $wpdb;
-	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cspv_404_v2' ) ) ) {
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cs_analytics_404_v2' ) ) ) {
 		cspv_create_table_404_v2();
 	}
 }
 
 /**
- * Create the wp_cspv_404_v2 table.
+ * Create the wp_cs_analytics_404_v2 table.
  *
  * One row per unique URL + referrer combination. Repeated hits increment
  * hit_count and update last_seen via ON DUPLICATE KEY UPDATE.
@@ -49,7 +49,7 @@ function cspv_maybe_create_404_table() {
 function cspv_create_table_404_v2() {
 	global $wpdb;
 
-	$table           = $wpdb->prefix . 'cspv_404_v2';
+	$table           = $wpdb->prefix . 'cs_analytics_404_v2';
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -90,7 +90,7 @@ function cspv_track_404() {
 		return;
 	}
 	global $wpdb;
-	$table = $wpdb->prefix . 'cspv_404_v2';
+	$table = $wpdb->prefix . 'cs_analytics_404_v2';
 
 	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
 		return;
@@ -170,7 +170,7 @@ function cspv_ajax_purge_404_log() {
 	}
 
 	global $wpdb;
-	$table = $wpdb->prefix . 'cspv_404_v2';
+	$table = $wpdb->prefix . 'cs_analytics_404_v2';
 	$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
 	wp_send_json_success( array( 'message' => '404 log cleared.' ) );
 }
@@ -191,7 +191,7 @@ function cspv_ajax_purge_404_log() {
  */
 function cspv_render_404_html() {
 	global $wpdb;
-	$table = $wpdb->prefix . 'cspv_404_v2';
+	$table = $wpdb->prefix . 'cs_analytics_404_v2';
 
 	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
 		echo '<p style="color:#888;font-size:13px;">404 log table not found — deactivate and reactivate the plugin to create it.</p>';

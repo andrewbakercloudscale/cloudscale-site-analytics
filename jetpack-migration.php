@@ -143,7 +143,7 @@ function cspv_ajax_jetpack_migrate() {
     }
 
     global $wpdb;
-    $table       = $wpdb->prefix . 'cspv_views_v2';
+    $table       = $wpdb->prefix . 'cs_analytics_views_v2';
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     $data           = cspv_get_jetpack_data();
@@ -238,7 +238,7 @@ function cspv_ajax_manual_import() {
     }
 
     global $wpdb;
-    $table       = $wpdb->prefix . 'cspv_views_v2';
+    $table       = $wpdb->prefix . 'cs_analytics_views_v2';
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
     $migrated    = 0;
     $skipped     = 0;
@@ -336,7 +336,7 @@ function cspv_ajax_migration_reset_lock() {
 }
 
 // -------------------------------------------------------------------------
-// Delete Jetpack imported rows from cspv_views_v2 table
+// Delete Jetpack imported rows from cs_analytics_views_v2 table
 // -------------------------------------------------------------------------
 
 /**
@@ -356,7 +356,7 @@ function cspv_ajax_delete_jetpack_data() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_views_v2';
+    $table = $wpdb->prefix . 'cs_analytics_views_v2';
 
     $deleted = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; table and value are hardcoded internal constants
         "DELETE FROM `{$table}` WHERE source = 'imported'"

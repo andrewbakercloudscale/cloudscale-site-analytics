@@ -5,10 +5,11 @@
  * WordPress admin dashboard widget showing:
  *   - Today's view count + delta vs yesterday
  *   - Last 7 days total
- *   - Time-period chart: 7 Hours / 1 Day / 7 Days / 1 Month / 6 Months
+ *   - Time-period chart: 12 Hours / 1 Day / 7 Days / 1 Month / 6 Months
  *   - Top 3 posts and top 3 referrers for today (side by side)
  *
  * @package CloudScale_Free_Analytics
+ * @note    12h window — mirrors stats page rolling12h logic exactly.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -181,14 +182,14 @@ function cspv_render_dashboard_widget() {
 
     $now_hour = (int) current_time( 'G' ); // 0-23
 
-    // ── 7 Hours: rolling window now-7h → now, bucketed by hour (matches stats page) ──
+    // ── 12 Hours: rolling window now-12h → now, bucketed by hour (matches stats page) ──
     $hour_labels = array();
     $hour_values = array();
     {
-        $now_dt      = new DateTime( 'now', wp_timezone() );
-        $from_7      = ( clone $now_dt )->modify( '-7 hours' );
-        $from_7h_str = $from_7->format( 'Y-m-d H:i:s' );
-        $to_7h_str   = $now_dt->format( 'Y-m-d H:i:s' );
+        $now_dt       = new DateTime( 'now', wp_timezone() );
+        $from_12      = ( clone $now_dt )->modify( '-12 hours' );
+        $from_12h_str = $from_12->format( 'Y-m-d H:i:s' );
+        $to_12h_str   = $now_dt->format( 'Y-m-d H:i:s' );
 
         $by_hour = array();
         if ( $table_exists ) {
@@ -196,26 +197,26 @@ function cspv_render_dashboard_widget() {
                 "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
                  GROUP BY hr_key ORDER BY hr_key ASC",
-                $from_7h_str, $to_7h_str
+                $from_12h_str, $to_12h_str
             ) );
             foreach ( $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
         }
-        $cur = clone $from_7;
-        for ( $i = 0; $i < 7; $i++ ) {
+        $cur = clone $from_12;
+        for ( $i = 0; $i < 12; $i++ ) {
             $hour_labels[] = $cur->format( 'H:00' );
             $hour_values[] = $by_hour[ $cur->format( 'Y-m-d H' ) ] ?? 0;
             $cur->modify( '+1 hour' );
         }
     }
 
-    // ── Prior 7 hours: same rolling window shifted back 24h (matches stats page) ──
-    $prev_7h_views = 0;
+    // ── Prior 12 hours: same rolling window shifted back 24h (matches stats page) ──
+    $prev_12h_views = 0;
     if ( $table_exists ) {
-        $prev_7h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-31 hours' )->format( 'Y-m-d H:i:s' );
-        $prev_7h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
-        $prev_7h_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $prev_12h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-36 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_12h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_12h_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev_7h_from, $prev_7h_to
+            $prev_12h_from, $prev_12h_to
         ) );
     }
 
@@ -260,13 +261,13 @@ function cspv_render_dashboard_widget() {
             $prev_start, $day1_start ) );
     }
 
-    // Delta badge: today vs yesterday (initial render is 7 Hours tab)
+    // Delta badge: today vs yesterday (initial render is 12 Hours tab)
     // Rolling 24h values available for JS when switching to 1 Day tab
     $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
     $prev_24h    = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
-    // Initial render is 7 Hours tab, so use 7h values
+    // Initial render is 12 Hours tab, so use 12h values
     $init_current = array_sum( $hour_values );
-    $init_prev    = $prev_7h_views;
+    $init_prev    = $prev_12h_views;
     if ( $init_prev > 0 && $data_days >= 2 ) {
         $delta = $init_current - $init_prev;
         $pct   = round( ( $delta / $init_prev ) * 100 );
@@ -384,7 +385,7 @@ function cspv_render_dashboard_widget() {
     $widget_id   = 'cspv-dw-' . substr( md5( uniqid() ), 0, 6 );
 
     $periods = array(
-        'hours'  => array( 'label' => '7 Hours',  'labels' => $hour_labels,  'values' => $hour_values,  'total' => array_sum( $hour_values ),  'summary' => 'Last 7 hours' ),
+        'hours'  => array( 'label' => '12 Hours', 'labels' => $hour_labels,  'values' => $hour_values,  'total' => array_sum( $hour_values ),  'summary' => 'Last 12 hours' ),
         'day'    => array( 'label' => '1 Day',    'labels' => $day1_labels,  'values' => $day1_values,  'total' => array_sum( $day1_values ),  'summary' => 'Last 24 hours' ),
         'days'   => array( 'label' => '7 Days',   'labels' => $day7_labels,  'values' => $day7_values,  'total' => array_sum( $day7_values ),  'summary' => 'Last 7 days' ),
         'month'  => array( 'label' => '1 Month',  'labels' => $month_labels, 'values' => $month_values, 'total' => array_sum( $month_values ), 'summary' => 'Last 30 days' ),
@@ -397,7 +398,7 @@ function cspv_render_dashboard_widget() {
     <div>
         <div class="cspv-dw-today-count" id="cspv-dw-main-count"><?php echo wp_kses_post( $delta_html ); ?></div>
         <div class="cspv-dw-today-label">
-            <span id="cspv-dw-main-label">Last 7 hours</span>
+            <span id="cspv-dw-main-label">Last 12 hours</span>
         </div>
         <div class="cspv-dw-counts" id="cspv-dw-counts"><?php
             if ( $init_prev > 0 ) {
@@ -432,14 +433,14 @@ function cspv_render_dashboard_widget() {
 <!-- Top posts + Top referrers (side by side, JS driven) -->
 <div class="cspv-dw-lists">
     <div class="cspv-dw-list-col">
-        <div class="cspv-dw-list-header"><span id="cspv-dw-pages-header">Top pages 7h</span><span>Views</span></div>
+        <div class="cspv-dw-list-header"><span id="cspv-dw-pages-header">Top pages 12h</span><span>Views</span></div>
         <div id="cspv-dw-top-pages">
             <div class="cspv-dw-empty" style="color:#999;">Loading...</div>
         </div>
     </div>
     <div class="cspv-dw-list-col">
         <div class="cspv-dw-list-header">
-            <span id="cspv-dw-ref-header-label">Top referrers 7h</span>
+            <span id="cspv-dw-ref-header-label">Top referrers 12h</span>
             <span class="cspv-dw-ref-toggle-wrap">
                 <button class="cspv-dw-ref-toggle active" data-ref-view="sites">Sites</button>
                 <button class="cspv-dw-ref-toggle" data-ref-view="pages">Pages</button>
@@ -473,7 +474,7 @@ function cspv_render_dashboard_widget() {
         'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
         'todayViews'    => (int) $today_views,
         'yestViews'     => (int) $yest_views,
-        'prev7hViews'   => (int) $prev_7h_views,
+        'prev12hViews'  => (int) $prev_12h_views,
         'dataDays'      => (int) $data_days,
         'weekViews'     => (int) $week_views,
         'prev7Views'    => (int) $prev7_views,
@@ -519,7 +520,7 @@ function cspv_render_dashboard_widget() {
     var listsCache  = {};
     var todayViews = cspvDW.todayViews;
     var yestViews  = cspvDW.yestViews;
-    var prev7hViews = cspvDW.prev7hViews;
+    var prev12hViews = cspvDW.prev12hViews;
     var dataDays    = cspvDW.dataDays;
     // Minimum data_days needed to show a comparison (same as site-health: days * 2)
     var requiredDays = { hours: 2, day: 2, days: 14, month: 56, months: 360 };
@@ -549,7 +550,7 @@ function cspv_render_dashboard_widget() {
 
         var current = 0, previous = 0, label = '';
         if (period === 'hours') {
-            current = total; previous = prev7hViews; label = 'Last 7 hours';
+            current = total; previous = prev12hViews; label = 'Last 12 hours';
         } else if (period === 'day') {
             current = rolling24h; previous = prevRolling24h; label = 'Last 24 hours';
         } else if (period === 'days') {
@@ -582,7 +583,7 @@ function cspv_render_dashboard_widget() {
         mainLabel.textContent = label;
     }
 
-    var periodLabels = { hours: '7h', day: '24h', days: '7 days', month: '30 days', months: '6 months' };
+    var periodLabels = { hours: '12h', day: '24h', days: '7 days', month: '30 days', months: '6 months' };
 
     function esc(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -863,7 +864,7 @@ function cspv_ajax_widget_lists() {
     switch ( $period ) {
         case 'hours':
             $from = clone $now;
-            $from->modify( '-7 hours' );
+            $from->modify( '-12 hours' );
             break;
         case 'day':
             $from = clone $now;

@@ -181,15 +181,15 @@ function cspv_ajax_chart_data() {
     }
 
     $rolling24h = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
-    $rolling7h  = ! empty( $_POST['rolling7h'] )  && '1' === sanitize_text_field( wp_unslash( $_POST['rolling7h'] ) );
+    $rolling12h = ! empty( $_POST['rolling12h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling12h'] ) );
 
-    if ( $rolling7h ) {
-        // Rolling 7h: from NOW-7h to NOW, bucketed by hour
-        $now_dt   = new DateTime( 'now', wp_timezone() );
-        $from_7   = clone $now_dt;
-        $from_7->modify( '-7 hours' );
-        $from_str = $from_7->format( 'Y-m-d H:i:s' );
-        $to_str   = $now_dt->format( 'Y-m-d H:i:s' );
+    if ( $rolling12h ) {
+        // Rolling 12h: from NOW-12h to NOW, bucketed by hour
+        $now_dt    = new DateTime( 'now', wp_timezone() );
+        $from_12   = clone $now_dt;
+        $from_12->modify( '-12 hours' );
+        $from_str  = $from_12->format( 'Y-m-d H:i:s' );
+        $to_str    = $now_dt->format( 'Y-m-d H:i:s' );
     } elseif ( $rolling24h && $diff_days === 0 ) {
         // Rolling 24h: from NOW-24h to NOW, bucketed by hour
         $now_dt     = new DateTime( 'now', wp_timezone() );
@@ -203,8 +203,8 @@ function cspv_ajax_chart_data() {
     }
 
     // Grouping: single day = hourly, <=90d = daily, >90d = weekly
-    if ( $rolling7h ) {
-        // ── 7 Hours: build 7 hourly slots ──
+    if ( $rolling12h ) {
+        // ── 12 Hours: build 12 hourly slots ──
         $label_fmt = 'hour';
         $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
@@ -214,8 +214,8 @@ function cspv_ajax_chart_data() {
         $by_hour = array();
         foreach ( (array) $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
         $chart_rows = array();
-        $cur = clone $from_7;
-        for ( $i = 0; $i < 7; $i++ ) {
+        $cur = clone $from_12;
+        for ( $i = 0; $i < 12; $i++ ) {
             $key         = $cur->format( 'Y-m-d H' );
             $obj         = new stdClass();
             $obj->period = $cur->format( 'H:00' );
@@ -343,7 +343,7 @@ function cspv_ajax_chart_data() {
     $referrer_pages = cspv_top_referrer_pages( $from_str, $to_str, 20 );
     $countries      = cspv_top_countries( $from_str, $to_str, 20 );
     $session_depth = cspv_session_depth_percentiles( $from_str, $to_str );
-    if ( $rolling7h ) {
+    if ( $rolling12h ) {
         // Sessions table is DATE-only; compare today vs yesterday
         $prev_day = ( new DateTime( 'now', wp_timezone() ) )->modify( '-1 day' )->format( 'Y-m-d' );
         $prev_session_depth = cspv_session_depth_percentiles( $prev_day, $prev_day );
@@ -1027,7 +1027,7 @@ function cspv_render_stats_page() {
         <!-- Date range bar -->
         <div id="cspv-date-bar">
             <div id="cspv-quick-btns">
-                <button class="cspv-quick" data-range="7h">7 Hours</button>
+                <button class="cspv-quick" data-range="12h">12 Hours</button>
                 <button class="cspv-quick" data-range="today">Last 24h</button>
                 <button class="cspv-quick" data-range="7">1 Week</button>
                 <button class="cspv-quick" data-range="30">1 Month</button>
@@ -1844,7 +1844,7 @@ ob_start();
             var r = btn.dataset.range;
             var t = wpToday();
             document.getElementById('cspv-to').value   = t;
-            if (r === '7h' || r === 'today') {
+            if (r === '12h' || r === 'today') {
                 document.getElementById('cspv-from').value = t;
             } else {
                 document.getElementById('cspv-from').value = daysAgo(parseInt(r) - 1);
@@ -1905,10 +1905,10 @@ ob_start();
         if (todayBtn && todayBtn.classList.contains('active') && from === to) {
             fd.append('rolling24h', '1');
         }
-        // If "7 Hours" is active, tell the server
-        var sevenHBtn = document.querySelector('.cspv-quick[data-range="7h"]');
-        if (sevenHBtn && sevenHBtn.classList.contains('active')) {
-            fd.append('rolling7h', '1');
+        // If "12 Hours" is active, tell the server
+        var twelveHBtn = document.querySelector('.cspv-quick[data-range="12h"]');
+        if (twelveHBtn && twelveHBtn.classList.contains('active')) {
+            fd.append('rolling12h', '1');
         }
 
         fetch(ajaxUrl, { method: 'POST', body: fd })
@@ -2398,7 +2398,7 @@ ob_start();
         if ( rangeEl ) {
             var activeBtn = document.querySelector('.cspv-quick.active');
             var r = activeBtn ? activeBtn.dataset.range : null;
-            var rangeLabels = { '7h': '7 hrs', 'today': '24 hrs', '7': '7 days', '30': '30 days', '90': '90 days', '180': '180 days' };
+            var rangeLabels = { '12h': '12 hrs', 'today': '24 hrs', '7': '7 days', '30': '30 days', '90': '90 days', '180': '180 days' };
             if (r && rangeLabels[r]) {
                 rangeEl.textContent = rangeLabels[r];
             } else {
@@ -2929,7 +2929,7 @@ ob_start();
         'stats': {
             title: 'Statistics Dashboard — How It Works',
             cards: [
-                { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>posts viewed</strong>, <strong>unique visitors</strong>, and <strong>hot pages</strong> for the selected date range. Use the quick range buttons (7h, Last 24h, 1 Week, 1 Month, 3 Months, 6 Months) or the custom date picker to change the period.' },
+                { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>posts viewed</strong>, <strong>unique visitors</strong>, and <strong>hot pages</strong> for the selected date range. Use the quick range buttons (12h, Last 24h, 1 Week, 1 Month, 3 Months, 6 Months) or the custom date picker to change the period.' },
                 { title: 'Chart', badge: 'info', body: 'The chart displays views over time. Short ranges show hourly breakdown, medium ranges show daily bars, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here. Click any title to visit the post.' },
                 { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total views tracked by the beacon. The All Time Top Posts list ranks by lifetime total tracked views.' },
@@ -3160,7 +3160,7 @@ ob_start();
     var infoData = {
         'stats-overview': {
             title: '📊 Statistics Overview',
-            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 7 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the page views log table, reflecting actual recorded views.</p>'
+            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 12 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the page views log table, reflecting actual recorded views.</p>'
         },
         'top-posts': {
             title: '🏆 Most Viewed Posts',

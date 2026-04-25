@@ -1418,7 +1418,6 @@ function cspv_render_stats_page() {
                             } else {
                                 echo '<span style="font-size:12px;color:#dc2626;">❌ Not installed</span>';
                             }
-                            <?php
                             $auto_update_on = get_option( 'cspv_dbip_auto_update', 'yes' ) === 'yes';
                             $next_cron      = wp_next_scheduled( 'cspv_dbip_auto_update' );
                             if ( $auto_update_on && $next_cron ) {

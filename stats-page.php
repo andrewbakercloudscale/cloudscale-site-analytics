@@ -865,6 +865,10 @@ add_action( 'cspv_dbip_auto_update', 'cspv_dbip_auto_update_run' );
  * @return void
  */
 function cspv_dbip_auto_update_run() {
+    if ( get_option( 'cspv_dbip_auto_update', 'yes' ) !== 'yes' ) {
+        return;
+    }
+
     $geo_source = get_option( 'cspv_geo_source', 'auto' );
     if ( 'cloudflare' === $geo_source || 'disabled' === $geo_source ) {
         return;
@@ -961,6 +965,7 @@ function cspv_render_stats_page() {
         $valid_geo = array( 'auto', 'cloudflare', 'dbip', 'disabled' );
         $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_geo_source'] ) ) : 'auto';
         update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
+        update_option( 'cspv_dbip_auto_update', isset( $_POST['cspv_dbip_auto_update'] ) ? 'yes' : 'no' );
 
         // Auto-download DB-IP when source requires it and the file is missing
         $geo_notice = '';
@@ -1413,15 +1418,23 @@ function cspv_render_stats_page() {
                             } else {
                                 echo '<span style="font-size:12px;color:#dc2626;">❌ Not installed</span>';
                             }
-                            $next_cron = wp_next_scheduled( 'cspv_dbip_auto_update' );
-                            if ( $next_cron ) {
-                                echo '<br><span style="font-size:11px;color:#6b7280;">🔄 Auto-update active &mdash; next check ' . esc_html( wp_date( 'j M Y H:i', $next_cron ) ) . '</span>';
+                            <?php
+                            $auto_update_on = get_option( 'cspv_dbip_auto_update', 'yes' ) === 'yes';
+                            $next_cron      = wp_next_scheduled( 'cspv_dbip_auto_update' );
+                            if ( $auto_update_on && $next_cron ) {
+                                echo '<br><span style="font-size:11px;color:#6b7280;">Next auto-check: ' . esc_html( wp_date( 'j M Y H:i', $next_cron ) ) . '</span>';
                             }
                             ?>
                         </div>
-                        <button type="button" id="cspv-download-dbip" style="background:#0f766e;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">
-                            <?php echo esc_html( file_exists( $mmdb_path ) ? '🔄 Update DB-IP Lite' : '⬇️ Download DB-IP Lite' ); ?>
-                        </button>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                            <button type="button" id="cspv-download-dbip" style="background:#0f766e;color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">
+                                <?php echo esc_html( file_exists( $mmdb_path ) ? '🔄 Update DB-IP Lite' : '⬇️ Download DB-IP Lite' ); ?>
+                            </button>
+                            <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;">
+                                <input type="checkbox" name="cspv_dbip_auto_update" value="yes" <?php checked( get_option( 'cspv_dbip_auto_update', 'yes' ), 'yes' ); ?>>
+                                Auto-update monthly
+                            </label>
+                        </div>
                     </div>
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>

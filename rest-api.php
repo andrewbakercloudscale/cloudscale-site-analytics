@@ -14,6 +14,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
+// Allow our public tracking endpoints to be called even when another plugin
+// uses rest_authentication_errors to restrict the REST API to logged-in users.
+// Our endpoints use permission_callback => '__return_true' (public by design)
+// but WordPress checks rest_authentication_errors before the permission callback,
+// so a WP_Error from another plugin blocks our routes before we get a say.
+add_filter( 'rest_authentication_errors', 'cspv_allow_beacon_without_auth', 20 );
+
+/**
+ * Clear REST authentication errors for our public tracking routes.
+ *
+ * Runs at priority 20 so most security plugins (priority 10) have already
+ * set their auth error, letting us selectively clear it for our own routes.
+ *
+ * @since  2.9.187
+ * @param  WP_Error|null|true $result  Current auth result.
+ * @return WP_Error|null|true
+ */
+function cspv_allow_beacon_without_auth( $result ) {
+    if ( ! is_wp_error( $result ) ) {
+        return $result;
+    }
+    $rest_prefix = rest_get_url_prefix();
+    $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+    if ( false !== strpos( $request_uri, '/' . $rest_prefix . '/cloudscale-wordpress-free-analytics/v1/' ) ) {
+        return null; // Let __return_true permission_callback decide
+    }
+    return $result;
+}
+
 /**
  * Return the view count for a post, respecting the ignore Jetpack toggle.
  *

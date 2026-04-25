@@ -548,22 +548,29 @@ function cspv_ajax_post_history() {
              WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
              GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
 
-        // Build top referrer lookup keyed by day
-        $top_refs = array();
+        // Split referrers into self (own domain) and top external per day
+        $site_host   = preg_replace( '/^www\./', '', parse_url( home_url(), PHP_URL_HOST ) );
+        $self_hits   = array();   // day => count
+        $top_ext     = array();   // day => ['ref' => url, 'cnt' => n]
         foreach ( (array) $ref_rows as $rr ) {
-            if ( ! isset( $top_refs[ $rr->day ] ) ) {
-                $top_refs[ $rr->day ] = array( 'ref' => $rr->referrer, 'cnt' => (int) $rr->cnt );
+            $parsed   = wp_parse_url( $rr->referrer );
+            $ref_host = isset( $parsed['host'] ) ? preg_replace( '/^www\./', '', $parsed['host'] ) : '';
+            if ( $ref_host === $site_host ) {
+                $self_hits[ $rr->day ] = ( isset( $self_hits[ $rr->day ] ) ? $self_hits[ $rr->day ] : 0 ) + (int) $rr->cnt;
+            } elseif ( ! isset( $top_ext[ $rr->day ] ) ) {
+                $top_ext[ $rr->day ] = array( 'ref' => $rr->referrer, 'cnt' => (int) $rr->cnt );
             }
         }
 
         $timeline = array();
         foreach ( (array) $timeline_rows as $tr ) {
-            $ref_info = isset( $top_refs[ $tr->day ] ) ? $top_refs[ $tr->day ] : null;
+            $ext_info  = isset( $top_ext[ $tr->day ] ) ? $top_ext[ $tr->day ] : null;
             $timeline[] = array(
-                'day'      => $tr->day,
-                'views'    => (int) $tr->views,
-                'top_ref'  => $ref_info ? $ref_info['ref'] : null,
-                'ref_hits' => $ref_info ? $ref_info['cnt'] : 0,
+                'day'       => $tr->day,
+                'views'     => (int) $tr->views,
+                'top_ref'   => $ext_info ? $ext_info['ref'] : null,
+                'ref_hits'  => $ext_info ? $ext_info['cnt'] : 0,
+                'self_hits' => isset( $self_hits[ $tr->day ] ) ? $self_hits[ $tr->day ] : 0,
             );
         }
     }
@@ -1001,6 +1008,7 @@ function cspv_render_stats_page() {
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
             <a href="https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>
 
@@ -1011,7 +1019,6 @@ function cspv_render_stats_page() {
         <button class="cspv-tab" data-tab="throttle">🛡 IP Throttle</button>
         <button class="cspv-tab" data-tab="history">🔍 Post History</button>
         <span class="cspv-tab-spacer"></span>
-        <button class="cspv-tab-help" id="cspv-help-btn" title="Help">❓ Help</button>
     </div>
 
     <!-- ═══════════════════════ STATS TAB ═══════════════════════════ -->
@@ -1703,7 +1710,6 @@ function cspv_render_stats_page() {
                     <div id="cspv-ph-header" style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">
                         <div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post ▼</div>
                         <div class="cspv-ph-sort" data-col="views" style="width:100px;text-align:right;cursor:pointer;">Total Views</div>
-                        <div class="cspv-ph-sort" data-col="pageviews" style="width:100px;text-align:right;cursor:pointer;">Page Views</div>
                     </div>
                     <?php foreach ( $ph_top_posts as $i => $p ) :
                         $views     = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
@@ -1712,7 +1718,6 @@ function cspv_render_stats_page() {
                     <div class="cspv-ph-row" data-id="<?php echo (int) $p->ID; ?>"
                          data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
                          data-views="<?php echo esc_attr( (int) $views ); ?>"
-                         data-pageviews="0"
                          data-url="<?php echo esc_attr( get_permalink( $p->ID ) ); ?>"
                          style="display:flex;align-items:center;
                         padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
@@ -1723,67 +1728,11 @@ function cspv_render_stats_page() {
                         <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
                             <?php echo esc_html( number_format( $views ) ); ?>
                         </div>
-                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">
-                            —
-                        </div>
                     </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
 
-            <!-- Detail panel (shown when a post is selected) -->
-            <div id="cspv-ph-panel" style="display:none;">
-
-                <div id="cspv-ph-title-bar" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-                    <h3 id="cspv-ph-post-title" style="margin:0;font-size:16px;"></h3>
-                    <a id="cspv-ph-post-link" href="#" target="_blank" style="font-size:12px;color:#2e86c1;">View post ↗</a>
-                </div>
-
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
-                    <div class="cspv-ph-card">
-                        <div class="cspv-ph-card-label">Total Views</div>
-                        <div class="cspv-ph-card-value" id="cspv-ph-meta" style="color:#059669;">0</div>
-                        <div class="cspv-ph-card-sub">displayed count</div>
-                    </div>
-                    <div class="cspv-ph-card">
-                        <div class="cspv-ph-card-label">Page Views</div>
-                        <div class="cspv-ph-card-value" id="cspv-ph-log" style="color:#2e86c1;">0</div>
-                        <div class="cspv-ph-card-sub">wp_cs_analytics_views_v2 tracked rows</div>
-                    </div>
-                </div>
-
-                <div style="display:flex;gap:24px;margin-bottom:16px;font-size:12px;color:#666;flex-wrap:wrap;">
-                    <span>Published: <strong id="cspv-ph-published">—</strong></span>
-                    <span>First logged view: <strong id="cspv-ph-first">—</strong></span>
-                    <span>Last logged view: <strong id="cspv-ph-last">—</strong></span>
-                </div>
-
-                <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-                    <button class="cspv-ph-period active" data-period="daily">Daily Chart</button>
-                    <button class="cspv-ph-period" data-period="hourly">Last 48 hours</button>
-                </div>
-
-                <!-- Timeline slider (shown in daily mode) -->
-                <div id="cspv-ph-slider-wrap" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <label style="font-size:12px;color:#555;font-weight:700;white-space:nowrap;">Window:</label>
-                    <input type="range" id="cspv-ph-days" min="7" max="180" value="180" step="1"
-                           style="flex:1;min-width:120px;max-width:320px;accent-color:#2e86c1;cursor:pointer;">
-                    <span id="cspv-ph-days-label" style="font-size:12px;font-weight:800;color:#2e86c1;white-space:nowrap;min-width:80px;">180 days</span>
-                </div>
-
-                <div style="height:220px;position:relative;">
-                    <canvas id="cspv-ph-chart"></canvas>
-                </div>
-
-                <!-- Audit trail — window controlled by slider -->
-                <div style="margin-top:24px;">
-                    <div style="font-size:12px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.04em;margin-bottom:8px;">
-                        📋 <span id="cspv-ph-trail-label">180 Day</span> Audit Trail
-                    </div>
-                    <div id="cspv-ph-timeline" style="max-height:500px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;"></div>
-                </div>
-
-            </div>
         </div>
 
     </div><!-- /history tab -->
@@ -3316,25 +3265,31 @@ ob_start();
 
     // ── Post History tab ────────────────────────────────────────────
     (function() {
-        var searchInput   = document.getElementById('cspv-ph-search');
-        var searchBtn     = document.getElementById('cspv-ph-search-btn');
-        var listBox       = document.getElementById('cspv-ph-list');
-        var panel         = document.getElementById('cspv-ph-panel');
+        var searchInput = document.getElementById('cspv-ph-search');
+        var searchBtn   = document.getElementById('cspv-ph-search-btn');
+        var listBox     = document.getElementById('cspv-ph-list');
         if (!searchInput || !listBox) return;
 
-        var phChart       = null;
-        var phData        = null;
-        var currentPostId = 0;
-
-        // Wire clicks on preloaded rows
         function wireRowClicks() {
             listBox.querySelectorAll('.cspv-ph-row').forEach(function(el) {
                 el.addEventListener('click', function(e) {
-                    // Let view-link clicks open the post without triggering row selection
                     if (e.target.classList.contains('cspv-ph-view-link')) return;
-                    listBox.querySelectorAll('.cspv-ph-row').forEach(function(r) { r.classList.remove('active'); });
+                    var postId = parseInt(el.dataset.id);
+                    // Collapse if already open
+                    if (el.classList.contains('active')) {
+                        el.classList.remove('active');
+                        var exp = el.nextElementSibling;
+                        if (exp && exp.classList.contains('cspv-ph-expand')) exp.parentNode.removeChild(exp);
+                        return;
+                    }
+                    // Collapse any other open row
+                    listBox.querySelectorAll('.cspv-ph-row.active').forEach(function(r) {
+                        r.classList.remove('active');
+                        var exp = r.nextElementSibling;
+                        if (exp && exp.classList.contains('cspv-ph-expand')) exp.parentNode.removeChild(exp);
+                    });
                     el.classList.add('active');
-                    loadPostHistory(parseInt(el.dataset.id));
+                    loadPostExpand(postId, el);
                 });
             });
         }
@@ -3397,7 +3352,6 @@ ob_start();
                 });
                 listBox.innerHTML = html;
                 wireRowClicks();
-                panel.style.display = 'none';
             })
             .catch(function() { searchBtn.disabled = false; searchBtn.textContent = 'Search Posts'; });
         }
@@ -3411,8 +3365,12 @@ ob_start();
             var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
         }
 
-        function loadPostHistory(postId) {
-            currentPostId = postId;
+        function loadPostExpand(postId, rowEl) {
+            var expandDiv = document.createElement('div');
+            expandDiv.className = 'cspv-ph-expand';
+            expandDiv.style.cssText = 'padding:12px 16px;background:#f0f7ff;border-bottom:2px solid #2e86c1;font-size:12px;color:#888;';
+            expandDiv.textContent = 'Loading…';
+            rowEl.parentNode.insertBefore(expandDiv, rowEl.nextSibling);
 
             fetch(ajaxUrl, {
                 method: 'POST',
@@ -3422,245 +3380,64 @@ ob_start();
             })
             .then(function(r) { return r.json(); })
             .then(function(resp) {
-                if (!resp.success) { return; }
-                phData = resp.data;
-                renderPostHistory();
-            });
+                if (!resp.success) { expandDiv.textContent = 'Failed to load.'; return; }
+                renderExpand(expandDiv, resp.data);
+            })
+            .catch(function() { expandDiv.textContent = 'Network error.'; });
         }
 
-        function renderPostHistory() {
-            var d = phData;
-            document.getElementById('cspv-ph-post-title').textContent = d.title;
-            document.getElementById('cspv-ph-post-link').href = d.url;
-            document.getElementById('cspv-ph-meta').textContent = d.meta_count.toLocaleString();
-            document.getElementById('cspv-ph-log').textContent = d.log_count.toLocaleString();
-            document.getElementById('cspv-ph-published').textContent = d.published || 'unknown';
-            document.getElementById('cspv-ph-first').textContent = d.first_log || 'none';
-            document.getElementById('cspv-ph-last').textContent = d.last_log || 'none';
-
-            panel.style.display = 'block';
-            // Reset slider to 180 days when loading a new post
-            var slider = document.getElementById('cspv-ph-days');
-            if (slider) {
-                slider.value = 180;
-                document.getElementById('cspv-ph-days-label').textContent = '180 days';
-                document.getElementById('cspv-ph-trail-label').textContent = '180 Day';
-            }
-            document.getElementById('cspv-ph-slider-wrap').style.display = 'flex';
-            drawPhChart('daily', 180);
-            document.querySelectorAll('.cspv-ph-period').forEach(function(b) {
-                b.classList.toggle('active', b.dataset.period === 'daily');
-            });
-            renderTimeline(180);
-        }
-
-        function renderTimeline(days) {
-            var box = document.getElementById('cspv-ph-timeline');
-            if (!box || !phData) return;
-            if (!days) days = 180;
-
-            var rawTl = phData.timeline || [];
-
-            // Build lookup from raw data
-            var tlMap = {};
-            rawTl.forEach(function(r) { tlMap[r.day] = r; });
-
-            // Generate days from today back — bounded by slider value and published date
-            var pubYmd = phData.published_ymd || '';
-            var tl = [];
-            var now = new Date();
-            var minDays = days;
-            if (pubYmd) {
-                var pp = pubYmd.split('-');
-                var pubDate = new Date(parseInt(pp[0]), parseInt(pp[1])-1, parseInt(pp[2]));
-                var diffMs = now.getTime() - pubDate.getTime();
-                var pubDays = Math.ceil(diffMs / 86400000) + 1;
-                if (pubDays < minDays) minDays = pubDays;
-            }
-            for (var d = 0; d < minDays; d++) {
-                var dt = new Date(now);
-                dt.setDate(dt.getDate() - d);
-                var ymd = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-                // Stop before the published date
-                if (pubYmd && ymd < pubYmd) break;
-                var entry = tlMap[ymd] ? Object.assign({}, tlMap[ymd]) : { day: ymd, views: 0, top_ref: null, ref_hits: 0 };
-                entry.isCreated = (ymd === pubYmd);
-                tl.push(entry);
-            }
-
-            // Header row
-            var html = '<div style="display:flex;align-items:center;padding:8px 12px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">' +
-                '<div style="width:110px;">Date</div>' +
-                '<div style="width:70px;text-align:right;">Views</div>' +
-                '<div style="flex:1;padding-left:16px;">Top Referrer</div></div>';
-
-            // Max views for bar width
+        function renderExpand(expandDiv, data) {
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            var tl = (data.timeline || []).filter(function(r) { return r.views > 0; }).slice(0, 30);
             var maxV = 0;
             tl.forEach(function(r) { if (r.views > maxV) maxV = r.views; });
 
-            tl.forEach(function(r, i) {
-                    var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
-                    var barW = maxV > 0 ? Math.round((r.views / maxV) * 100) : 0;
-                    var dp = r.day.split('-');
-                    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                    var dayStr = parseInt(dp[2]) + ' ' + months[parseInt(dp[1])-1] + ' ' + dp[0];
-                    var refStr = '';
-                    if (r.top_ref) {
-                        try {
-                            var u = new URL(r.top_ref);
-                            refStr = u.hostname.replace(/^www\\./, '');
-                        } catch(e) {
-                            refStr = r.top_ref.substring(0, 50);
-                        }
-                        refStr += ' (' + r.ref_hits + ')';
-                    }
-                    var viewColor = r.views > 0 ? '#2e86c1' : '#ddd';
-                    var dateColor = r.views > 0 ? '#333' : '#bbb';
-                    var rowBg = r.isCreated ? '#eff6ff' : bg;
-                    var rowBorder = r.isCreated ? '2px solid #3b82f6' : '1px solid #f0f0f0';
-                    var createdBadge = r.isCreated ? '<span style="display:inline-block;background:#3b82f6;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase;letter-spacing:.03em;">Post Created</span>' : '';
-                    html += '<div style="display:flex;align-items:center;padding:6px 12px;background:' + rowBg + ';border-bottom:' + rowBorder + ';font-size:12px;">' +
-                        '<div style="min-width:110px;font-weight:600;color:' + (r.isCreated ? '#1d4ed8' : dateColor) + ';white-space:nowrap;">' + createdBadge + dayStr + '</div>' +
-                        '<div style="width:70px;text-align:right;font-weight:800;color:' + viewColor + ';font-variant-numeric:tabular-nums;">' + (r.views > 0 ? r.views.toLocaleString() : '0') + '</div>' +
-                        '<div style="flex:1;padding-left:16px;display:flex;align-items:center;gap:8px;">' +
-                        '<div style="height:6px;width:' + barW + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;min-width:2px;"></div>' +
-                        (refStr ? '<span style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;">' + escHtml(refStr) + '</span>' : '') +
-                        '</div></div>';
-            });
+            var html = '<div style="display:flex;align-items:center;padding:8px 16px 6px;justify-content:space-between;">' +
+                '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a5276;">Last 30 days with views</span>' +
+                '<span style="font-size:11px;color:#555;">Total: <strong style="color:#059669;">' + (data.meta_count || 0).toLocaleString() + '</strong></span>' +
+                '</div>';
 
-            box.innerHTML = html;
-        }
-
-        function drawPhChart(period, days) {
-            var canvas = document.getElementById('cspv-ph-chart');
-            if (!canvas || !window.Chart || !phData) return;
-            if (!days) days = 180;
-
-            var labels, values;
-            if (period === 'hourly') {
-                labels = phData.hourly.map(function(h) { var p = h.hour.split(' '); return p[1] || h.hour; });
-                values = phData.hourly.map(function(h) { return h.views; });
+            if (tl.length === 0) {
+                html += '<div style="padding:4px 16px 12px;color:#888;font-size:12px;">No views recorded in the last 30 days.</div>';
             } else {
-                // Build day array from published date (or slider window) to today
-                var dailyMap = {};
-                phData.daily.forEach(function(d) { dailyMap[d.day] = d.views; });
-                var allDays = [];
-                var now = new Date();
-                var chartPub = phData.published_ymd || '';
-                var startDay = days - 1;
-                if (chartPub) {
-                    var cp = chartPub.split('-');
-                    var cpDate = new Date(parseInt(cp[0]), parseInt(cp[1])-1, parseInt(cp[2]));
-                    var cpDiff = Math.ceil((now.getTime() - cpDate.getTime()) / 86400000);
-                    startDay = Math.min(startDay, Math.max(0, cpDiff));
-                }
-                for (var dd = startDay; dd >= 0; dd--) {
-                    var dt = new Date(now);
-                    dt.setDate(dt.getDate() - dd);
-                    var ymd = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-                    allDays.push({ day: ymd, views: dailyMap[ymd] || 0 });
-                }
-                labels = allDays.map(function(d) {
-                    var p = d.day.split('-');
-                    var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                    return parseInt(p[2]) + ' ' + m[parseInt(p[1]) - 1];
+                tl.forEach(function(r, i) {
+                    var dp = r.day.split('-');
+                    var dayStr = parseInt(dp[2]) + ' ' + months[parseInt(dp[1])-1];
+                    var barW = maxV > 0 ? Math.round((r.views / maxV) * 100) : 0;
+                    var selfHits = r.self_hits || 0;
+                    var extStr = '', extHost = '';
+                    if (r.top_ref) {
+                        try { var u = new URL(r.top_ref); extHost = u.hostname.replace(/^www\./, ''); }
+                        catch(e2) { extHost = r.top_ref.substring(0, 30); }
+                        extStr = extHost + (r.ref_hits > 1 ? ' (' + r.ref_hits + ')' : '');
+                    }
+                    var hasSelf = selfHits > 0, hasExt = extStr !== '';
+                    // Split bar: green = self proportion, blue = external proportion
+                    var total = selfHits + (r.ref_hits || 0);
+                    var selfPct = (hasSelf && total > 0) ? Math.round((selfHits / total) * barW) : (hasSelf ? barW : 0);
+                    var extPct  = (hasExt  && total > 0) ? Math.round(((r.ref_hits || 0) / total) * barW) : (hasExt ? barW : 0);
+                    var barHtml = '';
+                    if (hasSelf) barHtml += '<div style="height:5px;width:' + selfPct + '%;background:linear-gradient(90deg,#059669,#6ee7b7);border-radius:3px;max-width:80px;min-width:2px;"></div>';
+                    if (hasExt)  barHtml += '<div style="height:5px;width:' + extPct  + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;max-width:80px;min-width:2px;"></div>';
+                    if (!hasSelf && !hasExt) barHtml = '<div style="height:5px;width:' + barW + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;max-width:120px;min-width:2px;"></div>';
+                    var labelsHtml = '';
+                    if (hasSelf) labelsHtml += '<span style="font-size:11px;font-weight:600;color:#059669;white-space:nowrap;">self: ' + selfHits + '</span>';
+                    if (hasExt)  labelsHtml += '<span style="font-size:11px;font-weight:600;color:#2e86c1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(extStr) + '</span>';
+                    var bg = i % 2 === 0 ? '#f8fbff' : '#fff';
+                    html += '<div style="display:flex;align-items:center;padding:5px 16px;background:' + bg + ';border-bottom:1px solid #e8f0f8;font-size:12px;">' +
+                        '<div style="width:75px;font-weight:600;color:#333;">' + dayStr + '</div>' +
+                        '<div style="width:55px;text-align:right;font-weight:800;color:#2e86c1;font-variant-numeric:tabular-nums;">' + r.views.toLocaleString() + '</div>' +
+                        '<div style="flex:1;padding-left:12px;display:flex;align-items:center;gap:4px;">' +
+                        barHtml + labelsHtml +
+                        '</div></div>';
                 });
-                values = allDays.map(function(d) { return d.views; });
             }
 
-            if (phChart) phChart.destroy();
-            var maxVal = Math.max.apply(null, values.length ? values : [0]);
-            phChart = new Chart(canvas.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: values.map(function(v) {
-                            var pct = maxVal > 0 ? v / maxVal : 0;
-                            return 'rgba(46, 134, 193, ' + (0.3 + pct * 0.7) + ')';
-                        }),
-                        borderRadius: 2, borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, animation: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#1a5276', titleColor: 'rgba(255,255,255,.7)',
-                            bodyColor: '#fff', bodyFont: { size: 12, weight: '700' },
-                            padding: 8, displayColors: false,
-                            callbacks: { label: function(c) { return c.parsed.y.toLocaleString() + ' views'; } }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#888', font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: period === 'hourly' ? 12 : 10 } },
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, border: { display: false }, ticks: { color: '#888', font: { size: 11 }, maxTicksLimit: 5, precision: 0 } }
-                    }
-                }
-            });
+            expandDiv.style.cssText = 'background:#f0f7ff;border-bottom:2px solid #2e86c1;';
+            expandDiv.innerHTML = html;
         }
 
-        document.querySelectorAll('.cspv-ph-period').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.cspv-ph-period').forEach(function(b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                var sliderWrap = document.getElementById('cspv-ph-slider-wrap');
-                var days = parseInt(document.getElementById('cspv-ph-days').value) || 180;
-                if (btn.dataset.period === 'hourly') {
-                    sliderWrap.style.display = 'none';
-                    drawPhChart('hourly', days);
-                } else {
-                    sliderWrap.style.display = 'flex';
-                    drawPhChart('daily', days);
-                }
-            });
-        });
 
-        // Slider input: update chart and timeline in real time
-        (function() {
-            var slider = document.getElementById('cspv-ph-days');
-            var daysLabel = document.getElementById('cspv-ph-days-label');
-            var trailLabel = document.getElementById('cspv-ph-trail-label');
-            if (!slider) return;
-            slider.addEventListener('input', function() {
-                var days = parseInt(slider.value);
-                daysLabel.textContent = days + ' day' + (days === 1 ? '' : 's');
-                trailLabel.textContent = days + ' Day';
-                var activePeriod = document.querySelector('.cspv-ph-period.active');
-                if (!activePeriod || activePeriod.dataset.period === 'daily') {
-                    drawPhChart('daily', days);
-                    renderTimeline(days);
-                }
-            });
-        })();
-
-        var resyncBtn = document.getElementById('cspv-ph-resync');
-        if (resyncBtn) resyncBtn.addEventListener('click', function() {
-            var btn = this;
-            btn.disabled = true;
-            btn.textContent = 'Resyncing...';
-            fetch(ajaxUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=cspv_resync_meta&nonce=' + encodeURIComponent(nonce) + '&post_id=' + currentPostId
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(resp) {
-                btn.disabled = false;
-                btn.textContent = 'Resync meta';
-                if (resp.success) {
-                    var st = document.getElementById('cspv-ph-resync-status');
-                    st.textContent = '\u2713 Resynced: ' + resp.data.old_count.toLocaleString() + ' \u2192 ' + resp.data.new_count.toLocaleString();
-                    st.style.color = '#059669';
-                    document.getElementById('cspv-ph-meta').textContent = resp.data.new_count.toLocaleString();
-                    loadPostHistory(currentPostId);
-                }
-            })
-            .catch(function() { btn.disabled = false; btn.textContent = 'Resync meta'; });
-        });
     })();
 
 })();

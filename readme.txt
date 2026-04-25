@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.9.209
+Stable tag: 2.9.218
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,7 +85,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
-= 2.9.209 =
+= 2.9.218 =
 * Remove Jetpack migration tab and all transition blending logic
 * All Time Views now sources from beacon log (cspv_views_v2) only, not post meta
 * Stat cards always show actual tracked views; post_meta fallback removed

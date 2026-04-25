@@ -314,23 +314,6 @@ function cspv_ajax_chart_data() {
     $total_views  = cspv_views_for_range( $from_str, $to_str );
     $unique_posts = cspv_unique_posts_for_range( $from_str, $to_str );
 
-    // Transition blending: if log table has fewer days than the selected
-    // period, add lifetime meta totals so the cards are not misleadingly low.
-    $earliest_log = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
-    $log_age_days = $earliest_log ? (int) floor( ( time() - strtotime( $earliest_log ) ) / 86400 ) : 0;
-    $in_transition = ( $log_age_days < max( 1, $diff_days ) );
-
-    if ( $in_transition ) {
-        $lt_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT SUM(CAST(meta_value AS UNSIGNED)) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
-        );
-        $lt_posts = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
-        );
-        $total_views  = max( $total_views, $lt_total );
-        $unique_posts = max( $unique_posts, $lt_posts );
-    }
-
     $top_posts = cspv_top_pages( $from_str, $to_str, 10 );
 
     if ( $rolling24h && $diff_days === 0 ) {
@@ -384,34 +367,11 @@ function cspv_ajax_chart_data() {
     }
     $lifetime_visitors = cspv_unique_visitors_for_range( '2000-01-01', '2099-12-31' );
 
-    // ── Lifetime totals from post meta (includes Jetpack imports) ────
-    $lifetime_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT SUM(CAST(meta_value AS UNSIGNED)) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
+    // ── Lifetime totals from beacon log ─────────────────────────────
+    $lifetime_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+        "SELECT SUM(view_count) FROM `{$table}`"
     );
-    $lifetime_posts = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_cspv_view_count' AND meta_value > 0"
-    );
-
-    // All time top posts
-    $lifetime_top     = array();
-    $lifetime_top_raw = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT pm.post_id, CAST(pm.meta_value AS UNSIGNED) AS total_views
-         FROM {$wpdb->postmeta} pm
-         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_status = 'publish' AND p.post_type = 'post'
-         WHERE pm.meta_key = '_cspv_view_count' AND pm.meta_value > 0
-         ORDER BY total_views DESC LIMIT 10"
-    );
-    if ( is_array( $lifetime_top_raw ) ) {
-        foreach ( $lifetime_top_raw as $row ) {
-            $pid  = absint( $row->post_id );
-            $post = get_post( $pid );
-            $lifetime_top[] = array(
-                'title' => $post ? esc_html( $post->post_title ) : 'Post #' . $pid,
-                'url'   => $post ? esc_url( get_permalink( $post ) ) : '',
-                'views' => (int) $row->total_views,
-            );
-        }
-    }
+    $lifetime_top   = cspv_top_pages( '2000-01-01 00:00:00', '2099-12-31 23:59:59', 10 );
 
     wp_send_json_success( array(
         'chart'          => array_values( $chart_rows ),
@@ -426,6 +386,16 @@ function cspv_ajax_chart_data() {
         'referrer_pages'  => $referrer_pages,
         'countries'       => $countries,
         'geo_source'      => get_option( 'cspv_geo_source', 'auto' ),
+        'geo_source_actual' => ( function() {
+            $s = get_option( 'cspv_geo_source', 'auto' );
+            if ( 'cloudflare' === $s ) { return 'cloudflare'; }
+            if ( 'dbip'       === $s ) { return 'dbip'; }
+            if ( 'disabled'   === $s ) { return 'disabled'; }
+            // auto: CF wins if header present, else DB-IP if mmdb exists, else none
+            if ( ! empty( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) { return 'cloudflare'; }
+            $mmdb = WP_CONTENT_DIR . '/uploads/cspv-geo/dbip-city-lite.mmdb';
+            return file_exists( $mmdb ) ? 'dbip' : 'none';
+        } )(),
         'session_depth'      => $session_depth,
         'prev_session_depth' => $prev_session_depth,
         'hot_pages'          => $hot_pages,
@@ -434,8 +404,7 @@ function cspv_ajax_chart_data() {
         'prev_visitors'      => $prev_visitors,
         'lifetime_visitors'  => $lifetime_visitors,
         'lifetime_total' => $lifetime_total,
-        'lifetime_posts' => $lifetime_posts,
-        'lifetime_top'      => $lifetime_top,
+        'lifetime_top'   => $lifetime_top,
     ) );
 }
 
@@ -467,7 +436,7 @@ function cspv_ajax_post_search() {
         'orderby'        => 'relevance',
     );
     $posts = get_posts( $args );
-    // Get log counts for imported calculation
+    // Get log counts for each result
     $search_log_counts = array();
     if ( ! empty( $posts ) ) {
         $s_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $posts ) );
@@ -487,13 +456,13 @@ function cspv_ajax_post_search() {
         $views   = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
         $log_cnt = isset( $search_log_counts[ $p->ID ] ) ? $search_log_counts[ $p->ID ] : 0;
         $results[] = array(
-            'id'      => $p->ID,
-            'title'   => $p->post_title,
-            'type'    => $p->post_type,
-            'date'    => get_the_date( 'j M Y', $p ),
-            'views'   => $views,
-            'jetpack' => max( 0, $views - $log_cnt ),
-            'url'     => get_permalink( $p->ID ),
+            'id'       => $p->ID,
+            'title'    => $p->post_title,
+            'type'     => $p->post_type,
+            'date'     => get_the_date( 'j M Y', $p ),
+            'views'    => $views,
+            'pageviews' => $log_cnt,
+            'url'      => get_permalink( $p->ID ),
         );
     }
     wp_send_json_success( $results );
@@ -524,7 +493,6 @@ function cspv_ajax_post_history() {
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-    $jp_views   = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $log_count  = 0;
     $first_log  = null;
     $last_log   = null;
@@ -537,7 +505,7 @@ function cspv_ajax_post_history() {
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d AND source = 'tracked'", $post_id ) );
+            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
         $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
@@ -600,25 +568,21 @@ function cspv_ajax_post_history() {
         }
     }
 
-    $jetpack_imported = max( 0, $meta_count - $log_count );
     $post = get_post( $post_id );
 
     wp_send_json_success( array(
-        'post_id'          => $post_id,
-        'title'            => $post ? $post->post_title : '(deleted)',
-        'url'              => $post ? get_permalink( $post_id ) : '',
-        'published'        => $post ? get_the_date( 'j M Y', $post ) : '',
-        'published_ymd'    => $post ? get_the_date( 'Y-m-d', $post ) : '',
-        'meta_count'       => $meta_count,
-        'log_count'        => $log_count,
-        'jp_views'         => $jp_views,
-        'jetpack_imported' => $jetpack_imported,
-        'first_log'        => $first_log,
-        'last_log'         => $last_log,
-        'daily'            => $daily,
-        'hourly'           => $hourly,
-        'timeline'         => isset( $timeline ) ? $timeline : array(),
-        'mismatch'         => false,  // No mismatch warning needed; imported = meta - log
+        'post_id'       => $post_id,
+        'title'         => $post ? $post->post_title : '(deleted)',
+        'url'           => $post ? get_permalink( $post_id ) : '',
+        'published'     => $post ? get_the_date( 'j M Y', $post ) : '',
+        'published_ymd' => $post ? get_the_date( 'Y-m-d', $post ) : '',
+        'meta_count'    => $meta_count,
+        'log_count'     => $log_count,
+        'first_log'     => $first_log,
+        'last_log'      => $last_log,
+        'daily'         => $daily,
+        'hourly'        => $hourly,
+        'timeline'      => isset( $timeline ) ? $timeline : array(),
     ) );
 }
 
@@ -646,18 +610,15 @@ function cspv_ajax_resync_meta_from_stats() {
     $cnt       = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
-    $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
-    $new_count = $log_count + max( 0, $jp_views );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 
-    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
+    update_post_meta( $post_id, CSPV_META_KEY, $log_count );
 
     wp_send_json_success( array(
         'post_id'   => $post_id,
         'old_count' => $old_count,
-        'new_count' => $new_count,
+        'new_count' => $log_count,
         'log_rows'  => $log_count,
-        'jp_views'  => $jp_views,
     ) );
 }
 
@@ -899,7 +860,7 @@ function cspv_ajax_purge_visitors() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cspv_visitors_v2';
+    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
     $days  = absint( wp_unslash( $_POST['days'] ?? 90 ) );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
@@ -991,10 +952,6 @@ function cspv_render_stats_page() {
     $ajax_nonce      = wp_create_nonce( 'cspv_chart_data' );
     $throttle_nonce  = wp_create_nonce( 'cspv_throttle' );
     $today           = current_time( 'Y-m-d' );
-    $migrate_nonce    = wp_create_nonce( 'cspv_migrate' );
-    $migration_log    = (array) get_option( 'cspv_migration_log', array() );
-    $migration_locked = cspv_migration_is_locked();
-    $migration_lock   = get_option( 'cspv_migration_complete', false );
     $throttle_enabled = cspv_throttle_enabled();
     $throttle_limit   = cspv_throttle_limit();
     $throttle_window  = cspv_throttle_window_seconds();
@@ -1021,21 +978,6 @@ function cspv_render_stats_page() {
         'orderby'        => 'meta_value_num',
         'order'          => 'DESC',
     ) );
-    // Preload log counts for jetpack imported calculation
-    $ph_log_counts = array();
-    if ( ! empty( $ph_top_posts ) ) {
-        $ph_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $ph_top_posts ) );
-        $ph_table = cspv_views_table();
-        $ph_cnt   = cspv_count_expr();
-        $ph_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ph_table ) );
-        if ( $ph_table_exists ) {
-            $ph_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT post_id, {$ph_cnt} AS cnt FROM `{$ph_table}` WHERE post_id IN ({$ph_ids_str}) GROUP BY post_id" );
-            foreach ( (array) $ph_rows as $pr ) {
-                $ph_log_counts[ (int) $pr->post_id ] = (int) $pr->cnt;
-            }
-        }
-    }
 
     // Display settings
     $dsp_position    = get_option( 'cspv_auto_display', 'before_content' );
@@ -1068,7 +1010,6 @@ function cspv_render_stats_page() {
         <button class="cspv-tab" data-tab="display">👁 Display</button>
         <button class="cspv-tab" data-tab="throttle">🛡 IP Throttle</button>
         <button class="cspv-tab" data-tab="history">🔍 Post History</button>
-        <button class="cspv-tab" data-tab="migrate">🔀 Migrate Jetpack</button>
         <span class="cspv-tab-spacer"></span>
         <button class="cspv-tab-help" id="cspv-help-btn" title="Help">❓ Help</button>
     </div>
@@ -1138,7 +1079,7 @@ function cspv_render_stats_page() {
             </div>
         </div>
 
-        <!-- Lifetime stats bar (includes imported Jetpack data) -->
+        <!-- Lifetime stats bar -->
         <div id="cspv-lifetime-bar">
             <div class="cspv-lifetime-stat">
                 <span class="cspv-lifetime-label">🏆 All Time Views</span>
@@ -1186,7 +1127,7 @@ function cspv_render_stats_page() {
         <div id="cspv-geo-panel" style="margin-top:16px;">
             <div class="cspv-panel" style="flex:1;">
                 <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:6px 6px 0 0;">
-                    <span>🌍 Geography <span id="cspv-geo-range" style="font-size:11px;font-weight:400;opacity:0.8;"></span></span>
+                    <span>🌍 Geography <span id="cspv-geo-range" style="font-size:11px;font-weight:400;opacity:0.8;"></span><span id="cspv-geo-source-badge" style="display:none;margin-left:8px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;vertical-align:middle;letter-spacing:0.03em;"></span></span>
                     <a href="#" id="cspv-geo-reset" style="font-size:11px;color:rgba(255,255,255,.8);text-decoration:underline;font-weight:400;">Reset Map</a>
                 </div>
                 <div id="cspv-geo-map" style="height:300px;width:100%;background:#f0fdf4;"></div>
@@ -1212,7 +1153,7 @@ function cspv_render_stats_page() {
             </div>
         </div>
 
-        <!-- All time panel (includes Jetpack imported views) -->
+        <!-- All time panel -->
         <div id="cspv-panels-alltime">
             <div class="cspv-panel" style="flex:1;">
                 <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#1a3a8f,#1e6fd9);border-radius:6px 6px 0 0;">
@@ -1469,7 +1410,7 @@ function cspv_render_stats_page() {
                 <div id="cspv-purge-status" style="font-size:11px;color:#666;margin-top:8px;"></div>
                 <?php
                 global $wpdb;
-                $vis_table = $wpdb->prefix . 'cspv_visitors_v2';
+                $vis_table = $wpdb->prefix . 'cs_analytics_visitors_v2';
                 $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 if ( $vis_exists ) {
                     $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
@@ -1736,151 +1677,6 @@ function cspv_render_stats_page() {
 
     </div><!-- /throttle tab -->
 
-    <!-- ═══════════════════════ MIGRATE TAB ════════════════════════ -->
-    <div id="cspv-tab-migrate" class="cspv-tab-content">
-        <div id="cspv-migrate-inner">
-
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#5a1a8f,#8b2be2);">
-                <span>🔀 Migrate Jetpack Statistics <a class="cspv-info-btn" data-info="migrate" title="Info">i</a></span>
-                <?php if ( $migration_locked ) : ?>
-                <span style="background:rgba(255,255,255,.2);border-radius:12px;font-size:11px;padding:3px 10px;font-weight:700;">🔒 Migration complete</span>
-                <?php endif; ?>
-            </div>
-
-            <div style="padding:20px 24px;">
-
-                <?php if ( $migration_locked && is_array( $migration_lock ) ) : ?>
-                <!-- Already migrated banner -->
-                <div style="background:#f0faf4;border:1.5px solid #1db954;border-radius:6px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
-                    <div>
-                        <div style="font-size:14px;font-weight:700;color:#1a7a3a;margin-bottom:6px;">✅ Migration already completed</div>
-                        <div style="font-size:13px;color:#444;line-height:1.8;">
-                            Ran on <strong><?php echo esc_html( $migration_lock['date'] ?? '—' ); ?></strong> ·
-                            <strong><?php echo (int) ( $migration_lock['posts_migrated'] ?? 0 ); ?></strong> posts ·
-                            <strong><?php echo esc_html( number_format( (int) ( $migration_lock['views_imported'] ?? 0 ) ) ); ?></strong> views imported ·
-                            Mode: <strong><?php echo esc_html( $migration_lock['mode'] ?? '—' ); ?></strong>
-                        </div>
-                        <div style="font-size:12px;color:#888;margin-top:6px;">
-                            Running migration again would double-count views already imported. Use Reset Lock only if you need to re-import (e.g. after adding content from a Jetpack export).
-                        </div>
-                    </div>
-                    <button id="cspv-btn-reset-lock" class="cspv-btn-danger-sm" style="white-space:nowrap;flex-shrink:0;">
-                        🔓 Reset Lock
-                    </button>
-                </div>
-                <?php endif; ?>
-
-                <p style="font-size:13px;color:#444;line-height:1.7;margin:0 0 16px;">
-                    This tool reads your historical Jetpack view counts and imports them into CloudScale Page Views.
-                    After migration you can safely disable Jetpack's Stats module or uninstall Jetpack entirely.
-                    <strong>Migration runs once</strong> — a lock prevents accidental double-counting.
-                </p>
-
-                <div id="cspv-migrate-preflight" style="background:#f7f3ff;border:1.5px solid #c9a8f5;border-radius:6px;padding:14px 18px;margin-bottom:18px;">
-                    <div style="font-size:13px;color:#5a1a8f;font-weight:700;margin-bottom:4px;">What will be migrated</div>
-                    <div id="cspv-preflight-status" style="font-size:13px;color:#666;">
-                        <em>Click "Check" to scan your Jetpack data before committing.</em>
-                    </div>
-                </div>
-
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
-                    <button id="cspv-btn-check" class="cspv-btn-primary" style="background:linear-gradient(135deg,#5a1a8f,#8b2be2);"
-                            <?php if ( $migration_locked ) : ?>disabled title="Reset the migration lock first to re-check"<?php endif; ?>>
-                        🔍 Check Jetpack Data
-                    </button>
-                    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px;">
-                        <input type="radio" name="cspv_migrate_mode" value="additive" checked>
-                        Additive <span style="color:#999;">(add Jetpack views on top of existing CS views)</span>
-                    </label>
-                    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:6px;">
-                        <input type="radio" name="cspv_migrate_mode" value="replace">
-                        Replace <span style="color:#999;">(overwrite CS view counts with Jetpack totals)</span>
-                    </label>
-                </div>
-
-                <div id="cspv-migrate-postlist" style="display:none;margin-bottom:20px;">
-                    <div class="cspv-section-header cspv-section-header-green">
-                        <span>Posts found in Jetpack</span><span>JP Views → Will add</span>
-                    </div>
-                    <div id="cspv-migrate-rows"></div>
-                </div>
-
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <button id="cspv-btn-migrate" class="cspv-btn-primary"
-                            style="background:linear-gradient(135deg,#1a7a3a,#1db954);display:none;">
-                        ✅ Run Migration
-                    </button>
-                    <span id="cspv-migrate-status" style="font-size:13px;font-weight:700;"></span>
-                </div>
-
-                <div id="cspv-migrate-result" style="display:none;background:#f0faf4;border:1.5px solid #1db954;border-radius:6px;padding:14px 18px;margin-top:16px;">
-                    <div style="font-size:14px;font-weight:700;color:#1a7a3a;margin-bottom:8px;">✅ Migration complete</div>
-                    <div id="cspv-migrate-result-body" style="font-size:13px;color:#444;line-height:1.8;"></div>
-                    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #b7e4c7;font-size:12px;color:#666;">
-                        <strong>Next steps:</strong><br>
-                        1. Disable Jetpack Stats module (Jetpack → Settings → Traffic → Stats toggle off).<br>
-                        2. Update theme templates: replace <code>jetpack_get_stat()</code> with <code>cspv_get_view_count()</code>.<br>
-                        3. Once confirmed working, you can safely uninstall Jetpack.
-                    </div>
-                </div>
-
-                <!-- Manual CSV import (shown when Jetpack is cloud-only) -->
-                <div id="cspv-manual-import-section" style="display:none;margin-top:20px;border-top:2px dashed #e2e8f0;padding-top:18px;">
-                    <div style="font-size:13px;font-weight:700;color:#1a2332;margin-bottom:8px;">📋 Manual Import from WordPress.com CSV</div>
-                    <p style="font-size:12px;color:#666;line-height:1.7;margin:0 0 10px;">
-                        1. Log in to <strong>WordPress.com</strong> → Your Site → Stats → scroll to bottom → <strong>Export CSV</strong>.<br>
-                        2. Open the CSV, copy the post rows in this format (one per line):<br>
-                        <code style="display:inline-block;margin:6px 0;background:#f0f4ff;padding:4px 8px;border-radius:3px;">post-slug-or-id, view_count</code><br>
-                        Example: <code style="background:#f0f4ff;padding:2px 6px;border-radius:3px;">my-first-post, 4521</code>
-                        or &nbsp;<code style="background:#f0f4ff;padding:2px 6px;border-radius:3px;">42, 4521</code>
-                    </p>
-                    <textarea id="cspv-csv-input"
-                        placeholder="my-first-post, 4521&#10;another-post-slug, 1200&#10;42, 890"
-                        style="width:100%;height:110px;font-family:monospace;font-size:12px;border:1.5px solid #dde3ee;border-radius:4px;padding:8px;box-sizing:border-box;resize:vertical;color:#333;"></textarea>
-                    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
-                        <button id="cspv-btn-manual-import" class="cspv-btn-primary" style="background:linear-gradient(135deg,#c45c00,#f47c20);">
-                            📥 Import CSV Data
-                        </button>
-                        <span id="cspv-manual-import-status" style="font-size:13px;font-weight:700;"></span>
-                    </div>
-                </div>
-            </div>
-
-            <?php if ( ! empty( $migration_log ) ) : ?>
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#2d3748,#4a5568);margin-top:0;">
-                <span>Migration History</span>
-            </div>
-            <div style="padding:16px 24px;">
-                <?php foreach ( $migration_log as $entry ) : ?>
-                <div style="display:flex;gap:16px;padding:8px 0;border-bottom:1px solid #f0f4ff;font-size:12px;color:#555;flex-wrap:wrap;">
-                    <span style="color:#888;"><?php echo esc_html( $entry['date'] ); ?></span>
-                    <span><strong><?php echo (int) $entry['posts_migrated']; ?></strong> posts migrated</span>
-                    <span><strong><?php echo esc_html( number_format( (int) $entry['views_imported'] ) ); ?></strong> views imported</span>
-                    <span><?php echo (int) $entry['posts_skipped']; ?> skipped</span>
-                    <span style="background:<?php echo esc_attr( $entry['mode'] === 'replace' ? '#fff3e8' : '#e8f5ff' ); ?>;padding:1px 6px;border-radius:3px;">
-                        <?php echo esc_html( $entry['mode'] ); ?>
-                    </span>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
-        <!-- Hide/Delete Jetpack data controls -->
-        <div class="cspv-section-header" style="background:linear-gradient(135deg,#4a1a1a,#8b2222);margin-top:0;">
-            <span>🗑 Jetpack Data Management</span>
-        </div>
-        <div style="padding:16px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-            <button id="cspv-btn-delete-jetpack" class="cspv-btn-danger-sm" style="margin-left:auto;">
-                🗑 Delete Jetpack Data
-            </button>
-            <span id="cspv-delete-jetpack-status" style="font-size:12px;font-weight:700;"></span>
-        </div>
-
-        </div>
-    </div><!-- /migrate tab -->
-
-    <!-- ═══════════════════════ V2 SCHEMA MIGRATION TAB ═════════════ -->
-
     <!-- ═══════════════════════ POST HISTORY TAB ═══════════════════ -->
     <div id="cspv-tab-history" class="cspv-tab-content">
 
@@ -1908,19 +1704,15 @@ function cspv_render_stats_page() {
                         <div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post ▼</div>
                         <div class="cspv-ph-sort" data-col="views" style="width:100px;text-align:right;cursor:pointer;">Total Views</div>
                         <div class="cspv-ph-sort" data-col="pageviews" style="width:100px;text-align:right;cursor:pointer;">Page Views</div>
-                        <div class="cspv-ph-sort" data-col="jetpack" style="width:100px;text-align:right;cursor:pointer;">Jetpack</div>
                     </div>
                     <?php foreach ( $ph_top_posts as $i => $p ) :
-                        $views    = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
-                        $ph_logged = isset( $ph_log_counts[ $p->ID ] ) ? $ph_log_counts[ $p->ID ] : 0;
-                        $jetpack  = max( 0, $views - $ph_logged );
+                        $views     = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
                         $bg = $i % 2 === 0 ? '#fff' : '#f8f9fa';
                     ?>
                     <div class="cspv-ph-row" data-id="<?php echo (int) $p->ID; ?>"
                          data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
                          data-views="<?php echo esc_attr( (int) $views ); ?>"
-                         data-pageviews="<?php echo esc_attr( (int) $ph_logged ); ?>"
-                         data-jetpack="<?php echo esc_attr( (int) $jetpack ); ?>"
+                         data-pageviews="0"
                          data-url="<?php echo esc_attr( get_permalink( $p->ID ) ); ?>"
                          style="display:flex;align-items:center;
                         padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
@@ -1932,10 +1724,7 @@ function cspv_render_stats_page() {
                             <?php echo esc_html( number_format( $views ) ); ?>
                         </div>
                         <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">
-                            <?php echo esc_html( number_format( $ph_logged ) ); ?>
-                        </div>
-                        <div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:<?php echo esc_attr( $jetpack > 0 ? '#f47c20' : '#ccc' ); ?>;font-variant-numeric:tabular-nums;">
-                            <?php echo $jetpack > 0 ? esc_html( number_format( $jetpack ) ) : '—'; ?>
+                            —
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -1959,22 +1748,8 @@ function cspv_render_stats_page() {
                     <div class="cspv-ph-card">
                         <div class="cspv-ph-card-label">Page Views</div>
                         <div class="cspv-ph-card-value" id="cspv-ph-log" style="color:#2e86c1;">0</div>
-                        <div class="cspv-ph-card-sub">wp_cspv_views_v2 tracked rows</div>
+                        <div class="cspv-ph-card-sub">wp_cs_analytics_views_v2 tracked rows</div>
                     </div>
-                    <div class="cspv-ph-card">
-                        <div class="cspv-ph-card-label">Jetpack Imported</div>
-                        <div class="cspv-ph-card-value" id="cspv-ph-jp" style="color:#f47c20;">0</div>
-                        <div class="cspv-ph-card-sub">total minus page views</div>
-                    </div>
-                </div>
-                <div id="cspv-ph-jpmeta" style="display:none;"></div>
-
-                <div id="cspv-ph-warn" style="display:none;background:#fef3cd;border:1px solid #f0d060;border-radius:6px;
-                    padding:12px 16px;margin-bottom:16px;font-size:13px;color:#856404;">
-                    <strong>⚠ Count mismatch:</strong> <span id="cspv-ph-warn-text"></span>
-                    <button id="cspv-ph-resync" style="display:inline-block;margin-left:12px;padding:4px 14px;
-                        background:#e53e3e;color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;">Resync meta</button>
-                    <span id="cspv-ph-resync-status" style="margin-left:8px;font-size:12px;font-weight:700;"></span>
                 </div>
 
                 <div style="display:flex;gap:24px;margin-bottom:16px;font-size:12px;color:#666;flex-wrap:wrap;">
@@ -2307,12 +2082,12 @@ ob_start();
         renderReferrers();
 
         // Geography
-        renderGeo(data.countries || [], from, to, data.geo_source || 'auto');
+        renderGeo(data.countries || [], from, to, data.geo_source || 'auto', data.geo_source_actual || '');
 
         // Session depth percentiles
         renderDepth(data.session_depth || null, data.prev_session_depth || null, from, to);
 
-        // Lifetime totals (includes Jetpack imports)
+        // Lifetime totals
         document.getElementById('stat-lifetime-views').textContent =
             (data.lifetime_total || 0).toLocaleString();
         document.getElementById('stat-lifetime-visitors').textContent =
@@ -2581,7 +2356,7 @@ ob_start();
 
 
     // ── Geography rendering ───────────────────────────────────────
-    var countryNames = {AF:'Afghanistan',AL:'Albania',DZ:'Algeria',AO:'Angola',AR:'Argentina',AT:'Austria',AU:'Australia',BD:'Bangladesh',BE:'Belgium',BG:'Bulgaria',BR:'Brazil',CA:'Canada',CH:'Switzerland',CL:'Chile',CN:'China',CO:'Colombia',CZ:'Czechia',DE:'Germany',DK:'Denmark',EG:'Egypt',ES:'Spain',FI:'Finland',FR:'France',GB:'United Kingdom',GH:'Ghana',GR:'Greece',HK:'Hong Kong',HU:'Hungary',ID:'Indonesia',IE:'Ireland',IL:'Israel',IN:'India',IQ:'Iraq',IR:'Iran',IT:'Italy',JP:'Japan',KE:'Kenya',KR:'South Korea',MA:'Morocco',MX:'Mexico',MY:'Malaysia',NG:'Nigeria',NL:'Netherlands',NO:'Norway',NZ:'New Zealand',PH:'Philippines',PK:'Pakistan',PL:'Poland',PT:'Portugal',RO:'Romania',RU:'Russia',SA:'Saudi Arabia',SE:'Sweden',SG:'Singapore',TH:'Thailand',TR:'Turkey',TW:'Taiwan',TZ:'Tanzania',UA:'Ukraine',US:'United States',VN:'Vietnam',ZA:'South Africa',ZW:'Zimbabwe'};
+    var countryNames = {AF:'Afghanistan',AL:'Albania',DZ:'Algeria',AO:'Angola',AR:'Argentina',AM:'Armenia',AT:'Austria',AU:'Australia',AZ:'Azerbaijan',BA:'Bosnia and Herzegovina',BD:'Bangladesh',BE:'Belgium',BF:'Burkina Faso',BG:'Bulgaria',BJ:'Benin',BO:'Bolivia',BR:'Brazil',BS:'Bahamas',BW:'Botswana',BY:'Belarus',BZ:'Belize',CA:'Canada',CD:'DR Congo',CI:'Côte d\'Ivoire',CM:'Cameroon',CH:'Switzerland',CL:'Chile',CN:'China',CO:'Colombia',CR:'Costa Rica',CZ:'Czechia',DE:'Germany',DK:'Denmark',DO:'Dominican Republic',EC:'Ecuador',EG:'Egypt',ET:'Ethiopia',ES:'Spain',FI:'Finland',FR:'France',GB:'United Kingdom',GH:'Ghana',GR:'Greece',GT:'Guatemala',HK:'Hong Kong',HN:'Honduras',HR:'Croatia',HU:'Hungary',ID:'Indonesia',IE:'Ireland',IL:'Israel',IN:'India',IQ:'Iraq',IR:'Iran',IT:'Italy',JP:'Japan',KE:'Kenya',KG:'Kyrgyzstan',KH:'Cambodia',KZ:'Kazakhstan',KR:'South Korea',LK:'Sri Lanka',MA:'Morocco',MD:'Moldova',MM:'Myanmar',MN:'Mongolia',MO:'Macao',MW:'Malawi',MX:'Mexico',MY:'Malaysia',MZ:'Mozambique',NA:'Namibia',NG:'Nigeria',NL:'Netherlands',NO:'Norway',NP:'Nepal',NZ:'New Zealand',OM:'Oman',PA:'Panama',PE:'Peru',PH:'Philippines',PK:'Pakistan',PL:'Poland',PT:'Portugal',PY:'Paraguay',QA:'Qatar',RO:'Romania',RS:'Serbia',RU:'Russia',RW:'Rwanda',SA:'Saudi Arabia',SD:'Sudan',SE:'Sweden',SG:'Singapore',SK:'Slovakia',SN:'Senegal',SV:'El Salvador',TH:'Thailand',TN:'Tunisia',TR:'Turkey',TW:'Taiwan',TZ:'Tanzania',UA:'Ukraine',UG:'Uganda',US:'United States',UY:'Uruguay',UZ:'Uzbekistan',VN:'Vietnam',YE:'Yemen',ZA:'South Africa',ZM:'Zambia',ZW:'Zimbabwe'};
     function countryFlag(cc) {
         if (!cc || cc.length !== 2) return '';
         return String.fromCodePoint(... Array.from(cc.toUpperCase()).map(function(c){ return 0x1F1E6 - 65 + c.charCodeAt(0); })) + ' ';
@@ -2726,13 +2501,35 @@ ob_start();
         if (sessionsEl) sessionsEl.textContent = depth.sessions.toLocaleString() + ' Sessions';
     }
 
-    function renderGeo(items, from, to, geoSource) {
+    function renderGeo(items, from, to, geoSource, geoSourceActual) {
         var el = document.getElementById('cspv-geo-list');
         var drillEl = document.getElementById('cspv-geo-drill');
         var rangeEl = document.getElementById('cspv-geo-range');
+        var badgeEl = document.getElementById('cspv-geo-source-badge');
         if (drillEl) drillEl.style.display = 'none';
         if (rangeEl && from && to) {
             rangeEl.textContent = (from === to) ? fmtDate(from) : fmtDate(from) + ' to ' + fmtDate(to);
+        }
+        if (badgeEl) {
+            // For auto mode, show the actual source in use; otherwise show the setting
+            var effective = (geoSource === 'auto' && geoSourceActual) ? geoSourceActual : geoSource;
+            var badgeMap = {
+                cloudflare: { label: 'CF-IPCountry', bg: 'rgba(249,115,22,0.85)', color: '#fff' },
+                dbip:       { label: 'DB-IP Lite',   bg: 'rgba(255,255,255,0.25)', color: '#fff' },
+                none:       { label: 'Auto (no source)', bg: 'rgba(0,0,0,0.25)', color: '#fff' },
+                disabled:   { label: 'Disabled',      bg: 'rgba(0,0,0,0.25)',       color: '#fff' },
+                auto:       { label: 'Auto',           bg: 'rgba(255,255,255,0.25)', color: '#fff' }
+            };
+            var b = badgeMap[effective] || badgeMap['auto'];
+            // Prefix "Auto → " when setting is auto but actual source is known
+            var label = b.label;
+            if (geoSource === 'auto' && (effective === 'cloudflare' || effective === 'dbip')) {
+                label = 'Auto → ' + b.label;
+            }
+            badgeEl.textContent = label;
+            badgeEl.style.background = b.bg;
+            badgeEl.style.color = b.color;
+            badgeEl.style.display = 'inline-block';
         }
         updateGeoMap(items);
         if (!items || items.length === 0) {
@@ -2759,18 +2556,29 @@ ob_start();
                  + '</div>';
         }).join('');
         el.querySelectorAll('.cspv-row[data-country]').forEach(function(row) {
-            row.addEventListener('click', function() { drillCountry(this.dataset.country); });
+            row.addEventListener('click', function() { drillCountry(this.dataset.country, this); });
         });
     }
 
-    function drillCountry(cc) {
+    function drillCountry(cc, rowEl) {
         var drillEl  = document.getElementById('cspv-geo-drill');
         var headerEl = document.getElementById('cspv-geo-drill-header');
         var listEl   = document.getElementById('cspv-geo-drill-list');
         var fromVal  = document.getElementById('cspv-from').value;
         var toVal    = document.getElementById('cspv-to').value;
+        // Toggle off if clicking the already-open country
+        if (drillEl.style.display !== 'none' && drillEl.dataset.openCountry === cc) {
+            drillEl.style.display = 'none';
+            drillEl.dataset.openCountry = '';
+            return;
+        }
+        drillEl.dataset.openCountry = cc;
         headerEl.textContent = countryFlag(cc) + countryName(cc) + ' — Top Pages';
         listEl.innerHTML = '<div class="cspv-loading">Loading…</div>';
+        // Move drill panel to appear directly under the clicked country row
+        if (rowEl && rowEl.parentNode) {
+            rowEl.parentNode.insertBefore(drillEl, rowEl.nextSibling);
+        }
         drillEl.style.display = 'block';
         var fd = new FormData();
         fd.append('action', 'cspv_country_drill');
@@ -2805,7 +2613,9 @@ ob_start();
     }
 
     document.getElementById('cspv-geo-drill-back').addEventListener('click', function() {
-        document.getElementById('cspv-geo-drill').style.display = 'none';
+        var drillEl = document.getElementById('cspv-geo-drill');
+        drillEl.style.display = 'none';
+        drillEl.dataset.openCountry = '';
     });
 
     document.getElementById('cspv-geo-reset').addEventListener('click', function(e) {
@@ -3172,8 +2982,8 @@ ob_start();
             cards: [
                 { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>posts viewed</strong>, <strong>unique visitors</strong>, and <strong>hot pages</strong> for the selected date range. Use the quick range buttons (7h, Last 24h, 1 Week, 1 Month, 3 Months, 6 Months) or the custom date picker to change the period.' },
                 { title: 'Chart', badge: 'info', body: 'The chart displays views over time. Short ranges show hourly breakdown, medium ranges show daily bars, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
-                { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here (not imported Jetpack totals). Click any title to visit the post.' },
-                { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total across all posts, including any imported Jetpack data. The All Time Top Posts list ranks by lifetime total, combining imported data with tracked views.' },
+                { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here. Click any title to visit the post.' },
+                { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total views tracked by the beacon. The All Time Top Posts list ranks by lifetime total tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
                 { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Bypass Cache.' },
                 { title: 'Installation', badge: 'required', body: 'No additional installation required. The plugin creates its database table automatically on activation. Ensure your Cloudflare Cache Rule is set up (see Cache Bypass above) for accurate counting behind a CDN.' }
@@ -3208,22 +3018,11 @@ ob_start();
             cards: [
                 { title: 'Browsing Posts', badge: 'info', body: 'The top list shows your 100 most-viewed posts ranked by total view count. Click any row to load that post\'s detail panel. Click the <strong>↗</strong> link next to a title to open the post on your site in a new tab. Use the search box to find posts by title if they are not in the top 100.' },
                 { title: 'Timeline Slider', badge: 'tip', body: 'Use the <strong>Window</strong> slider (7–180 days) to control how much history is shown in the daily chart and the Audit Trail below it. Drag left to zoom in on recent activity, or right to see the full 6 month picture. The slider is hidden in "Last 48 hours" mode.' },
-                { title: 'View Counts Explained', badge: 'info', body: '<strong>Total Views</strong> is the number stored in <code>_cspv_view_count</code> post meta — the count visitors see on the front end. <strong>Page Views</strong> is the number of rows in the tracking log table for this post. <strong>Jetpack Imported</strong> is the difference: if you migrated from Jetpack, this is your pre-CloudScale historic total.' },
-                { title: 'Count Mismatch Warning', badge: 'info', body: 'If the displayed count does not equal log rows + Jetpack imported, a yellow warning appears. This can happen after manual edits or partial migrations. Click <strong>Resync meta</strong> to recalculate the correct total from log rows + Jetpack meta and write it back to post meta.' },
-                { title: 'Daily Chart vs Hourly', badge: 'info', body: 'The <strong>Daily Chart</strong> button shows views per day within the slider window (up to 180 days). The <strong>Last 48 hours</strong> button shows an hour-by-hour breakdown of the last 2 days. Both draw from the tracking log table only (Jetpack imported views are not split per day).' },
+                { title: 'View Counts Explained', badge: 'info', body: '<strong>Total Views</strong> is the number stored in <code>_cspv_view_count</code> post meta — the count visitors see on the front end. <strong>Page Views</strong> is the number of rows in the tracking log table for this post.' },
+                { title: 'Daily Chart vs Hourly', badge: 'info', body: 'The <strong>Daily Chart</strong> button shows views per day within the slider window (up to 180 days). The <strong>Last 48 hours</strong> button shows an hour-by-hour breakdown of the last 2 days. Both draw from the tracking log table.' },
                 { title: 'Audit Trail', badge: 'info', body: 'The Audit Trail below the chart shows every day in the slider window with a view count and the top referring domain for that day. Days with zero views are shown in grey. The row highlighted in blue marks the post\'s published date.' }
             ]
         },
-        'migrate': {
-            title: 'Jetpack Migration — How It Works',
-            cards: [
-                { title: 'What Migration Does', badge: 'info', body: 'Reads your historical Jetpack view counts (<code>jetpack_post_views</code> meta) and imports them into CloudScale (<code>_cspv_view_count</code> field). After migration you can safely disable Jetpack Stats or uninstall Jetpack entirely.' },
-                { title: 'One Time Operation', badge: 'info', body: 'Migration runs <strong>once</strong>. A lock prevents accidental re-runs that would double-count views. The lock records how many posts and views were imported, and when.' },
-                { title: 'Transition Period', badge: 'info', body: 'For the first <strong>28 days</strong> after migration, the plugin blends imported totals with new tracked data so your historically popular posts remain visible while CloudScale builds its own history. After 28 days, ranking switches to pure tracked data.' },
-                { title: 'Reset Lock', badge: 'optional', body: 'If you need to re-import (for example after adding content from a Jetpack export), use the <strong>Reset Lock</strong> button. This allows the migration to run again. Be aware that re-running without resetting view counts first will double-count.' },
-                { title: 'Installation', badge: 'required', body: 'Jetpack (or its Stats module) must have been previously active so that <code>jetpack_post_views</code> meta values exist. No external API access is needed — the migration reads directly from your WordPress database.' }
-            ]
-        }
     };
 
     // Determine current active tab
@@ -3408,289 +3207,19 @@ ob_start();
         });
     })();
 
-    // ── Jetpack Migration ──────────────────────────────────────────
-    var migrateNonce  = <?php echo wp_json_encode( $migrate_nonce ); ?>;
-    var preflight     = null;
-
-    // Reset migration lock
-    var resetLockBtn = document.getElementById('cspv-btn-reset-lock');
-    if (resetLockBtn) {
-        resetLockBtn.addEventListener('click', function() {
-            if (!confirm('Reset the migration lock?\n\nOnly do this if you genuinely need to re-run the migration (e.g. after restoring a database backup or importing new content). Running migration twice on the same data WILL double your view counts.')) { return; }
-            var btn = this;
-            btn.disabled = true;
-            btn.textContent = '⏳ Resetting…';
-            var fd = new FormData();
-            fd.append('action', 'cspv_migration_reset_lock');
-            fd.append('nonce',  migrateNonce);
-            fetch(ajaxUrl, { method: 'POST', body: fd })
-                .then(function(r){ return r.json(); })
-                .then(function(resp) {
-                    if (resp.success) {
-                        window.location.reload();
-                    } else {
-                        btn.disabled = false;
-                        btn.textContent = '🔓 Reset Lock';
-                        alert('Failed to reset lock: ' + (resp.data && resp.data.message ? resp.data.message : 'Unknown error'));
-                    }
-                });
-        });
-    }
-
-
-    // ── Delete Jetpack data ───────────────────────────────────────
-    var deleteJetpackBtn = document.getElementById('cspv-btn-delete-jetpack');
-    if (deleteJetpackBtn) {
-        deleteJetpackBtn.addEventListener('click', function() {
-            if (!confirm('Permanently delete all Jetpack-imported rows from the views table?\n\nThis also clears the migration lock and log. This cannot be undone.')) { return; }
-            var btn = this;
-            var status = document.getElementById('cspv-delete-jetpack-status');
-            btn.disabled = true;
-            btn.textContent = '⏳ Deleting…';
-            status.style.color = '#888';
-            status.textContent = 'Working…';
-            var fd = new FormData();
-            fd.append('action', 'cspv_delete_jetpack_data');
-            fd.append('nonce',  migrateNonce);
-            fetch(ajaxUrl, { method: 'POST', body: fd })
-                .then(function(r) { return r.json(); })
-                .then(function(resp) {
-                    if (resp.success) {
-                        status.style.color = '#1a7a3a';
-                        status.textContent = '✅ ' + resp.data.message;
-                        btn.textContent = '🗑 Delete Jetpack Data';
-                        btn.disabled = false;
-                        setTimeout(function() { window.location.reload(); }, 1500);
-                    } else {
-                        status.style.color = '#c0392b';
-                        status.textContent = '✗ ' + (resp.data && resp.data.message ? resp.data.message : 'Error');
-                        btn.textContent = '🗑 Delete Jetpack Data';
-                        btn.disabled = false;
-                    }
-                })
-                .catch(function(err) {
-                    status.style.color = '#c0392b';
-                    status.textContent = '✗ ' + err.message;
-                    btn.textContent = '🗑 Delete Jetpack Data';
-                    btn.disabled = false;
-                });
-        });
-    }
-
-    document.getElementById('cspv-btn-check').addEventListener('click', function() {
-        var btn = this;
-        btn.disabled = true;
-        btn.textContent = '⏳ Scanning…';
-        document.getElementById('cspv-preflight-status').innerHTML = 'Scanning Jetpack data…';
-        document.getElementById('cspv-migrate-postlist').style.display = 'none';
-        document.getElementById('cspv-btn-migrate').style.display = 'none';
-
-        var fd = new FormData();
-        fd.append('action', 'cspv_jetpack_preflight');
-        fd.append('nonce',  migrateNonce);
-
-        fetch(ajaxUrl, { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(resp) {
-                btn.disabled = false;
-                btn.textContent = '🔍 Check Jetpack Data';
-                if (!resp.success) {
-                    document.getElementById('cspv-preflight-status').innerHTML =
-                        '<span style="color:#e53e3e;">Error: ' + esc(resp.data.message || 'Unknown error') + '</span>';
-                    return;
-                }
-                preflight = resp.data;
-                renderPreflight(preflight);
-            })
-            .catch(function(err) {
-                btn.disabled = false;
-                btn.textContent = '🔍 Check Jetpack Data';
-                document.getElementById('cspv-preflight-status').innerHTML =
-                    '<span style="color:#e53e3e;">Network error: ' + esc(err.message) + '</span>';
-            });
-    });
-
-    function renderPreflight(data) {
-        var html    = '';
-        var noteHtml = data.note
-            ? '<br><span style="color:#888;font-size:11px;">ℹ ' + esc(data.note) + '</span>'
-            : '';
-        var methodBadge = '';
-        if (data.method && data.method !== 'none') {
-            var badges = {
-                'stats_get_csv':  { label: '☁ Live WP.com API',   color: '#1a7a3a', bg: '#f0faf4' },
-                'WPCOM_Stats':    { label: '☁ WPCOM_Stats API',    color: '#1a7a3a', bg: '#f0faf4' },
-                'post_meta_legacy': { label: '💾 Local meta',      color: '#1a3a8f', bg: '#f0f4ff' },
-                'post_meta_stats':  { label: '💾 Local meta',      color: '#1a3a8f', bg: '#f0f4ff' },
-            };
-            var b = badges[data.method] || { label: data.method, color: '#555', bg: '#f5f5f5' };
-            methodBadge = ' <span style="font-size:10px;padding:2px 7px;border-radius:10px;background:' + b.bg + ';color:' + b.color + ';font-weight:700;">' + b.label + '</span>';
-        }
-
-        if (data.posts_found === 0) {
-            if (!data.jetpack_active) {
-                html = '<span style="color:#e53e3e;">⚠ Jetpack does not appear to be active on this site.</span>' + noteHtml;
-            } else if (data.cloud_only) {
-                html = '<strong style="color:#c45c00;">☁ Jetpack stats API returned no data</strong><br>'
-                     + '<span style="color:#666;font-size:12px;line-height:1.8;">'
-                     + 'Jetpack is active and the API is reachable, but returned 0 posts.<br>'
-                     + 'This can happen if: the Stats module is warming up, your site has very few views, '
-                     + 'or the WordPress.com API is temporarily slow.<br>'
-                     + '<strong>Try clicking Check again in a few seconds.</strong> If it keeps failing, '
-                     + 'use the Manual Import below.'
-                     + '</span>' + noteHtml;
-            } else {
-                html = '<span style="color:#e53e3e;">⚠ No Jetpack view data found.</span>' + noteHtml;
-            }
-            document.getElementById('cspv-preflight-status').innerHTML = html;
-            document.getElementById('cspv-migrate-postlist').style.display = 'none';
-            document.getElementById('cspv-btn-migrate').style.display = 'none';
-            document.getElementById('cspv-manual-import-section').style.display = 'block';
-            return;
-        }
-
-        html = '<strong>' + data.posts_found + '</strong> posts found' + methodBadge + ' · '
-             + '<strong>' + data.total_jp_views.toLocaleString() + '</strong> Jetpack views · '
-             + '<strong>' + data.total_cs_views.toLocaleString() + '</strong> current CS views'
-             + noteHtml;
-        document.getElementById('cspv-preflight-status').innerHTML = html;
-        document.getElementById('cspv-manual-import-section').style.display = 'none';
-
-        // Render post list
-        var rows = '';
-        data.posts.slice(0, 50).forEach(function(p) {
-            rows += '<div style="display:flex;gap:10px;align-items:center;padding:8px 14px;'
-                  + 'border-bottom:1px solid #f0f4ff;font-size:13px;flex-wrap:wrap;">'
-                  + '<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a2332;">'
-                  + esc(p.title) + '</span>'
-                  + '<span style="color:#8b2be2;font-weight:700;min-width:80px;text-align:right;">'
-                  + p.jetpack_views.toLocaleString() + ' JP</span>'
-                  + '<span style="color:#1db954;font-weight:700;min-width:70px;text-align:right;">+'
-                  + p.will_add.toLocaleString() + '</span>'
-                  + '</div>';
-        });
-        if (data.posts.length > 50) {
-            rows += '<div style="padding:8px 14px;font-size:12px;color:#999;">…and '
-                  + (data.posts.length - 50) + ' more</div>';
-        }
-        document.getElementById('cspv-migrate-rows').innerHTML = rows;
-        document.getElementById('cspv-migrate-postlist').style.display = 'block';
-        document.getElementById('cspv-btn-migrate').style.display = 'inline-block';
-    }
-
-    // ── Manual CSV import ─────────────────────────────────────────
-    document.getElementById('cspv-btn-manual-import').addEventListener('click', function() {
-        var csv = document.getElementById('cspv-csv-input').value.trim();
-        if (!csv) {
-            document.getElementById('cspv-manual-import-status').textContent = 'Please paste CSV data first.';
-            document.getElementById('cspv-manual-import-status').style.color = '#e53e3e';
-            return;
-        }
-        if (!confirm('Import this CSV data? Each post view count will be increased by the imported amount.')) { return; }
-
-        var btn    = this;
-        var status = document.getElementById('cspv-manual-import-status');
-        btn.disabled = true;
-        btn.textContent = '⏳ Importing…';
-        status.textContent = '';
-
-        var fd = new FormData();
-        fd.append('action',   'cspv_manual_import');
-        fd.append('nonce',    migrateNonce);
-        fd.append('csv_data', csv);
-
-        fetch(ajaxUrl, { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(resp) {
-                btn.disabled = false;
-                btn.textContent = '📥 Import CSV Data';
-                if (!resp.success) {
-                    var msg = (resp.data && resp.data.message) ? resp.data.message : 'Import failed';
-                    if (resp.data && resp.data.already_locked) { msg = '🔒 Already migrated. Reset the lock first.'; }
-                    status.textContent = '✗ ' + msg;
-                    status.style.color = '#e53e3e';
-                    return;
-                }
-                var d = resp.data;
-                var body = '<strong>' + d.migrated + '</strong> posts imported · '
-                         + '<strong>' + d.views_imported.toLocaleString() + '</strong> views added · '
-                         + d.skipped + ' lines skipped';
-                if (d.errors && d.errors.length > 0) {
-                    body += '<br><span style="color:#e53e3e;font-size:11px;">Could not resolve: ' + d.errors.join(', ') + '</span>';
-                }
-                document.getElementById('cspv-migrate-result-body').innerHTML = body;
-                document.getElementById('cspv-migrate-result').style.display = 'block';
-                status.textContent = '';
-                setTimeout(function(){ window.location.reload(); }, 2500);
-            })
-            .catch(function(err) {
-                btn.disabled = false;
-                btn.textContent = '📥 Import CSV Data';
-                status.textContent = '✗ Network error: ' + err.message;
-                status.style.color = '#e53e3e';
-            });
-    });
-
-    document.getElementById('cspv-btn-migrate').addEventListener('click', function() {
-        if (!preflight || preflight.posts_found === 0) { return; }
-        if (!confirm('Run migration now? This will update view counts in your database.')) { return; }
-
-        var btn    = this;
-        var mode   = document.querySelector('input[name="cspv_migrate_mode"]:checked').value;
-        btn.disabled = true;
-        btn.textContent = '⏳ Migrating…';
-        document.getElementById('cspv-migrate-status').textContent = '';
-
-        var fd = new FormData();
-        fd.append('action', 'cspv_jetpack_migrate');
-        fd.append('nonce',  migrateNonce);
-        fd.append('mode',   mode);
-
-        fetch(ajaxUrl, { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(resp) {
-                btn.disabled = false;
-                btn.textContent = '✅ Run Migration';
-                if (!resp.success) {
-                    var errMsg = (resp.data && resp.data.message) ? resp.data.message : 'Migration failed';
-                    if (resp.data && resp.data.already_locked) {
-                        errMsg = '🔒 Migration already completed on ' + (resp.data.locked_at || '—') + '. Reset the lock if you need to re-run.';
-                    }
-                    document.getElementById('cspv-migrate-status').textContent = '✗ ' + errMsg;
-                    document.getElementById('cspv-migrate-status').style.color = '#e53e3e';
-                    return;
-                }
-                var d = resp.data;
-                var body = '<strong>' + d.migrated + '</strong> posts updated · '
-                         + '<strong>' + d.views_imported.toLocaleString() + '</strong> views imported · '
-                         + d.skipped + ' posts skipped · Mode: <strong>' + d.mode + '</strong>';
-                document.getElementById('cspv-migrate-result-body').innerHTML = body;
-                document.getElementById('cspv-migrate-result').style.display = 'block';
-                btn.style.display = 'none';
-                // Reload page after 2s to update migration history
-                setTimeout(function(){ window.location.reload(); }, 2500);
-            })
-            .catch(function(err) {
-                btn.disabled = false;
-                btn.textContent = '✅ Run Migration';
-                document.getElementById('cspv-migrate-status').textContent = '✗ Network error: ' + err.message;
-                document.getElementById('cspv-migrate-status').style.color = '#e53e3e';
-            });
-    });
-
     // ── Info modal system ──────────────────────────────────────────
     var infoData = {
         'stats-overview': {
             title: '📊 Statistics Overview',
-            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 7 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the page views log table, reflecting actual recorded views.</p><p>If you recently migrated from Jetpack, the cards blend imported totals with new tracked data during a 28 day transition period so the numbers are not misleadingly low.</p>'
+            body: '<p>The <strong>summary cards</strong> show total views, unique posts viewed, and average views per day for the selected date range. Use the quick buttons or custom date picker to change the period.</p><p>The <strong>chart</strong> shows views over time with tabs for 7 Hours, 7 Days, 1 Month, and 6 Months. All chart data comes from the page views log table, reflecting actual recorded views.</p>'
         },
         'top-posts': {
             title: '🏆 Most Viewed Posts',
-            body: '<p>Shows the top 10 posts ranked by view count within the selected date range. Only views recorded by the tracker are counted here (not imported Jetpack totals).</p><p>Click any post title to visit it on your site. The view count reflects the selected period, not all time totals.</p>'
+            body: '<p>Shows the top 10 posts ranked by view count within the selected date range. Only views recorded by the beacon tracker are counted.</p><p>Click any post title to visit it on your site. The view count reflects the selected period, not all time totals.</p>'
         },
         'all-time': {
             title: '🏆 All Time Statistics',
-            body: '<p>The <strong>All Time Views</strong> banner shows your total lifetime views across all posts, including any imported Jetpack data. This reads from the <code>_cspv_view_count</code> post meta field.</p><p>The <strong>All Time Top Posts</strong> list ranks posts by their lifetime total, combining imported data with tracked views. This is useful for seeing your historically most popular content.</p>'
+            body: '<p>The <strong>All Time Views</strong> banner shows your total lifetime views tracked by the beacon across all posts.</p><p>The <strong>All Time Top Posts</strong> list ranks posts by their lifetime tracked view count. This is useful for seeing your historically most popular content.</p>'
         },
         'referrers': {
             title: '🔗 Top Referrers',
@@ -3760,13 +3289,9 @@ ob_start();
             title: '🔁 View Deduplication',
             body: '<p>Prevents the same visitor from being counted multiple times for the same post within a configurable time window.</p><p><strong>Client side:</strong> The tracker stores a timestamp in localStorage for each post viewed. Repeat visits within the window skip the API entirely. This handles same browser tab/window reopens.</p><p><strong>Server side:</strong> Before inserting a view, the API checks whether the same IP hash + post ID combination already exists in the database within the dedup window. This catches cross browser duplicates, such as a WhatsApp in app browser followed by opening the same link in Chrome.</p><p>When disabled, every page load records a view (subject only to IP throttle limits). The default window is 24 hours.</p>'
         },
-        'migrate': {
-            title: '🔀 Migrate from Jetpack Stats',
-            body: '<p>Imports lifetime view totals from Jetpack Stats into CloudScale. The migration reads <code>jetpack_post_views</code> meta values from all posts and writes them into the CloudScale <code>_cspv_view_count</code> field.</p><p>This is a <strong>one time operation</strong>. After migration, a lock prevents accidental re runs. The migration copies lifetime totals only, not per day breakdowns (Jetpack does not store daily granularity in post meta).</p><p>For the first <strong>28 days</strong> after migration, the plugin runs in transition mode. Summary cards and the Top Posts widget blend imported totals with new tracked data so your historically popular posts remain visible while the plugin builds its own history. After 28 days, ranking switches to pure tracked data.</p>'
-        },
         'post-history': {
             title: '🔍 Post View History',
-            body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Page Views</strong> is the actual number of tracked view records in the log table.</p><p><strong>Jetpack imported</strong> is the difference: if you migrated from Jetpack, this is your pre-CloudScale historic total.</p><p>If the counts don\'t add up (meta \u2260 log + Jetpack), a mismatch warning appears with a <strong>Resync</strong> button that recalculates the correct total.</p><p>The <strong>timeline slider</strong> (7–180 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>\u2197</strong> link next to any post title to open it on your site.</p>'
+            body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Tracked Views</strong> is the actual number of beacon view records in the log table for this post.</p><p>The <strong>timeline slider</strong> (7–80 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>↗</strong> link next to any post title to open it on your site.</p>'
         }
     };
 
@@ -3860,20 +3385,15 @@ ob_start();
                     return;
                 }
                 var html = '<div style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">' +
-                    '<div style="flex:1;">Post</div><div style="width:100px;text-align:right;">Total Views</div><div style="width:100px;text-align:right;">Page Views</div><div style="width:100px;text-align:right;">Jetpack</div></div>';
+                    '<div style="flex:1;">Post</div><div style="width:120px;text-align:right;">Tracked Views</div></div>';
                 resp.data.forEach(function(p, i) {
                     var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
-                    var pageViews = Math.max(0, p.views - p.jetpack);
-                    var jpColor = p.jetpack > 0 ? '#f47c20' : '#ccc';
-                    var jpText  = p.jetpack > 0 ? p.jetpack.toLocaleString() : '\u2014';
                     var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
                     html += '<div class="cspv-ph-row" data-id="' + p.id + '" data-url="' + escHtml(p.url || '') + '" style="display:flex;align-items:center;' +
                         'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
                         '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
                         escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span>' + viewLink + '</div>' +
-                        '<div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">' + p.views.toLocaleString() + '</div>' +
-                        '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:#059669;font-variant-numeric:tabular-nums;">' + pageViews.toLocaleString() + '</div>' +
-                        '<div style="width:100px;text-align:right;font-weight:700;font-size:13px;color:' + jpColor + ';font-variant-numeric:tabular-nums;">' + jpText + '</div></div>';
+                        '<div style="width:120px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">' + (p.pageviews || 0).toLocaleString() + '</div></div>';
                 });
                 listBox.innerHTML = html;
                 wireRowClicks();
@@ -3914,23 +3434,9 @@ ob_start();
             document.getElementById('cspv-ph-post-link').href = d.url;
             document.getElementById('cspv-ph-meta').textContent = d.meta_count.toLocaleString();
             document.getElementById('cspv-ph-log').textContent = d.log_count.toLocaleString();
-            document.getElementById('cspv-ph-jp').textContent = d.jetpack_imported.toLocaleString();
-            document.getElementById('cspv-ph-jpmeta').textContent = d.jp_views.toLocaleString();
             document.getElementById('cspv-ph-published').textContent = d.published || 'unknown';
             document.getElementById('cspv-ph-first').textContent = d.first_log || 'none';
             document.getElementById('cspv-ph-last').textContent = d.last_log || 'none';
-
-            var warn = document.getElementById('cspv-ph-warn');
-            if (d.mismatch) {
-                var expected = d.log_count + d.jp_views;
-                document.getElementById('cspv-ph-warn-text').textContent =
-                    'Meta says ' + d.meta_count.toLocaleString() + ' but log (' + d.log_count.toLocaleString() +
-                    ') + Jetpack (' + d.jp_views.toLocaleString() + ') = ' + expected.toLocaleString();
-                warn.style.display = 'block';
-                document.getElementById('cspv-ph-resync-status').textContent = '';
-            } else {
-                warn.style.display = 'none';
-            }
 
             panel.style.display = 'block';
             // Reset slider to 180 days when loading a new post
@@ -3954,7 +3460,6 @@ ob_start();
             if (!days) days = 180;
 
             var rawTl = phData.timeline || [];
-            var jp = phData.jetpack_imported || 0;
 
             // Build lookup from raw data
             var tlMap = {};
@@ -3988,13 +3493,6 @@ ob_start();
                 '<div style="width:110px;">Date</div>' +
                 '<div style="width:70px;text-align:right;">Views</div>' +
                 '<div style="flex:1;padding-left:16px;">Top Referrer</div></div>';
-
-            if (jp > 0) {
-                html += '<div style="display:flex;align-items:center;padding:8px 12px;background:#fff7ed;border-bottom:2px solid #f47c20;">' +
-                    '<div style="width:110px;font-weight:700;font-size:12px;color:#f47c20;">Jetpack Import</div>' +
-                    '<div style="width:70px;text-align:right;font-weight:800;font-size:13px;color:#f47c20;font-variant-numeric:tabular-nums;">' + jp.toLocaleString() + '</div>' +
-                    '<div style="flex:1;padding-left:16px;font-size:11px;color:#c2410c;">Imported historical total (not per day)</div></div>';
-            }
 
             // Max views for bar width
             var maxV = 0;
@@ -4138,7 +3636,8 @@ ob_start();
             });
         })();
 
-        document.getElementById('cspv-ph-resync').addEventListener('click', function() {
+        var resyncBtn = document.getElementById('cspv-ph-resync');
+        if (resyncBtn) resyncBtn.addEventListener('click', function() {
             var btn = this;
             btn.disabled = true;
             btn.textContent = 'Resyncing...';

@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.9.193
+Stable tag: 2.9.209
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,11 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.209 =
+* Remove Jetpack migration tab and all transition blending logic
+* All Time Views now sources from beacon log (cspv_views_v2) only, not post meta
+* Stat cards always show actual tracked views; post_meta fallback removed
 
 = 2.9.94 =
 * Unique visitors tracking with SHA-256 hashed IPs (never stored raw)

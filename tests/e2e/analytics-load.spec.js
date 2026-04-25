@@ -9,7 +9,11 @@ const ADMIN_PAGE = '/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics
 
 test('analytics page loads data without JS errors', async ({ page }) => {
     const jsErrors = [];
-    page.on('pageerror', err => jsErrors.push('PAGEERROR: ' + err.message));
+    // Only track errors originating from our plugin, not from other admin page plugins
+    page.on('pageerror', err => {
+        if (err.stack && err.stack.includes('cloudscale-devtools')) return;
+        jsErrors.push('PAGEERROR: ' + err.message);
+    });
     page.on('console', msg => {
         if (msg.type() === 'error') jsErrors.push('CONSOLE ERROR: ' + msg.text());
     });

@@ -22,7 +22,8 @@ add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 add_action( 'wp_ajax_cspv_country_drill',   'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_referrer_drill', 'cspv_ajax_referrer_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
-add_action( 'wp_ajax_cspv_purge_visitors', 'cspv_ajax_purge_visitors' );
+add_action( 'wp_ajax_cspv_purge_visitors',           'cspv_ajax_purge_visitors' );
+add_action( 'wp_ajax_cspv_save_display_settings',   'cspv_ajax_save_display_settings' );
 
 /**
  * Inject viewport meta tag on the plugin page so mobile media queries fire correctly.
@@ -899,6 +900,45 @@ function cspv_ajax_purge_visitors() {
     ) );
 }
 
+function cspv_ajax_save_display_settings() {
+    if ( ! check_ajax_referer( 'cspv_display_save', 'nonce', false ) ) {
+        wp_send_json_error( 'Security check failed.', 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
+
+    $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
+    $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
+    update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );
+
+    $valid_styles = array( 'badge', 'pill', 'minimal' );
+    $sty = isset( $_POST['cspv_display_style'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_style'] ) ) : 'badge';
+    update_option( 'cspv_display_style', in_array( $sty, $valid_styles, true ) ? $sty : 'badge' );
+
+    update_option( 'cspv_display_icon',   isset( $_POST['cspv_display_icon'] )   ? sanitize_text_field( wp_unslash( $_POST['cspv_display_icon'] ) )   : '👁' );
+    update_option( 'cspv_display_suffix', isset( $_POST['cspv_display_suffix'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_suffix'] ) ) : ' views' );
+
+    $pt = isset( $_POST['cspv_display_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_display_post_types'] ) : array( 'post' );
+    update_option( 'cspv_display_post_types', $pt );
+
+    $tpt = isset( $_POST['cspv_track_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_track_post_types'] ) : array( 'post', 'page' );
+    update_option( 'cspv_track_post_types', $tpt );
+
+    $valid_colors = array( 'blue', 'pink', 'red', 'purple', 'grey' );
+    $col = isset( $_POST['cspv_display_color'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_color'] ) ) : 'blue';
+    update_option( 'cspv_display_color', in_array( $col, $valid_colors, true ) ? $col : 'blue' );
+
+    $valid_geo = array( 'auto', 'cloudflare', 'dbip', 'disabled' );
+    $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_geo_source'] ) ) : 'auto';
+    update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
+    update_option( 'cspv_dbip_auto_update', isset( $_POST['cspv_dbip_auto_update'] ) ? 'yes' : 'no' );
+
+    wp_send_json_success( array( 'message' => 'Display settings saved.' ) );
+}
+
 // ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
@@ -964,6 +1004,7 @@ function cspv_render_stats_page() {
     $ajax_url        = admin_url( 'admin-ajax.php' );
     $ajax_nonce      = wp_create_nonce( 'cspv_chart_data' );
     $throttle_nonce  = wp_create_nonce( 'cspv_throttle' );
+    $display_nonce   = wp_create_nonce( 'cspv_display_save' );
     $today           = current_time( 'Y-m-d' );
     $throttle_enabled = cspv_throttle_enabled();
     $throttle_limit   = cspv_throttle_limit();
@@ -1228,19 +1269,28 @@ function cspv_render_stats_page() {
             </div>
 
             <!-- Position -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">📍 Display Position <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-position" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">📍 Display Position</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-position" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <div class="cspv-dsp-radios">
                     <label><input type="radio" name="cspv_auto_display" value="before_content" <?php checked( $dsp_position, 'before_content' ); ?>> Before post content</label>
                     <label><input type="radio" name="cspv_auto_display" value="after_content" <?php checked( $dsp_position, 'after_content' ); ?>> After post content</label>
                     <label><input type="radio" name="cspv_auto_display" value="both" <?php checked( $dsp_position, 'both' ); ?>> Both (before and after)</label>
                     <label><input type="radio" name="cspv_auto_display" value="off" <?php checked( $dsp_position, 'off' ); ?>> <strong>Off</strong> — hide view counter</label>
                 </div>
+                </div>
             </div>
 
             <!-- Style -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🎨 Counter Style <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-style" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">🎨 Counter Style</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-style" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <div class="cspv-dsp-styles">
                     <label class="cspv-dsp-style-card<?php echo esc_attr( $dsp_style === 'badge' ? ' active' : '' ); ?>">
                         <input type="radio" name="cspv_display_style" value="badge" <?php checked( $dsp_style, 'badge' ); ?>>
@@ -1258,11 +1308,16 @@ function cspv_render_stats_page() {
                         <span class="cspv-dsp-style-name">Minimal</span>
                     </label>
                 </div>
+                </div>
             </div>
 
             <!-- Color -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🎨 Badge Colour <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-color" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">🎨 Badge Colour</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-color" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <div class="cspv-dsp-styles">
                     <?php
                     $color_map = array(
@@ -1280,11 +1335,16 @@ function cspv_render_stats_page() {
                     </label>
                     <?php endforeach; ?>
                 </div>
+                </div>
             </div>
 
             <!-- Icon & Suffix -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">✏️ Customise Text <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-text" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">✏️ Customise Text</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-text" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
                     <div>
                         <label style="font-size:12px;font-weight:600;color:#555;">Icon</label><br>
@@ -1295,11 +1355,16 @@ function cspv_render_stats_page() {
                         <input type="text" name="cspv_display_suffix" value="<?php echo esc_attr( $dsp_suffix ); ?>" style="width:160px;margin-top:4px;" class="regular-text">
                     </div>
                 </div>
+                </div>
             </div>
 
             <!-- Display Post Types -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">📄 Show Counter On <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-types" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">📄 Show Counter On</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="display-types" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <div class="cspv-dsp-checks">
                     <?php foreach ( $dsp_all_types as $pt ) :
                         if ( in_array( $pt->name, array( 'attachment' ), true ) ) continue;
@@ -1308,11 +1373,16 @@ function cspv_render_stats_page() {
                     <label><input type="checkbox" name="cspv_display_post_types[]" value="<?php echo esc_attr( $pt->name ); ?>" <?php checked( $chk ); ?>> <?php echo esc_html( $pt->labels->singular_name ); ?></label>
                     <?php endforeach; ?>
                 </div>
+                </div>
             </div>
 
             <!-- Track Post Types -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;border-color:#ffd6a0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🛡️ Tracking Filter <a class="cspv-info-btn cspv-info-btn-dark" data-info="tracking-filter" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#fff7ed;border-bottom:1px solid #fed7aa;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">🛡️ Tracking Filter</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="tracking-filter" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <p style="font-size:12px;color:#666;margin:0 0 10px;">Only record views on these post types. Unselected types will not record views.</p>
                 <div class="cspv-dsp-checks">
                     <?php foreach ( $dsp_all_types as $pt ) :
@@ -1322,18 +1392,28 @@ function cspv_render_stats_page() {
                     <label><input type="checkbox" name="cspv_track_post_types[]" value="<?php echo esc_attr( $pt->name ); ?>" <?php checked( $trk ); ?>> <?php echo esc_html( $pt->labels->singular_name ); ?></label>
                     <?php endforeach; ?>
                 </div>
+                </div>
             </div>
 
             <!-- Manual Integration -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🔧 Manual Theme Integration <a class="cspv-info-btn cspv-info-btn-dark" data-info="manual-integration" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f5f3ff;border-bottom:1px solid #ede9fe;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">🔧 Manual Theme Integration</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="manual-integration" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <p style="font-size:12px;color:#666;margin:0 0 8px;">If position is set to <strong>Off</strong>, add this to your theme template:</p>
                 <code style="display:block;background:#1e1e2e;color:#cdd6f4;padding:10px 14px;border-radius:6px;font-size:12px;">&lt;?php cspv_the_views(); ?&gt;</code>
+                </div>
             </div>
 
             <!-- Geography Source -->
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🌍 Geography Source <a class="cspv-info-btn cspv-info-btn-dark" data-info="geo-source" title="Info">i</a></h3>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;overflow:hidden;">
+                <div style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:14px;font-weight:600;">🌍 Geography Source</span>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="geo-source" title="Info">i</a>
+                </div>
+                <div style="padding:16px 20px;">
                 <p style="font-size:12px;color:#666;margin:0 0 12px;">Choose how visitor country is resolved. CloudFlare provides the <code>CF-IPCountry</code> header automatically. DB-IP Lite uses a local database file for sites not behind CloudFlare.</p>
                 <?php $geo_src = get_option( 'cspv_geo_source', 'auto' ); ?>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
@@ -1391,7 +1471,11 @@ function cspv_render_stats_page() {
                     </div>
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>
-                <p style="margin:16px 0 0;"><button type="submit" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button></p>
+                <p style="margin:16px 0 0;display:flex;align-items:center;gap:12px;">
+                    <button type="button" id="cspv-save-display" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button>
+                    <span id="cspv-display-saved" style="display:none;color:#059669;font-weight:600;font-size:14px;">✓ Saved</span>
+                </p>
+                </div>
             </div>
 
         </form>
@@ -1788,19 +1872,21 @@ function cspv_render_stats_page() {
 <?php
 // CSS is enqueued via cspv_enqueue_admin_assets() → assets/css/stats-page.css
 wp_add_inline_script( 'cspv-stats-page', 'var cspvStats=' . wp_json_encode( array(
-    'ajaxUrl'       => $ajax_url,
-    'nonce'         => $ajax_nonce,
-    'throttleNonce' => $throttle_nonce,
+    'ajaxUrl'        => $ajax_url,
+    'nonce'          => $ajax_nonce,
+    'throttleNonce'  => $throttle_nonce,
+    'displayNonce'   => $display_nonce,
 ) ) . ';' );
 ob_start();
 ?>
 (function () {
     'use strict';
 
-    var ajaxUrl      = cspvStats.ajaxUrl;
-    var nonce        = cspvStats.nonce;
+    var ajaxUrl       = cspvStats.ajaxUrl;
+    var nonce         = cspvStats.nonce;
     var throttleNonce = cspvStats.throttleNonce;
-    var chartInst    = null;
+    var displayNonce  = cspvStats.displayNonce;
+    var chartInst     = null;
 
     // ── Tab switching ──────────────────────────────────────────────
     function activateTab(tabName) {
@@ -2643,6 +2729,37 @@ ob_start();
                     statusEl.textContent = 'Network error: ' + err.message;
                     dbipBtn.disabled = false;
                     dbipBtn.textContent = 'Retry Download';
+                });
+        });
+    }
+
+    // ── Save display settings (AJAX, no reload) ────────────────────
+    var saveDisplayBtn = document.getElementById('cspv-save-display');
+    if (saveDisplayBtn) {
+        saveDisplayBtn.addEventListener('click', function() {
+            var form = saveDisplayBtn.closest('form');
+            var savedEl = document.getElementById('cspv-display-saved');
+            saveDisplayBtn.disabled = true;
+            saveDisplayBtn.textContent = 'Saving…';
+            var fd = new FormData(form);
+            fd.set('action', 'cspv_save_display_settings');
+            fd.set('nonce', displayNonce);
+            fetch(ajaxUrl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    saveDisplayBtn.disabled = false;
+                    saveDisplayBtn.textContent = '💾 Save Display Settings';
+                    if (resp.success) {
+                        savedEl.style.display = 'inline';
+                        clearTimeout(saveDisplayBtn._savedTimer);
+                        saveDisplayBtn._savedTimer = setTimeout(function() {
+                            savedEl.style.display = 'none';
+                        }, 10000);
+                    }
+                })
+                .catch(function() {
+                    saveDisplayBtn.disabled = false;
+                    saveDisplayBtn.textContent = '💾 Save Display Settings';
                 });
         });
     }

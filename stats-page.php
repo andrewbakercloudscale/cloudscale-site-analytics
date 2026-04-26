@@ -2389,7 +2389,19 @@ ob_start();
             marker.on('click', function() { drillCountry(item.country_code); });
             geoMarkers.push(marker);
         });
-        setTimeout(function() { geoMap.invalidateSize(); }, 100);
+
+        // Fit map to show all markers — fixes mobile where center:[20,10] zoom:2
+        // clips the USA off the left edge of a narrow viewport.
+        function fitToMarkers() {
+            if (!geoMap || geoMarkers.length === 0) return;
+            var group = L.featureGroup(geoMarkers);
+            var bounds = group.getBounds();
+            if (bounds.isValid()) {
+                geoMap.fitBounds(bounds.pad(0.25), { maxZoom: 4, animate: false });
+            }
+        }
+        setTimeout(function() { if (geoMap) { geoMap.invalidateSize(); fitToMarkers(); } }, 200);
+        setTimeout(function() { if (geoMap) { geoMap.invalidateSize(); fitToMarkers(); } }, 1000);
     }
 
     function renderDepth(depth, prev, from, to) {
@@ -2575,7 +2587,14 @@ ob_start();
 
     document.getElementById('cspv-geo-reset').addEventListener('click', function(e) {
         e.preventDefault();
-        if (geoMap) geoMap.setView([20, 10], 2);
+        if (geoMap) {
+            if (geoMarkers.length > 0) {
+                var group = L.featureGroup(geoMarkers);
+                var bounds = group.getBounds();
+                if (bounds.isValid()) { geoMap.fitBounds(bounds.pad(0.25), { maxZoom: 4 }); return; }
+            }
+            geoMap.fitWorld();
+        }
     });
 
     // DB-IP download button

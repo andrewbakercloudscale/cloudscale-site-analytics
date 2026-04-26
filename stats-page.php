@@ -2341,7 +2341,9 @@ ob_start();
                 minZoom: 1,
                 maxZoom: 6,
                 scrollWheelZoom: false,
-                attributionControl: false
+                attributionControl: false,
+                maxBounds: [[-90, -180], [90, 180]],
+                maxBoundsViscosity: 1.0
             });
             // Enable scroll-to-zoom only while the map has focus (click to engage,
             // click/scroll outside to release) so two-finger page scrolling still works.
@@ -2349,7 +2351,8 @@ ob_start();
             mapEl.addEventListener('mouseleave', function() { geoMap.scrollWheelZoom.disable(); });
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
                 subdomains: 'abcd',
-                maxZoom: 19
+                maxZoom: 19,
+                noWrap: true
             }).addTo(geoMap);
             L.control.attribution({ prefix: false }).addTo(geoMap);
             setTimeout(function() { if (geoMap) geoMap.invalidateSize(); }, 200);

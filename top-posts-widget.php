@@ -100,7 +100,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                  LIMIT 500"
             );
 
-            // Rank by lifetime meta (already includes Jetpack + tracked views).
+            // Rank by lifetime meta (includes all tracked views).
             // Do NOT add beacon count here — meta already contains tracked views
             // from rest-api.php, so adding beacon would double count them.
             $combined = array();

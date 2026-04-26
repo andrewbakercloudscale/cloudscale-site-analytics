@@ -44,11 +44,9 @@ function cspv_allow_beacon_without_auth( $result ) {
 }
 
 /**
- * Return the view count for a post, respecting the ignore Jetpack toggle.
+ * Return the view count for a post.
  *
- * When the toggle is on, returns tracked-only views from the V2 table.
- * When off, returns the denormalised post meta value which includes any
- * Jetpack-imported lifetime total.
+ * Returns the denormalised post meta value (_cspv_view_count).
  *
  * @since  1.0.0
  * @param  int $post_id  Post ID.

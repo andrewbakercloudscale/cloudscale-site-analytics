@@ -1326,14 +1326,14 @@ function cspv_render_stats_page() {
 
             <!-- Manual Integration -->
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🔧 Manual Theme Integration</h3>
+                <h3 style="margin:0 0 10px;font-size:14px;">🔧 Manual Theme Integration <a class="cspv-info-btn cspv-info-btn-dark" data-info="manual-integration" title="Info">i</a></h3>
                 <p style="font-size:12px;color:#666;margin:0 0 8px;">If position is set to <strong>Off</strong>, add this to your theme template:</p>
                 <code style="display:block;background:#1e1e2e;color:#cdd6f4;padding:10px 14px;border-radius:6px;font-size:12px;">&lt;?php cspv_the_views(); ?&gt;</code>
             </div>
 
             <!-- Geography Source -->
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:16px 0;">
-                <h3 style="margin:0 0 10px;font-size:14px;">🌍 Geography Source</h3>
+                <h3 style="margin:0 0 10px;font-size:14px;">🌍 Geography Source <a class="cspv-info-btn cspv-info-btn-dark" data-info="geo-source" title="Info">i</a></h3>
                 <p style="font-size:12px;color:#666;margin:0 0 12px;">Choose how visitor country is resolved. CloudFlare provides the <code>CF-IPCountry</code> header automatically. DB-IP Lite uses a local database file for sites not behind CloudFlare.</p>
                 <?php $geo_src = get_option( 'cspv_geo_source', 'auto' ); ?>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
@@ -1391,9 +1391,9 @@ function cspv_render_stats_page() {
                     </div>
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>
+                <p style="margin:16px 0 0;"><button type="submit" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button></p>
             </div>
 
-            <p><button type="submit" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button></p>
         </form>
 
         <!-- Data Management -->
@@ -1803,14 +1803,25 @@ ob_start();
     var chartInst    = null;
 
     // ── Tab switching ──────────────────────────────────────────────
+    function activateTab(tabName) {
+        var btn = document.querySelector('.cspv-tab[data-tab="' + tabName + '"]');
+        var pane = document.getElementById('cspv-tab-' + tabName);
+        if (!btn || !pane) return;
+        document.querySelectorAll('.cspv-tab').forEach(function(b){ b.classList.remove('active'); });
+        document.querySelectorAll('.cspv-tab-content').forEach(function(c){ c.classList.remove('active'); });
+        btn.classList.add('active');
+        pane.classList.add('active');
+    }
     document.querySelectorAll('.cspv-tab').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.cspv-tab').forEach(function(b){ b.classList.remove('active'); });
-            document.querySelectorAll('.cspv-tab-content').forEach(function(c){ c.classList.remove('active'); });
-            btn.classList.add('active');
-            document.getElementById('cspv-tab-' + btn.dataset.tab).classList.add('active');
-        });
+        btn.addEventListener('click', function() { activateTab(btn.dataset.tab); });
     });
+    // Restore tab from URL hash on load (e.g. after DB-IP download reload)
+    (function() {
+        var hash = window.location.hash.replace('#', '');
+        if (hash && document.querySelector('.cspv-tab[data-tab="' + hash + '"]')) {
+            activateTab(hash);
+        }
+    }());
 
     // ── Display tab: style card toggles ─────────────────────────────
     document.querySelectorAll('.cspv-dsp-style-card').forEach(function(card) {
@@ -2619,7 +2630,7 @@ ob_start();
                         statusEl.style.color = '#059669';
                         statusEl.textContent = 'Downloaded successfully (' + resp.data.size + '). Page will reload...';
                         dbipBtn.textContent = 'Done';
-                        setTimeout(function() { location.reload(); }, 1500);
+                        setTimeout(function() { location.href = location.pathname + location.search + '#display'; }, 1500);
                     } else {
                         statusEl.style.color = '#dc2626';
                         statusEl.textContent = 'Error: ' + (resp.data || 'Unknown error');
@@ -3229,6 +3240,14 @@ ob_start();
         'tracking-filter': {
             title: '🛡️ Tracking Filter',
             body: '<p>Controls which post types actually <strong>record views</strong> in the database. When a visitor views an untracked post type, no view is recorded.</p><p>This is separate from the display setting. The Tracking Filter controls what gets counted. The Show Counter On setting controls what displays a badge. You can track Pages without displaying a counter on them, keeping your stats comprehensive while keeping your page layouts clean.</p>'
+        },
+        'manual-integration': {
+            title: '🔧 Manual Theme Integration',
+            body: '<p>When Display Position is set to <strong>Off</strong>, the view counter will not appear automatically. Use the template function to place it anywhere in your theme.</p><p>Add <code>&lt;?php cspv_the_views(); ?&gt;</code> to your theme template file (e.g. <code>single.php</code>) wherever you want the counter to appear. This gives you full control over placement without relying on content filters.</p>'
+        },
+        'geo-source': {
+            title: '🌍 Geography Source',
+            body: '<p>Controls how visitor country is resolved for the geography map and country breakdown.</p><p><strong>Auto</strong> tries CloudFlare first (zero performance cost), then falls back to DB-IP if the CF-IPCountry header is absent. Recommended for most sites.</p><p><strong>CloudFlare Only</strong> uses only the <code>CF-IPCountry</code> header — fast and accurate but requires your site to be proxied through CloudFlare.</p><p><strong>DB-IP Only</strong> always uses the local database file — works without CloudFlare but adds a small lookup overhead per request.</p><p><strong>Disabled</strong> skips geography tracking entirely. The map and country stats will show no data.</p><p>The DB-IP Lite database (~30 MB) is stored in your uploads folder and auto-updates monthly.</p>'
         },
         'throttle': {
             title: '🛡 IP Throttle Protection',

@@ -3,8 +3,6 @@
  * CloudScale Analytics - Recent Posts Widget
  *
  * Paginated recent posts widget with CloudScale view counts.
- * Replaces the standalone CloudScale Paginated Recent Posts plugin
- * that previously used Jetpack stats.
  *
  * @package CloudScale_Free_Analytics
  */

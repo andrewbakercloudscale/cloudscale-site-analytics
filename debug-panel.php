@@ -5,7 +5,6 @@
  * Admin only overlay on singular posts showing:
  *   - Post meta count (_cspv_view_count) = the displayed number
  *   - Log table total (SUM of view_count in wp_cs_analytics_views_v2 for this post)
- *   - Jetpack imported count (only when log table is empty = true Jetpack import)
  *   - Restore offset delta (meta ahead of log, permanent gap from log wipe/restore)
  *   - Daily view chart from the log table
  *
@@ -145,14 +144,9 @@ function cspv_render_debug_panel() {
         }
     }
 
-    $meta_ahead       = max( 0, $meta_count - $log_count );
-    // A true Jetpack import means ALL counts came from Jetpack (no log rows at all).
-    // A non-zero delta when log rows exist is just an unlogged-view discrepancy.
-    $jetpack_imported = ( $log_count === 0 ) ? $meta_ahead : 0;
-    $unlogged_delta   = ( $log_count > 0 ) ? $meta_ahead : 0;
-    $mismatch         = ( $meta_count !== $log_count && $meta_ahead === 0 );
-    $jp_meta          = get_post_meta( $post_id, 'jetpack_post_views', true );
-    $jp_views         = $jp_meta ? (int) $jp_meta : null;
+    $meta_ahead     = max( 0, $meta_count - $log_count );
+    $unlogged_delta = $meta_ahead;
+    $mismatch       = ( $meta_count !== $log_count && $meta_ahead === 0 );
 
     ?>
 <div id="cspv-debug-panel">
@@ -172,25 +166,12 @@ function cspv_render_debug_panel() {
             <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cs_analytics_views_v2</span>
             <span class="cspv-dbg-value blue"><?php echo esc_html( number_format( $log_count ) ); ?></span>
         </div>
-        <?php if ( $jetpack_imported > 0 ) : ?>
-        <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Jetpack imported (no log rows)</span>
-            <span class="cspv-dbg-value orange"><?php echo esc_html( number_format( $jetpack_imported ) ); ?></span>
-        </div>
-        <?php endif; ?>
         <?php if ( $unlogged_delta > 0 ) : ?>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">Restore offset (meta ahead of log)</span>
             <span class="cspv-dbg-value orange"><?php echo esc_html( number_format( $unlogged_delta ) ); ?></span>
         </div>
         <?php endif; ?>
-        <?php if ( $jp_views !== null ) : ?>
-        <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Jetpack meta (jetpack_post_views)</span>
-            <span class="cspv-dbg-value"><?php echo esc_html( number_format( $jp_views ) ); ?></span>
-        </div>
-        <?php endif; ?>
-
         <div class="cspv-dbg-section">Timeline</div>
         <div class="cspv-dbg-row">
             <span class="cspv-dbg-label">First logged view</span>
@@ -222,13 +203,9 @@ function cspv_render_debug_panel() {
         </div>
         <?php endif; ?>
 
-        <?php if ( $jetpack_imported > 0 ) : ?>
+        <?php if ( $mismatch ) : ?>
         <div class="cspv-dbg-warn">
-            All <?php echo esc_html( number_format( $meta_count ) ); ?> views came from Jetpack import. No log table rows exist for this post.
-        </div>
-        <?php elseif ( $mismatch ) : ?>
-        <div class="cspv-dbg-warn">
-            ⚠ Meta count (<?php echo esc_html( number_format( $meta_count ) ); ?>) does not match log count (<?php echo esc_html( number_format( $log_count ) ); ?>) and no Jetpack import accounts for the difference. The meta may have been corrupted.
+            ⚠ Meta count (<?php echo esc_html( number_format( $meta_count ) ); ?>) does not match log count (<?php echo esc_html( number_format( $log_count ) ); ?>). The meta may have been corrupted.
             <br>
             <button class="cspv-dbg-fix-btn" id="cspv-dbg-resync">Resync meta from log table</button>
         </div>
@@ -332,7 +309,7 @@ add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta' );
 /**
  * AJAX handler: resync the post meta count from the log table.
  *
- * Sets _cspv_view_count to the sum of log rows plus any Jetpack imported views.
+ * Sets _cspv_view_count to the sum of log rows (never reduces existing meta).
  * Requires manage_options capability and a valid nonce.
  *
  * @since 2.0.0
@@ -359,11 +336,9 @@ function cspv_ajax_resync_meta() {
     $cnt   = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
-    $jp_views  = (int) get_post_meta( $post_id, 'jetpack_post_views', true );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-    // Never reduce the meta — take the higher of the two sources so a partial
-    // log restore doesn't silently wipe out counts that meta already knows about.
-    $new_count = max( $old_count, $log_count + max( 0, $jp_views ) );
+    // Never reduce the meta — a partial log restore shouldn't wipe out counts meta already knows about.
+    $new_count = max( $old_count, $log_count );
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
 
     wp_send_json_success( array(

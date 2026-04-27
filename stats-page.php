@@ -391,6 +391,8 @@ function cspv_ajax_chart_data() {
         'top_posts'      => $top_posts,
         'referrers'       => $referrers,
         'referrer_pages'  => $referrer_pages,
+        'query_from'      => $from_str,
+        'query_to'        => $to_str,
         'countries'       => $countries,
         'geo_source'      => get_option( 'cspv_geo_source', 'auto' ),
         'geo_source_actual' => ( function() {
@@ -688,27 +690,39 @@ function cspv_ajax_referrer_drill() {
         return;
     }
 
-    $host       = sanitize_text_field( wp_unslash( $_POST['host']      ?? '' ) );
-    $from       = sanitize_text_field( wp_unslash( $_POST['from']      ?? '' ) );
-    $to         = sanitize_text_field( wp_unslash( $_POST['to']        ?? '' ) );
-    $rolling24h = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
+    $host        = sanitize_text_field( wp_unslash( $_POST['host']       ?? '' ) );
+    $exact_from  = sanitize_text_field( wp_unslash( $_POST['exact_from'] ?? '' ) );
+    $exact_to    = sanitize_text_field( wp_unslash( $_POST['exact_to']   ?? '' ) );
+    $from        = sanitize_text_field( wp_unslash( $_POST['from']       ?? '' ) );
+    $to          = sanitize_text_field( wp_unslash( $_POST['to']         ?? '' ) );
+    $rolling24h  = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
 
-    if ( ! $host || ! $from || ! $to ) {
+    if ( ! $host ) {
         wp_send_json_error( 'Invalid parameters' );
     }
-    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ||
-         ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
-        wp_send_json_error( 'Invalid date format.' );
-    }
 
-    if ( $rolling24h && $from === $to ) {
-        $tz       = wp_timezone();
-        $now      = new DateTime( 'now', $tz );
-        $to_str   = $now->format( 'Y-m-d H:i:s' );
-        $from_str = ( clone $now )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+    // Prefer the exact datetime window sent by the client (computed when chart loaded).
+    // This avoids rolling-24h boundary drift when the drill request arrives later.
+    $dt_re = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/';
+    if ( $exact_from && $exact_to &&
+         preg_match( $dt_re, $exact_from ) && preg_match( $dt_re, $exact_to ) ) {
+        $from_str = $exact_from;
+        $to_str   = $exact_to;
+    } elseif ( $from && $to &&
+               preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) &&
+               preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
+        if ( $rolling24h && $from === $to ) {
+            $tz       = wp_timezone();
+            $now      = new DateTime( 'now', $tz );
+            $to_str   = $now->format( 'Y-m-d H:i:s' );
+            $from_str = ( clone $now )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        } else {
+            $from_str = $from . ' 00:00:00';
+            $to_str   = $to   . ' 23:59:59';
+        }
     } else {
-        $from_str = $from . ' 00:00:00';
-        $to_str   = $to   . ' 23:59:59';
+        wp_send_json_error( 'Invalid date parameters.' );
+        return;
     }
 
     $pages = cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, 25 );
@@ -2042,6 +2056,8 @@ ob_start();
     // ── Referrer data + toggle state ──────────────────────────────
     var lastRefSites = [];
     var lastRefPages = [];
+    var lastQueryFrom = '';
+    var lastQueryTo   = '';
     var refMode      = 'sites';
 
     // ── Render ─────────────────────────────────────────────────────
@@ -2128,9 +2144,11 @@ ob_start();
         // has not loaded yet (fixes blank page on initial Tools menu load)
         renderList('cspv-top-posts', data.top_posts, true);
 
-        // Store referrer data for toggle switching
-        lastRefSites = data.referrers || [];
-        lastRefPages = data.referrer_pages || [];
+        // Store referrer data + exact query window for drill-down
+        lastRefSites  = data.referrers || [];
+        lastRefPages  = data.referrer_pages || [];
+        lastQueryFrom = data.query_from || '';
+        lastQueryTo   = data.query_to   || '';
         renderReferrers();
 
         // Geography
@@ -2329,8 +2347,6 @@ ob_start();
         var modal   = document.getElementById('cspv-ref-drill-modal');
         var titleEl = document.getElementById('cspv-ref-drill-title');
         var listEl  = document.getElementById('cspv-ref-drill-list');
-        var fromVal = document.getElementById('cspv-from').value;
-        var toVal   = document.getElementById('cspv-to').value;
         titleEl.textContent = host + ' \u2014 Top Pages';
         listEl.innerHTML = '<div class="cspv-loading" style="padding:20px 20px 12px;">Loading\u2026</div>';
         openModal(modal);
@@ -2338,11 +2354,20 @@ ob_start();
         fd.append('action', 'cspv_referrer_drill');
         fd.append('nonce', nonce);
         fd.append('host', host);
-        fd.append('from', fromVal);
-        fd.append('to', toVal);
-        var todayBtn2 = document.querySelector('.cspv-quick[data-range="today"]');
-        if (todayBtn2 && todayBtn2.classList.contains('active') && fromVal === toVal) {
-            fd.append('rolling24h', '1');
+        // Use the exact datetime window computed when the chart data loaded \u2014
+        // avoids a rolling-24h boundary mismatch if a few minutes have passed.
+        if (lastQueryFrom && lastQueryTo) {
+            fd.append('exact_from', lastQueryFrom);
+            fd.append('exact_to',   lastQueryTo);
+        } else {
+            var fromVal = document.getElementById('cspv-from').value;
+            var toVal   = document.getElementById('cspv-to').value;
+            fd.append('from', fromVal);
+            fd.append('to',   toVal);
+            var todayBtn2 = document.querySelector('.cspv-quick[data-range="today"]');
+            if (todayBtn2 && todayBtn2.classList.contains('active') && fromVal === toVal) {
+                fd.append('rolling24h', '1');
+            }
         }
         fetch(ajaxurl, { method: 'POST', body: fd })
             .then(function(r){ return r.json(); })

@@ -1371,50 +1371,80 @@ function cspv_render_stats_page() {
         <div id="cspv-ins-body" style="padding:0;">
 
             <!-- Loading state -->
-            <div id="cspv-ins-loading" style="padding:40px;text-align:center;color:#888;font-size:14px;">Loading insights…</div>
+            <div id="cspv-ins-loading" style="padding:48px;text-align:center;color:#64748b;font-size:14px;background:#0f172a;">Loading insights…</div>
             <div id="cspv-ins-content" style="display:none;">
 
                 <!-- KPI Cards -->
                 <div class="cspv-ins-kpi-grid">
-                    <div class="cspv-ins-kpi-card">
-                        <div class="cspv-ins-kpi-label">TOTAL VIEWS</div>
+                    <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-views">
+                        <div class="cspv-ins-kpi-label">Total Views</div>
                         <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-views">—</div>
+                        <div class="cspv-ins-kpi-footer">
+                            <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-views-sub">vs prev period</span>
+                            <span id="cspv-ins-trend-views"></span>
+                        </div>
                     </div>
-                    <div class="cspv-ins-kpi-card">
-                        <div class="cspv-ins-kpi-label">UNIQUE VISITORS</div>
+                    <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-visitors">
+                        <div class="cspv-ins-kpi-label">Unique Visitors</div>
                         <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-visitors">—</div>
+                        <div class="cspv-ins-kpi-footer">
+                            <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-visitors-sub">vs prev period</span>
+                            <span id="cspv-ins-trend-visitors"></span>
+                        </div>
                     </div>
-                    <div class="cspv-ins-kpi-card">
-                        <div class="cspv-ins-kpi-label">TOP COUNTRY</div>
+                    <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-country">
+                        <div class="cspv-ins-kpi-label">Top Country</div>
                         <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-country">—</div>
-                        <div class="cspv-ins-kpi-sub" id="cspv-ins-kpi-country-sub"></div>
+                        <div class="cspv-ins-kpi-footer">
+                            <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-country-sub"></span>
+                        </div>
                     </div>
-                    <div class="cspv-ins-kpi-card">
-                        <div class="cspv-ins-kpi-label">TOP REFERRER</div>
+                    <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-referrer">
+                        <div class="cspv-ins-kpi-label">Top Referrer</div>
                         <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-referrer">—</div>
-                        <div class="cspv-ins-kpi-sub" id="cspv-ins-kpi-referrer-sub"></div>
+                        <div class="cspv-ins-kpi-footer">
+                            <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-referrer-sub"></span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Row: Traffic Sources + Referrer Growth -->
                 <div class="cspv-ins-chart-row">
-                    <div class="cspv-ins-chart-panel" style="flex:0 0 320px;max-width:340px;">
+                    <div class="cspv-ins-chart-panel" style="flex:0 0 300px;max-width:320px;">
                         <div class="cspv-ins-chart-title">Traffic Sources</div>
-                        <div style="position:relative;height:220px;display:flex;align-items:center;justify-content:center;">
+                        <div style="position:relative;height:200px;">
                             <canvas id="cspv-ins-traffic-chart"></canvas>
                         </div>
                         <div id="cspv-ins-traffic-legend" class="cspv-ins-legend"></div>
                     </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:0;">
+                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;">
                         <div class="cspv-ins-chart-title">Referrer Growth</div>
-                        <div style="position:relative;height:220px;">
+                        <div style="position:relative;height:200px;">
                             <canvas id="cspv-ins-growth-chart"></canvas>
                         </div>
+                        <div id="cspv-ins-growth-legend" class="cspv-ins-legend"></div>
+                    </div>
+                </div>
+
+                <!-- Row: Views by Country (bar) + Countries Over Time -->
+                <div class="cspv-ins-chart-row">
+                    <div class="cspv-ins-chart-panel" style="flex:0 0 300px;max-width:320px;">
+                        <div class="cspv-ins-chart-title">Views by Country</div>
+                        <div style="position:relative;" id="cspv-ins-country-wrap">
+                            <canvas id="cspv-ins-country-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;">
+                        <div class="cspv-ins-chart-title">Countries Over Time</div>
+                        <div style="position:relative;height:220px;">
+                            <canvas id="cspv-ins-country-time-chart"></canvas>
+                        </div>
+                        <div id="cspv-ins-country-time-legend" class="cspv-ins-legend"></div>
                     </div>
                 </div>
 
                 <!-- Top Posts by Views -->
-                <div class="cspv-ins-chart-panel" style="margin-top:16px;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Views</div>
                     <div style="position:relative;" id="cspv-ins-posts-wrap">
                         <canvas id="cspv-ins-posts-chart"></canvas>
@@ -1422,40 +1452,23 @@ function cspv_render_stats_page() {
                 </div>
 
                 <!-- Top Posts by Referrer -->
-                <div class="cspv-ins-chart-panel" style="margin-top:16px;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Referrer</div>
                     <div id="cspv-ins-ref-table-wrap" style="overflow-x:auto;">
                         <div id="cspv-ins-ref-table"></div>
                     </div>
                 </div>
 
-                <!-- Row: Views by Country + Countries Over Time -->
-                <div class="cspv-ins-chart-row" style="margin-top:16px;">
-                    <div class="cspv-ins-chart-panel" style="flex:0 0 320px;max-width:340px;">
-                        <div class="cspv-ins-chart-title">Views by Country</div>
-                        <div style="position:relative;height:220px;display:flex;align-items:center;justify-content:center;">
-                            <canvas id="cspv-ins-country-chart"></canvas>
-                        </div>
-                        <div id="cspv-ins-country-legend" class="cspv-ins-legend"></div>
-                    </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:0;">
-                        <div class="cspv-ins-chart-title">Top Countries Over Time</div>
-                        <div style="position:relative;height:220px;">
-                            <canvas id="cspv-ins-country-time-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Top Referrer Domains -->
-                <div class="cspv-ins-chart-panel" style="margin-top:16px;margin-bottom:8px;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Referrer Domains</div>
                     <div style="position:relative;" id="cspv-ins-refs-wrap">
                         <canvas id="cspv-ins-refs-chart"></canvas>
                     </div>
                 </div>
 
-                <!-- Your Content (trending posts, uses Stats tab date range) -->
-                <div class="cspv-panel" style="margin-top:16px;">
+                <!-- Your Content (trending posts, uses Insights period) -->
+                <div class="cspv-panel" style="margin:14px 18px 0;">
                     <div class="cspv-section-header" style="background:linear-gradient(135deg,#7e22ce,#c026d3);">
                         <span>&#x1F4A1; Your Content</span>
                         <span id="cspv-insights-range" class="cspv-range-label"></span>
@@ -1469,7 +1482,7 @@ function cspv_render_stats_page() {
                             <span class="cspv-insights-col-header">Views</span>
                         </div>
                         <div id="cspv-insights-list">
-                            <div class="cspv-loading">Select a date range on the Statistics tab then open Insights.</div>
+                            <div class="cspv-loading">Loading…</div>
                         </div>
                     </div>
                 </div>
@@ -2541,23 +2554,61 @@ ob_start();
         renderInsKPI(d.kpi);
         renderInsTrafficSources(d.traffic_sources);
         renderInsGrowthChart(d.referrer_growth);
-        renderInsPostsChart(d.top_posts);
-        renderInsRefTable(d.top_posts_by_referrer);
         renderInsCountryChart(d.views_by_country);
         renderInsCountryTimeChart(d.top_countries_over_time);
+        renderInsPostsChart(d.top_posts);
+        renderInsRefTable(d.top_posts_by_referrer);
         renderInsRefsChart(d.top_referrer_domains);
+    }
+
+    function countryFlag(cc) {
+        if (!cc || cc.length !== 2) return '';
+        try {
+            return cc.toUpperCase().replace(/./g, function(c) {
+                return String.fromCodePoint(c.charCodeAt(0) + 127397);
+            }) + ' ';
+        } catch(e2) { return ''; }
+    }
+
+    function insTrendBadge(pct) {
+        if (pct === null || pct === undefined) return '';
+        var cls = pct > 0 ? 'cspv-ins-trend-up' : pct < 0 ? 'cspv-ins-trend-down' : 'cspv-ins-trend-flat';
+        var arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '—';
+        return '<span class="' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+    }
+
+    function insAnimateCount(el, target) {
+        if (!el) return;
+        var frames = 20, current = 0, step = Math.ceil(target / frames);
+        var t = setInterval(function() {
+            current = Math.min(current + step, target);
+            el.textContent = current.toLocaleString();
+            if (current >= target) clearInterval(t);
+        }, 30);
     }
 
     function renderInsKPI(kpi) {
         if (!kpi) return;
-        var selfOn = insSelfOn;
-        document.getElementById('cspv-ins-kpi-views').textContent = (kpi.total_views || 0).toLocaleString();
-        document.getElementById('cspv-ins-kpi-visitors').textContent = (kpi.unique_visitors || 0).toLocaleString();
+        var KPI_ACCENTS = { views: '#14b8a6', visitors: '#8b5cf6', country: '#f59e0b', referrer: '#3b82f6' };
+        Object.keys(KPI_ACCENTS).forEach(function(k) {
+            var card = document.getElementById('cspv-ins-kpi-card-' + k);
+            if (card) card.style.borderTopColor = KPI_ACCENTS[k];
+        });
+
+        insAnimateCount(document.getElementById('cspv-ins-kpi-views'), kpi.total_views || 0);
+        insAnimateCount(document.getElementById('cspv-ins-kpi-visitors'), kpi.unique_visitors || 0);
+
+        var trendViewsEl = document.getElementById('cspv-ins-trend-views');
+        var trendVisEl   = document.getElementById('cspv-ins-trend-visitors');
+        if (trendViewsEl) trendViewsEl.innerHTML = insTrendBadge(kpi.trend_views_pct);
+        if (trendVisEl)   trendVisEl.innerHTML   = insTrendBadge(kpi.trend_visitors_pct);
+
         if (kpi.top_country) {
-            document.getElementById('cspv-ins-kpi-country').textContent = kpi.top_country.country_code || '—';
+            var cc = kpi.top_country.country_code || '';
+            document.getElementById('cspv-ins-kpi-country').textContent = countryFlag(cc) + (cc || '—');
             document.getElementById('cspv-ins-kpi-country-sub').textContent = (kpi.top_country.views || 0).toLocaleString() + ' views';
         }
-        var ref = selfOn ? kpi.top_referrer : (kpi.top_referrer_no_self || kpi.top_referrer);
+        var ref = insSelfOn ? kpi.top_referrer : (kpi.top_referrer_no_self || kpi.top_referrer);
         if (ref) {
             document.getElementById('cspv-ins-kpi-referrer').textContent = ref.label || '—';
             document.getElementById('cspv-ins-kpi-referrer-sub').textContent = (ref.views || 0).toLocaleString() + ' views';
@@ -2569,11 +2620,22 @@ ob_start();
         return (arr || []).filter(function(x) { return !x.is_self; });
     }
 
+    function insCustomLegend(elId, items, colorFn) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        el.innerHTML = items.map(function(label, i) {
+            return '<span class="cspv-ins-legend-item">'
+                + '<span class="cspv-ins-legend-dot" style="background:' + colorFn(i) + '"></span>'
+                + esc(label)
+                + '</span>';
+        }).join('');
+    }
+
     function renderInsTrafficSources(sources) {
         insDestroyChart('cspv-ins-traffic-chart');
         var data = insFilterSelf(sources || []);
         if (!data.length) return;
-        var max = data.reduce(function(s,x){ return s + x.views; }, 0) || 1;
+        var total = data.reduce(function(s,x){ return s + x.views; }, 0) || 1;
         var labels = data.map(function(x){ return x.label; });
         var values = data.map(function(x){ return x.views; });
         var colors = data.map(function(_, i){ return insColor(i); });
@@ -2583,19 +2645,16 @@ ob_start();
             type: 'doughnut',
             data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
             options: {
-                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                responsive: true, maintainAspectRatio: false, cutout: '62%',
                 plugins: {
                     legend: { display: false },
-                    tooltip: { callbacks: { label: function(c) { return ' ' + c.label + ': ' + c.raw.toLocaleString() + ' (' + Math.round(c.raw/max*100) + '%)'; } } }
+                    tooltip: { callbacks: { label: function(c) {
+                        return ' ' + c.label + ': ' + c.raw.toLocaleString() + ' (' + Math.round(c.raw / total * 100) + '%)';
+                    }}}
                 }
             }
         });
-        var legendEl = document.getElementById('cspv-ins-traffic-legend');
-        if (legendEl) {
-            legendEl.innerHTML = data.map(function(x, i) {
-                return '<span class="cspv-ins-legend-item"><span class="cspv-ins-legend-dot" style="background:' + insColor(i) + '"></span>' + esc(x.label) + '</span>';
-            }).join('');
-        }
+        insCustomLegend('cspv-ins-traffic-legend', labels, function(i){ return colors[i]; });
     }
 
     function renderInsGrowthChart(growth) {
@@ -2607,10 +2666,11 @@ ob_start();
         var datasets = series.map(function(s, i) {
             return {
                 label: s.label, data: s.data,
-                borderColor: insColor(i), backgroundColor: 'transparent',
-                borderWidth: 2, pointRadius: 3, pointHoverRadius: 5,
+                borderColor: insColor(i),
+                backgroundColor: insColor(i).replace(')', ', 0.06)').replace('rgb', 'rgba'),
+                borderWidth: 2, pointRadius: 2, pointHoverRadius: 5,
                 borderDash: INS_DASHES[i % INS_DASHES.length],
-                tension: 0.3
+                tension: 0.35, fill: false
             };
         });
         insCharts['cspv-ins-growth-chart'] = new Chart(ctx, {
@@ -2618,13 +2678,14 @@ ob_start();
             data: { labels: growth.dates, datasets: datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 20, font: { size: 11 } } } },
+                plugins: { legend: { display: false } },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-                    y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+                    x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                    y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } }
                 }
             }
         });
+        insCustomLegend('cspv-ins-growth-legend', series.map(function(s){ return s.label; }), function(i){ return insColor(i); });
     }
 
     function renderInsPostsChart(posts) {
@@ -2632,23 +2693,23 @@ ob_start();
         var ctx = document.getElementById('cspv-ins-posts-chart');
         var wrap = document.getElementById('cspv-ins-posts-wrap');
         if (!ctx || !posts || !posts.length) return;
-        var h = Math.max(120, posts.length * 28);
+        var h = Math.max(140, posts.length * 30);
         ctx.height = h;
         if (wrap) wrap.style.height = h + 'px';
         insCharts['cspv-ins-posts-chart'] = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: posts.map(function(p){ return p.title.length > 40 ? p.title.slice(0,40) + '…' : p.title; }),
+                labels: posts.map(function(p){ return p.title.length > 42 ? p.title.slice(0, 42) + '…' : p.title; }),
                 datasets: [{ data: posts.map(function(p){ return p.views; }),
                     backgroundColor: posts.map(function(_, i){ return insColor(i); }),
-                    borderRadius: 4 }]
+                    borderRadius: 4, borderSkipped: false }]
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { font: { size: 10 } } },
-                    y: { ticks: { font: { size: 11 } } }
+                    x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                    y: { ticks: { font: { size: 11 } }, grid: { display: false } }
                 }
             }
         });
@@ -2657,7 +2718,7 @@ ob_start();
     function renderInsRefTable(pbr) {
         var wrap = document.getElementById('cspv-ins-ref-table');
         if (!wrap || !pbr || !pbr.headers || !pbr.headers.length) {
-            if (wrap) wrap.innerHTML = '<div style="padding:12px;color:#888;font-size:13px;">No referrer data available.</div>';
+            if (wrap) wrap.innerHTML = '<div style="padding:16px;color:#9ca3af;font-size:13px;">No referrer data available for this period.</div>';
             return;
         }
         var headers = insSelfOn ? pbr.headers : pbr.headers.filter(function(h){ return h !== 'Self'; });
@@ -2665,13 +2726,14 @@ ob_start();
         var html = '<table class="cspv-ins-ref-tbl"><thead><tr><th>Post</th>';
         headers.forEach(function(h){ html += '<th>' + esc(h) + '</th>'; });
         html += '</tr></thead><tbody>';
-        pbr.rows.forEach(function(row, ri) {
-            var bg = ri % 2 === 0 ? '#fff' : '#f0f6ff';
-            html += '<tr style="background:' + bg + '"><td><a href="' + esc(row.url) + '" target="_blank" rel="noopener">' + esc(row.title.length > 35 ? row.title.slice(0,35)+'…' : row.title) + '</a></td>';
+        pbr.rows.forEach(function(row) {
+            html += '<tr><td><a href="' + esc(row.url) + '" target="_blank" rel="noopener">'
+                + esc(row.title.length > 38 ? row.title.slice(0, 38) + '…' : row.title)
+                + '</a></td>';
             pbr.headers.forEach(function(h, hi) {
                 if (!insSelfOn && hi === selfIdx) return;
                 var v = row.counts[hi] || 0;
-                html += '<td>' + (v > 0 ? v.toLocaleString() : '<span style="color:#ccc">—</span>') + '</td>';
+                html += '<td>' + (v > 0 ? v.toLocaleString() : '<span style="color:#d1d5db">—</span>') + '</td>';
             });
             html += '</tr>';
         });
@@ -2682,28 +2744,37 @@ ob_start();
     function renderInsCountryChart(countries) {
         insDestroyChart('cspv-ins-country-chart');
         var ctx = document.getElementById('cspv-ins-country-chart');
+        var wrap = document.getElementById('cspv-ins-country-wrap');
         if (!ctx || !countries || !countries.length) return;
-        var total = countries.reduce(function(s,x){ return s + x.views; }, 0) || 1;
-        var labels = countries.map(function(x){ return x.country_code; });
-        var values = countries.map(function(x){ return x.views; });
-        var colors = countries.map(function(_, i){ return insColor(i); });
+        var top = countries.slice(0, 10);
+        var h = Math.max(100, top.length * 30);
+        ctx.height = h;
+        if (wrap) wrap.style.height = h + 'px';
+        var labels = top.map(function(x){ return countryFlag(x.country_code) + (x.country_code || '—'); });
+        var values = top.map(function(x){ return x.views; });
+        var total  = values.reduce(function(a,b){ return a+b; }, 0) || 1;
         insCharts['cspv-ins-country-chart'] = new Chart(ctx, {
-            type: 'doughnut',
-            data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{ data: values,
+                    backgroundColor: top.map(function(_, i){ return insColor(i + 3); }),
+                    borderRadius: 4, borderSkipped: false }]
+            },
             options: {
-                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { callbacks: { label: function(c) { return ' ' + c.label + ': ' + c.raw.toLocaleString() + ' (' + Math.round(c.raw/total*100) + '%)'; } } }
+                    tooltip: { callbacks: { label: function(c) {
+                        return ' ' + c.raw.toLocaleString() + ' (' + Math.round(c.raw / total * 100) + '%)';
+                    }}}
+                },
+                scales: {
+                    x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                    y: { ticks: { font: { size: 12 } }, grid: { display: false } }
                 }
             }
         });
-        var legendEl = document.getElementById('cspv-ins-country-legend');
-        if (legendEl) {
-            legendEl.innerHTML = countries.map(function(x, i) {
-                return '<span class="cspv-ins-legend-item"><span class="cspv-ins-legend-dot" style="background:' + insColor(i) + '"></span>' + esc(x.country_code) + '</span>';
-            }).join('');
-        }
     }
 
     function renderInsCountryTimeChart(ct) {
@@ -2711,12 +2782,15 @@ ob_start();
         var ctx = document.getElementById('cspv-ins-country-time-chart');
         if (!ctx || !ct || !ct.dates || !ct.series || !ct.series.length) return;
         var datasets = ct.series.map(function(s, i) {
+            var col = insColor(i + 5);
             return {
-                label: s.label, data: s.data,
-                borderColor: insColor(i + 5), backgroundColor: 'transparent',
-                borderWidth: 2, pointRadius: 3,
+                label: countryFlag(s.label) + s.label,
+                data: s.data,
+                borderColor: col,
+                backgroundColor: col,
+                borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 6,
                 borderDash: INS_DASHES[i % INS_DASHES.length],
-                tension: 0.3
+                tension: 0.35, fill: false
             };
         });
         insCharts['cspv-ins-country-time-chart'] = new Chart(ctx, {
@@ -2724,13 +2798,16 @@ ob_start();
             data: { labels: ct.dates, datasets: datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 20, font: { size: 11 } } } },
+                plugins: { legend: { display: false } },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-                    y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+                    x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                    y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } }
                 }
             }
         });
+        insCustomLegend('cspv-ins-country-time-legend',
+            datasets.map(function(ds){ return ds.label; }),
+            function(i){ return insColor(i + 5); });
     }
 
     function renderInsRefsChart(refs) {
@@ -2739,7 +2816,7 @@ ob_start();
         var wrap = document.getElementById('cspv-ins-refs-wrap');
         var data = insFilterSelf(refs || []);
         if (!ctx || !data.length) return;
-        var h = Math.max(100, data.length * 26);
+        var h = Math.max(120, data.length * 28);
         ctx.height = h;
         if (wrap) wrap.style.height = h + 'px';
         insCharts['cspv-ins-refs-chart'] = new Chart(ctx, {
@@ -2748,14 +2825,14 @@ ob_start();
                 labels: data.map(function(x){ return x.label; }),
                 datasets: [{ data: data.map(function(x){ return x.views; }),
                     backgroundColor: data.map(function(_, i){ return insColor(i); }),
-                    borderRadius: 4 }]
+                    borderRadius: 4, borderSkipped: false }]
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { font: { size: 10 } } },
-                    y: { ticks: { font: { size: 11 } } }
+                    x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                    y: { ticks: { font: { size: 11 } }, grid: { display: false } }
                 }
             }
         });
@@ -2785,13 +2862,13 @@ ob_start();
         });
     }());
 
-    // ── Your Content panel (uses Stats tab date range) ─────────────
+    // ── Your Content panel (uses Insights period selector) ────────
     function loadYourContent() {
-        var from = document.getElementById('cspv-from').value;
-        var to   = document.getElementById('cspv-to').value;
-        if (!from || !to) return;
+        var now  = new Date();
+        var to   = now.toISOString().slice(0, 10);
+        var from = new Date(now - (insPeriod - 1) * 864e5).toISOString().slice(0, 10);
         var rangeEl = document.getElementById('cspv-insights-range');
-        if (rangeEl) rangeEl.textContent = fmtDate(from) + ' – ' + fmtDate(to);
+        if (rangeEl) rangeEl.textContent = 'Last ' + insPeriod + ' days';
         document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-loading">Loading…</div>';
         var fd = new FormData();
         fd.append('action', 'cspv_insights');

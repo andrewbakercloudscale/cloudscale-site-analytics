@@ -2620,14 +2620,25 @@ ob_start();
         return (arr || []).filter(function(x) { return !x.is_self; });
     }
 
-    function insCustomLegend(elId, items, colorFn) {
+    function insCustomLegend(elId, items, colorFn, dashFn) {
         var el = document.getElementById(elId);
         if (!el) return;
         el.innerHTML = items.map(function(label, i) {
-            return '<span class="cspv-ins-legend-item">'
-                + '<span class="cspv-ins-legend-dot" style="background:' + colorFn(i) + '"></span>'
-                + esc(label)
-                + '</span>';
+            var col = colorFn(i);
+            var inner;
+            if (dashFn) {
+                // Line legend: small SVG showing the actual dash pattern + a dot
+                var dash = dashFn(i);
+                var dashAttr = dash && dash.length ? dash.join(',') : 'none';
+                inner = '<svg width="28" height="12" style="flex-shrink:0;vertical-align:middle;">'
+                    + '<line x1="0" y1="6" x2="28" y2="6" stroke="' + col + '" stroke-width="2.5"'
+                    + (dashAttr !== 'none' ? ' stroke-dasharray="' + dashAttr + '"' : '') + '/>'
+                    + '<circle cx="14" cy="6" r="3" fill="' + col + '"/>'
+                    + '</svg>';
+            } else {
+                inner = '<span class="cspv-ins-legend-dot" style="background:' + col + '"></span>';
+            }
+            return '<span class="cspv-ins-legend-item">' + inner + esc(label) + '</span>';
         }).join('');
     }
 
@@ -2685,7 +2696,7 @@ ob_start();
                 }
             }
         });
-        insCustomLegend('cspv-ins-growth-legend', series.map(function(s){ return s.label; }), function(i){ return insColor(i); });
+        insCustomLegend('cspv-ins-growth-legend', series.map(function(s){ return s.label; }), function(i){ return insColor(i); }, function(i){ return INS_DASHES[i % INS_DASHES.length]; });
     }
 
     function renderInsPostsChart(posts) {
@@ -2807,7 +2818,8 @@ ob_start();
         });
         insCustomLegend('cspv-ins-country-time-legend',
             datasets.map(function(ds){ return ds.label; }),
-            function(i){ return insColor(i + 5); });
+            function(i){ return insColor(i + 5); },
+            function(i){ return INS_DASHES[i % INS_DASHES.length]; });
     }
 
     function renderInsRefsChart(refs) {
@@ -2904,7 +2916,9 @@ ob_start();
             var urlPath = '';
             try { urlPath = new URL(item.url).pathname; } catch(e3) { urlPath = item.url; }
             var badge = '';
-            if (item.pct_change !== null && item.pct_change !== undefined) {
+            if (item.pct_change === null || item.pct_change === undefined) {
+                badge = '<span class="cspv-trend-badge cspv-trend-new">New</span>';
+            } else {
                 var pct = parseInt(item.pct_change, 10);
                 badge = '<span class="cspv-trend-badge ' + (pct >= 0 ? 'cspv-trend-up' : 'cspv-trend-down') + '">'
                     + (pct >= 0 ? '↑' : '↓') + ' ' + Math.abs(pct) + '%</span>';

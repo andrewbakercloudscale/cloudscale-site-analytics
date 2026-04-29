@@ -720,6 +720,7 @@ body.cspv-modal-open { overflow: hidden; }
 }
 .cspv-trend-up   { color: #059669; background: #d1fae5; }
 .cspv-trend-down { color: #dc2626; background: #fee2e2; }
+.cspv-trend-new  { color: #0369a1; background: #e0f2fe; }
 .cspv-insights-views {
     font-size: 13px;
     font-weight: 700;

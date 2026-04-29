@@ -634,6 +634,86 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
 }
 
 /**
+ * Return top posts with trend data for the Insights tab.
+ *
+ * @since 1.0.0
+ * @param  string $from_str       Current period start (Y-m-d H:i:s).
+ * @param  string $to_str         Current period end   (Y-m-d H:i:s).
+ * @param  string $prev_from_str  Previous period start.
+ * @param  string $prev_to_str    Previous period end.
+ * @param  int    $limit          Max posts to evaluate.
+ * @return array  { top, trending_up, trending_down }
+ */
+function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_str, $limit = 20 ) {
+    global $wpdb;
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY post_id ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $limit ) );
+
+    if ( empty( $rows ) ) {
+        return array( 'top' => array(), 'trending_up' => array(), 'trending_down' => array() );
+    }
+
+    $post_ids = array_map( function( $r ) { return (int) $r->post_id; }, $rows );
+    $ids_str  = implode( ',', $post_ids );
+
+    $prev_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression, $ids_str contains only integers
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s AND post_id IN ({$ids_str})
+         GROUP BY post_id",
+        $prev_from_str, $prev_to_str ) );
+
+    $prev_map = array();
+    foreach ( (array) $prev_rows as $r ) {
+        $prev_map[ (int) $r->post_id ] = (int) $r->views;
+    }
+
+    $result = array();
+    foreach ( $rows as $r ) {
+        $pid        = absint( $r->post_id );
+        $post       = get_post( $pid );
+        $views      = (int) $r->views;
+        $prev_views = isset( $prev_map[ $pid ] ) ? $prev_map[ $pid ] : 0;
+        $pct_change = $prev_views > 0 ? (int) round( ( ( $views - $prev_views ) / $prev_views ) * 100 ) : null;
+
+        $thumb_url = '';
+        if ( $post ) {
+            $thumb_id = get_post_thumbnail_id( $pid );
+            if ( $thumb_id ) {
+                $img = wp_get_attachment_image_src( $thumb_id, array( 48, 48 ) );
+                if ( $img ) { $thumb_url = $img[0]; }
+            }
+        }
+
+        $result[] = array(
+            'title'      => $post ? html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ) : 'Post #' . $pid,
+            'url'        => ( $post && 'publish' === $post->post_status ) ? get_permalink( $post ) : '',
+            'thumbnail'  => $thumb_url,
+            'views'      => $views,
+            'prev_views' => $prev_views,
+            'pct_change' => $pct_change,
+        );
+    }
+
+    $trending_up   = array_values( array_filter( $result, function( $i ) { return $i['pct_change'] !== null && $i['pct_change'] > 0; } ) );
+    $trending_down = array_values( array_filter( $result, function( $i ) { return $i['pct_change'] !== null && $i['pct_change'] < 0; } ) );
+
+    usort( $trending_up,   function( $a, $b ) { return $b['pct_change'] - $a['pct_change']; } );
+    usort( $trending_down, function( $a, $b ) { return $a['pct_change'] - $b['pct_change']; } );
+
+    return array(
+        'top'          => $result,
+        'trending_up'  => $trending_up,
+        'trending_down' => $trending_down,
+    );
+}
+
+/**
  * Return unique visitor count per post for a date range.
  *
  * @since 1.0.0
@@ -642,6 +722,411 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
  * @param  string $to_str    End date (Y-m-d or Y-m-d H:i:s).
  * @return int
  */
+// ── Insights Dashboard helpers ───────────────────────────────────────────────
+
+/**
+ * Return canonical display label for a referrer hostname.
+ */
+function cspv_insights_label( $host ) {
+    static $map = null;
+    if ( null === $map ) {
+        $map = array(
+            'google'     => 'Google',
+            'bing'       => 'Bing',
+            'yahoo'      => 'Yahoo',
+            'duckduckgo' => 'DuckDuckGo',
+            'ecosia'     => 'Ecosia',
+            'yandex'     => 'Yandex',
+            'baidu'      => 'Baidu',
+            'linkedin'   => 'LinkedIn',
+            'facebook'   => 'Facebook',
+            'instagram'  => 'Instagram',
+            'twitter'    => 'Twitter/X',
+            'x.com'      => 'Twitter/X',
+            't.co'       => 'Twitter/X',
+            'reddit'     => 'Reddit',
+            'pinterest'  => 'Pinterest',
+            'youtube'    => 'YouTube',
+        );
+    }
+    $h = strtolower( $host );
+    foreach ( $map as $needle => $label ) {
+        if ( strpos( $h, $needle ) !== false ) { return $label; }
+    }
+    return $host;
+}
+
+/**
+ * Build labeled referrer totals from raw referrer rows.
+ * Returns array( label => views ) with Self optionally included.
+ *
+ * @param  array  $ref_rows     Objects with ->referrer and ->views.
+ * @param  string $own_host     Site hostname.
+ * @param  bool   $include_self Include own-domain traffic.
+ * @return array
+ */
+function cspv_insights_label_refs( $ref_rows, $own_host, $include_self = true ) {
+    $labeled = array();
+    foreach ( $ref_rows as $r ) {
+        $host    = (string) wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        $is_self = $own_host && ( strcasecmp( $host, $own_host ) === 0 || stripos( $host, $own_host ) !== false );
+        if ( ! $include_self && $is_self ) { continue; }
+        $label   = $is_self ? 'Self' : cspv_insights_label( $host );
+        if ( ! isset( $labeled[ $label ] ) ) { $labeled[ $label ] = 0; }
+        $labeled[ $label ] += (int) $r->views;
+    }
+    arsort( $labeled );
+    return $labeled;
+}
+
+/**
+ * Return KPI summary for the Insights dashboard.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @return array
+ */
+function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $total_views     = (int) cspv_views_for_range( $from_str, $to_str );
+    $unique_visitors = (int) cspv_unique_visitors_for_range( $from_str, $to_str );
+
+    $countries  = cspv_top_countries( $from_str, $to_str, 1 );
+    $top_country = ! empty( $countries ) ? $countries[0] : null;
+
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $top_ref = null;
+    $top_ref_no_self = null;
+    if ( $has_ref ) {
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
+             WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+             GROUP BY referrer ORDER BY views DESC LIMIT 200",
+            $from_str, $to_str ) );
+        if ( ! empty( $ref_rows ) ) {
+            $all  = cspv_insights_label_refs( $ref_rows, $own_host, true );
+            $ext  = cspv_insights_label_refs( $ref_rows, $own_host, false );
+            if ( ! empty( $all ) ) {
+                $label = key( $all );
+                $top_ref = array( 'label' => $label, 'views' => current( $all ), 'is_self' => ( $label === 'Self' ) );
+            }
+            if ( ! empty( $ext ) ) {
+                $label = key( $ext );
+                $top_ref_no_self = array( 'label' => $label, 'views' => current( $ext ), 'is_self' => false );
+            }
+        }
+    }
+
+    return array(
+        'total_views'          => $total_views,
+        'unique_visitors'      => $unique_visitors,
+        'top_country'          => $top_country,
+        'top_referrer'         => $top_ref,
+        'top_referrer_no_self' => $top_ref_no_self,
+    );
+}
+
+/**
+ * Return traffic sources for the Insights doughnut chart.
+ * Includes Direct (untracked referrer), Self, and labeled externals.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @return array  Array of { label, views, is_self }
+ */
+function cspv_insights_traffic_sources( $from_str, $to_str, $own_host ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $total = (int) cspv_views_for_range( $from_str, $to_str );
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    if ( ! $has_ref ) {
+        return array( array( 'label' => 'Direct', 'views' => $total, 'is_self' => false ) );
+    }
+
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY referrer ORDER BY views DESC LIMIT 500",
+        $from_str, $to_str ) );
+
+    $labeled   = cspv_insights_label_refs( $ref_rows, $own_host, true );
+    $ref_total = array_sum( $labeled );
+    $direct    = max( 0, $total - $ref_total );
+
+    $result = array();
+    if ( $direct > 0 ) {
+        $result[] = array( 'label' => 'Direct', 'views' => $direct, 'is_self' => false );
+    }
+    foreach ( $labeled as $label => $views ) {
+        $result[] = array( 'label' => $label, 'views' => $views, 'is_self' => ( $label === 'Self' ) );
+    }
+    usort( $result, function( $a, $b ) { return $b['views'] - $a['views']; } );
+    return $result;
+}
+
+/**
+ * Return referrer growth time-series for the Insights line chart.
+ * Returns { dates, series: [{ label, data, is_self }] }.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @param  int    $period   Days in the window (controls bucketing).
+ * @return array
+ */
+function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    if ( ! $has_ref ) { return array( 'dates' => array(), 'series' => array() ); }
+
+    $date_expr = $period > 30
+        ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
+        : "DATE(viewed_at)";
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT {$date_expr} AS bucket, referrer, COALESCE(SUM(view_count),0) AS views
+         FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY bucket, referrer ORDER BY bucket ASC, views DESC LIMIT 5000",
+        $from_str, $to_str ) );
+
+    if ( empty( $rows ) ) { return array( 'dates' => array(), 'series' => array() ); }
+
+    $buckets      = array();
+    $label_totals = array();
+    foreach ( $rows as $r ) {
+        $host    = (string) wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        $is_self = $own_host && ( strcasecmp( $host, $own_host ) === 0 || stripos( $host, $own_host ) !== false );
+        $label   = $is_self ? 'Self' : cspv_insights_label( $host );
+        $b       = $r->bucket;
+        if ( ! isset( $buckets[ $b ] ) ) { $buckets[ $b ] = array(); }
+        if ( ! isset( $buckets[ $b ][ $label ] ) ) { $buckets[ $b ][ $label ] = 0; }
+        $buckets[ $b ][ $label ] += (int) $r->views;
+        if ( ! isset( $label_totals[ $label ] ) ) { $label_totals[ $label ] = 0; }
+        $label_totals[ $label ] += (int) $r->views;
+    }
+    arsort( $label_totals );
+    $top_labels = array_keys( array_slice( $label_totals, 0, 8, true ) );
+
+    $dates = array_keys( $buckets );
+    sort( $dates );
+
+    $series = array();
+    foreach ( $top_labels as $label ) {
+        $data = array();
+        foreach ( $dates as $d ) {
+            $data[] = isset( $buckets[ $d ][ $label ] ) ? (int) $buckets[ $d ][ $label ] : 0;
+        }
+        $series[] = array( 'label' => $label, 'data' => $data, 'is_self' => ( $label === 'Self' ) );
+    }
+    return array( 'dates' => $dates, 'series' => $series );
+}
+
+/**
+ * Return top posts for the Insights bar chart.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  int    $limit
+ * @return array  Array of { title, url, views }
+ */
+function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
+    global $wpdb;
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY post_id ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $limit ) );
+
+    $result = array();
+    foreach ( $rows as $r ) {
+        $pid  = absint( $r->post_id );
+        $post = get_post( $pid );
+        if ( ! $post ) { continue; }
+        $result[] = array(
+            'title' => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
+            'url'   => get_permalink( $pid ),
+            'views' => (int) $r->views,
+        );
+    }
+    return $result;
+}
+
+/**
+ * Return top posts × referrer matrix for the Insights table.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @param  int    $max_posts
+ * @param  int    $max_refs
+ * @return array  { headers: string[], rows: [{ title, url, counts: int[] }] }
+ */
+function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_posts = 15, $max_refs = 8 ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_post_id = $has_ref ? $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'post_id' ) ) : null; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    if ( ! $has_post_id ) { return array( 'headers' => array(), 'rows' => array() ); }
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT post_id, referrer, COALESCE(SUM(view_count),0) AS views
+         FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' AND post_id > 0
+         GROUP BY post_id, referrer ORDER BY views DESC LIMIT 3000",
+        $from_str, $to_str ) );
+
+    if ( empty( $rows ) ) { return array( 'headers' => array(), 'rows' => array() ); }
+
+    $post_ref    = array();
+    $ref_totals  = array();
+    $post_totals = array();
+
+    foreach ( $rows as $r ) {
+        $pid     = absint( $r->post_id );
+        $host    = (string) wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        $is_self = $own_host && ( strcasecmp( $host, $own_host ) === 0 || stripos( $host, $own_host ) !== false );
+        $label   = $is_self ? 'Self' : cspv_insights_label( $host );
+
+        if ( ! isset( $post_ref[ $pid ] ) ) { $post_ref[ $pid ] = array(); }
+        if ( ! isset( $post_ref[ $pid ][ $label ] ) ) { $post_ref[ $pid ][ $label ] = 0; }
+        $post_ref[ $pid ][ $label ]   += (int) $r->views;
+        if ( ! isset( $ref_totals[ $label ] ) ) { $ref_totals[ $label ] = 0; }
+        $ref_totals[ $label ]         += (int) $r->views;
+        if ( ! isset( $post_totals[ $pid ] ) ) { $post_totals[ $pid ] = 0; }
+        $post_totals[ $pid ]          += (int) $r->views;
+    }
+
+    arsort( $ref_totals );
+    $top_refs = array_keys( array_slice( $ref_totals, 0, $max_refs, true ) );
+    arsort( $post_totals );
+    $top_pids = array_keys( array_slice( $post_totals, 0, $max_posts, true ) );
+
+    $result_rows = array();
+    foreach ( $top_pids as $pid ) {
+        $post = get_post( $pid );
+        if ( ! $post ) { continue; }
+        $counts = array();
+        foreach ( $top_refs as $ref ) {
+            $counts[] = isset( $post_ref[ $pid ][ $ref ] ) ? (int) $post_ref[ $pid ][ $ref ] : 0;
+        }
+        $result_rows[] = array(
+            'title'  => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
+            'url'    => get_permalink( $pid ),
+            'counts' => $counts,
+        );
+    }
+    return array( 'headers' => $top_refs, 'rows' => $result_rows );
+}
+
+/**
+ * Return top referrer domains with labels (including Self) for the bar chart.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @param  int    $limit
+ * @return array  Array of { label, views, is_self }
+ */
+function cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host, $limit = 15 ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    if ( ! $has_ref ) { return array(); }
+
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY referrer ORDER BY views DESC LIMIT 300",
+        $from_str, $to_str ) );
+
+    $labeled = cspv_insights_label_refs( $ref_rows, $own_host, true );
+    $result  = array();
+    $i       = 0;
+    foreach ( $labeled as $label => $views ) {
+        if ( $i >= $limit ) { break; }
+        $result[] = array( 'label' => $label, 'views' => $views, 'is_self' => ( $label === 'Self' ) );
+        $i++;
+    }
+    return $result;
+}
+
+/**
+ * Return country traffic over time for the Insights line chart.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  int    $period
+ * @param  int    $max_countries
+ * @return array  { dates, series: [{ label, data }] }
+ */
+function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_countries = 5 ) {
+    global $wpdb;
+    $geo_table = $wpdb->prefix . 'cs_analytics_geo_v2';
+
+    $has_geo = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) );
+    if ( ! $has_geo ) { return array( 'dates' => array(), 'series' => array() ); }
+
+    $date_expr = $period > 30
+        ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
+        : "DATE(viewed_at)";
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT {$date_expr} AS bucket, country_code, COALESCE(SUM(view_count),0) AS views
+         FROM `{$geo_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND country_code IS NOT NULL AND country_code <> ''
+         GROUP BY bucket, country_code ORDER BY bucket ASC LIMIT 3000",
+        $from_str, $to_str ) );
+
+    if ( empty( $rows ) ) { return array( 'dates' => array(), 'series' => array() ); }
+
+    $country_totals = array();
+    $buckets        = array();
+    foreach ( $rows as $r ) {
+        $cc = $r->country_code;
+        if ( ! isset( $country_totals[ $cc ] ) ) { $country_totals[ $cc ] = 0; }
+        $country_totals[ $cc ] += (int) $r->views;
+        if ( ! isset( $buckets[ $r->bucket ] ) ) { $buckets[ $r->bucket ] = array(); }
+        if ( ! isset( $buckets[ $r->bucket ][ $cc ] ) ) { $buckets[ $r->bucket ][ $cc ] = 0; }
+        $buckets[ $r->bucket ][ $cc ] += (int) $r->views;
+    }
+    arsort( $country_totals );
+    $top_cc = array_keys( array_slice( $country_totals, 0, $max_countries, true ) );
+
+    $dates = array_keys( $buckets );
+    sort( $dates );
+
+    $series = array();
+    foreach ( $top_cc as $cc ) {
+        $data = array();
+        foreach ( $dates as $d ) {
+            $data[] = isset( $buckets[ $d ][ $cc ] ) ? (int) $buckets[ $d ][ $cc ] : 0;
+        }
+        $series[] = array( 'label' => $cc, 'data' => $data );
+    }
+    return array( 'dates' => $dates, 'series' => $series );
+}
+
 function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     global $wpdb;
     $table = $wpdb->prefix . 'cs_analytics_visitors_v2';

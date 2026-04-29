@@ -771,8 +771,14 @@ body.cspv-modal-open { overflow: hidden; }
     cursor: pointer; border: 1px solid transparent; white-space: nowrap;
     transition: background .15s;
 }
-.cspv-ins-self-on  { background: #f59e0b; color: #000; border-color: #d97706; }
-.cspv-ins-self-off { background: rgba(255,255,255,.12); color: rgba(255,255,255,.65); border-color: rgba(255,255,255,.25); }
+.cspv-ins-self-on  { background: #22c55e; color: #fff; border-color: #16a34a; }
+.cspv-ins-self-off { background: #ef4444; color: #fff; border-color: #dc2626; }
+.cspv-ins-explain-btn {
+    font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 5px;
+    cursor: pointer; border: 1px solid rgba(255,255,255,.4); white-space: nowrap;
+    background: rgba(255,255,255,.18); color: #fff; transition: background .15s;
+}
+.cspv-ins-explain-btn:hover { background: rgba(255,255,255,.32); }
 
 /* Dashboard body — dark navy canvas */
 #cspv-ins-body { background: #0f172a; padding-bottom: 28px; }

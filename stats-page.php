@@ -985,7 +985,7 @@ function cspv_ajax_insights() {
         $from_str, $to_str,
         $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
         $prev_to->format( 'Y-m-d' )   . ' 23:59:59',
-        20
+        100
     ) );
 }
 

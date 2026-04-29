@@ -822,8 +822,8 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ins-loading-overlay { text-align: center; padding: 32px; color: #9ca3af; font-size: 13px; }
 
 /* Legends */
-.cspv-ins-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; }
-.cspv-ins-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #374151; cursor: default; }
+.cspv-ins-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; justify-content: center; }
+.cspv-ins-legend-item { display: flex; align-items: center; gap: 6px; font-size: 31px; color: #374151; cursor: default; }
 .cspv-ins-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
 /* Top Posts by Referrer table */

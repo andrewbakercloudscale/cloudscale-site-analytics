@@ -31,7 +31,7 @@ helpLib.run({
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
 
     pluginFile: `${__dirname}/../stats-page.php`,
-    logoFile:   `${__dirname}/../cloudscaleanalytics.png`,
+    logoFile:   `${__dirname}/../cloudscale-analytics-icon.jpg`,
 
     sections: [
         { id: 'statistics',   label: 'Statistics Dashboard',  file: 'panel-statistics.png',  tab: 'stats',    tabSelector: '[data-tab="stats"]'    },

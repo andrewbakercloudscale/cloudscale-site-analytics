@@ -42,7 +42,7 @@ function cspv_dashboard_widget_enqueue( $hook ) {
     wp_register_script( 'cspv-dashboard-widget', false, array( 'cspv-chartjs' ), CSPV_VERSION, true );
     wp_enqueue_script( 'cspv-dashboard-widget' );
 
-    $logo_url = esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) );
+    $logo_url = esc_url( plugins_url( 'cloudscale-analytics-icon.jpg', __FILE__ ) );
     wp_add_inline_script(
         'cspv-dashboard-widget',
         'document.addEventListener("DOMContentLoaded",function(){' .

@@ -1138,7 +1138,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ HEADER BANNER ═══════════════════════ -->
     <div id="cspv-banner">
         <div id="cspv-banner-left">
-            <div id="cspv-banner-title"><img src="<?php echo esc_url( plugins_url( 'cloudscaleanalytics.png', __FILE__ ) ); ?>" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;position:relative;top:-1px;" alt=""> CloudScale Site Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
+            <div id="cspv-banner-title"><img src="<?php echo esc_url( plugins_url( 'cloudscale-analytics-icon.jpg', __FILE__ ) ); ?>" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;position:relative;top:-1px;" alt=""> CloudScale Site Analytics v<?php echo esc_html( CSPV_VERSION ); ?></div>
             <div id="cspv-banner-sub">Cloudflare-accurate view tracking · v<?php echo esc_html( CSPV_VERSION ); ?></div>
         </div>
         <div id="cspv-banner-right">

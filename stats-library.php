@@ -796,7 +796,22 @@ function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
     $total_views     = (int) cspv_views_for_range( $from_str, $to_str );
     $unique_visitors = (int) cspv_unique_visitors_for_range( $from_str, $to_str );
 
-    $countries  = cspv_top_countries( $from_str, $to_str, 1 );
+    // Previous equal period for trend calculation.
+    $period_secs  = strtotime( $to_str ) - strtotime( $from_str );
+    $prev_to_dt   = new DateTime( $from_str, wp_timezone() );
+    $prev_to_dt->modify( '-1 second' );
+    $prev_from_dt = clone $prev_to_dt;
+    $prev_from_dt->modify( '-' . $period_secs . ' seconds' );
+    $prev_from    = $prev_from_dt->format( 'Y-m-d H:i:s' );
+    $prev_to      = $prev_to_dt->format( 'Y-m-d H:i:s' );
+
+    $prev_views    = (int) cspv_views_for_range( $prev_from, $prev_to );
+    $prev_visitors = (int) cspv_unique_visitors_for_range( $prev_from, $prev_to );
+
+    $trend_views    = $prev_views    > 0 ? (int) round( ( $total_views     - $prev_views )    / $prev_views    * 100 ) : null;
+    $trend_visitors = $prev_visitors > 0 ? (int) round( ( $unique_visitors - $prev_visitors ) / $prev_visitors * 100 ) : null;
+
+    $countries   = cspv_top_countries( $from_str, $to_str, 1 );
     $top_country = ! empty( $countries ) ? $countries[0] : null;
 
     $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
@@ -828,6 +843,8 @@ function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
         'top_country'          => $top_country,
         'top_referrer'         => $top_ref,
         'top_referrer_no_self' => $top_ref_no_self,
+        'trend_views_pct'      => $trend_views,
+        'trend_visitors_pct'   => $trend_visitors,
     );
 }
 

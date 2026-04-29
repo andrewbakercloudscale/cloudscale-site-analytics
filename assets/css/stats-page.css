@@ -753,58 +753,93 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ph-row:hover { background: #e8f4fd !important; }
 .cspv-ph-row.active { background: #d0ebff !important; border-left: 3px solid #2e86c1; }
 
-/* ── Insights Dashboard ────────────────────────────────── */
+/* ── Insights Dashboard — world-class dark theme ───────── */
+
+/* Header controls */
 .cspv-ins-period-btns { display: flex; gap: 4px; flex-wrap: wrap; }
 .cspv-ins-period {
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
-    color: rgba(255,255,255,.8); font-size: 11px; font-weight: 600;
-    padding: 5px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap;
-    transition: background .15s, color .15s;
+    color: rgba(255,255,255,.85); font-size: 11px; font-weight: 600;
+    padding: 5px 13px; border-radius: 5px; cursor: pointer; white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s;
 }
-.cspv-ins-period:hover { background: rgba(255,255,255,.22); }
-.cspv-ins-period.active { background: #f59e0b; border-color: #f59e0b; color: #000; }
+.cspv-ins-period:hover { background: rgba(255,255,255,.25); }
+.cspv-ins-period.active { background: #f59e0b; border-color: #f59e0b; color: #000; font-weight: 700; }
 .cspv-ins-self-btn {
-    font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 5px;
     cursor: pointer; border: 1px solid transparent; white-space: nowrap;
     transition: background .15s;
 }
 .cspv-ins-self-on  { background: #f59e0b; color: #000; border-color: #d97706; }
-.cspv-ins-self-off { background: rgba(255,255,255,.15); color: rgba(255,255,255,.7); border-color: rgba(255,255,255,.3); }
+.cspv-ins-self-off { background: rgba(255,255,255,.12); color: rgba(255,255,255,.65); border-color: rgba(255,255,255,.25); }
+
+/* Dashboard body — dark navy canvas */
+#cspv-ins-body { background: #0f172a; padding-bottom: 28px; }
+
+/* Section padding wrapper */
+.cspv-ins-section { padding: 0 18px; }
+
+/* KPI grid */
 .cspv-ins-kpi-grid {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 12px; padding: 16px;
+    gap: 14px; padding: 18px 18px 0;
 }
-@media (max-width: 782px) { .cspv-ins-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .cspv-ins-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px)  { .cspv-ins-kpi-grid { grid-template-columns: 1fr; } }
 .cspv-ins-kpi-card {
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
-    padding: 14px 16px;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15), 0 4px 16px rgba(0,0,0,.12);
+    padding: 16px 18px 14px; position: relative; overflow: hidden;
+    border-top: 3px solid #e5e7eb;
+    transition: box-shadow .2s;
 }
-.cspv-ins-kpi-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
-.cspv-ins-kpi-value { font-size: 26px; font-weight: 800; color: #1a2332; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.cspv-ins-kpi-sub   { font-size: 11px; color: #6b7280; margin-top: 3px; }
+.cspv-ins-kpi-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.14); }
+.cspv-ins-kpi-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.cspv-ins-kpi-value { font-size: 30px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cspv-ins-kpi-sub   { font-size: 11px; color: #6b7280; margin-top: 4px; }
+.cspv-ins-kpi-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.cspv-ins-trend-up   { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: #059669; background: #d1fae5; padding: 2px 7px; border-radius: 20px; }
+.cspv-ins-trend-down { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: #dc2626; background: #fee2e2; padding: 2px 7px; border-radius: 20px; }
+.cspv-ins-trend-flat { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: #6b7280; background: #f3f4f6; padding: 2px 7px; border-radius: 20px; }
+
+/* Chart rows and panels */
 .cspv-ins-chart-row {
-    display: flex; gap: 12px; padding: 0 16px; flex-wrap: wrap;
+    display: flex; gap: 14px; padding: 14px 18px 0; flex-wrap: wrap;
 }
 .cspv-ins-chart-panel {
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
-    padding: 12px; overflow: hidden;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15), 0 4px 16px rgba(0,0,0,.12);
+    padding: 16px; overflow: hidden;
+    transition: box-shadow .2s;
 }
+.cspv-ins-chart-panel:hover { box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.14); }
+.cspv-ins-chart-panel-solo { margin: 14px 18px 0; }
 .cspv-ins-chart-title {
-    font-size: 11px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: #6b7280; margin-bottom: 10px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: #6b7280; margin-bottom: 12px;
 }
-.cspv-ins-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
-.cspv-ins-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #555; }
-.cspv-ins-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.cspv-ins-loading-overlay { text-align: center; padding: 32px; color: #9ca3af; font-size: 13px; }
+
+/* Legends */
+.cspv-ins-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; }
+.cspv-ins-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #374151; cursor: default; }
+.cspv-ins-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Top Posts by Referrer table */
 .cspv-ins-ref-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .cspv-ins-ref-tbl th {
-    background: #1a2332; color: #fff; padding: 6px 10px;
-    text-align: right; font-size: 11px; font-weight: 700; white-space: nowrap;
+    background: #1e293b; color: #e2e8f0; padding: 8px 10px;
+    text-align: right; font-size: 10px; font-weight: 700; letter-spacing: .05em; white-space: nowrap;
 }
-.cspv-ins-ref-tbl th:first-child { text-align: left; }
-.cspv-ins-ref-tbl td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #f0f0f0; }
+.cspv-ins-ref-tbl th:first-child { text-align: left; border-radius: 6px 0 0 0; }
+.cspv-ins-ref-tbl th:last-child  { border-radius: 0 6px 0 0; }
+.cspv-ins-ref-tbl tr:nth-child(even) td { background: #f8fafc; }
+.cspv-ins-ref-tbl td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; color: #374151; }
 .cspv-ins-ref-tbl td:first-child { text-align: left; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cspv-ins-ref-tbl a { color: #3b82f6; text-decoration: none; }
 .cspv-ins-ref-tbl a:hover { text-decoration: underline; }
+.cspv-ins-ref-tbl tr:hover td { background: #f0f9ff !important; }
+
+/* Post Analytics (Post History) rows */
 .cspv-ph-row:hover { background: #e8f4fd !important; }
 .cspv-ph-row.active { background: #d0ebff !important; border-left: 3px solid #06b6d4; }

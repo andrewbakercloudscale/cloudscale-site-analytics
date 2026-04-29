@@ -36,6 +36,7 @@ helpLib.run({
     sections: [
         { id: 'statistics',   label: 'Statistics Dashboard',  file: 'panel-statistics.png',  tab: 'stats',    tabSelector: '[data-tab="stats"]'    },
         { id: 'geography',    label: 'Geography',             file: 'panel-geography.png',   tab: 'stats',    tabSelector: '[data-tab="stats"]',   elementSelector: '#cspv-geo-panel' },
+        { id: 'insights',     label: 'Insights Dashboard',    file: 'panel-insights.png',    tab: 'insights', tabSelector: '[data-tab="insights"]' },
         { id: 'display',      label: 'Display Settings',      file: 'panel-display.png',     tab: 'display',  tabSelector: '[data-tab="display"]'  },
         { id: 'throttle',     label: 'IP Throttle',           file: 'panel-throttle.png',    tab: 'throttle', tabSelector: '[data-tab="throttle"]' },
         { id: 'history',      label: 'Post History',          file: 'panel-history.png',     tab: 'history',  tabSelector: '[data-tab="history"]'  },
@@ -144,6 +145,104 @@ helpLib.run({
 <p>If Jetpack stored your stats on WordPress.com (cloud-only mode) rather than locally, the automatic check will find no data. In this case use the CSV import: log in to WordPress.com, go to your site's Stats, scroll to the bottom, and export a CSV. Paste post slug or ID and view count pairs (one per line, comma-separated) into the text area and click <strong>Import CSV Data</strong>.</p>
 <h3>Jetpack Data Management</h3>
 <p><strong>Delete Jetpack Data</strong> — permanently removes the Jetpack stats tables and option rows from your database once you have confirmed the migration was successful and you no longer need the original data. This is irreversible.</p>`,
+
+        'insights': `
+<div style="background:#f0f9ff!important;border-left:4px solid #0f4c81;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
+<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a!important;">Insights — Deep Analytics at a Glance</h2>
+<p style="margin:0 0 10px;">The <strong>Insights tab</strong> gives you a rich multi-chart view of your site's traffic patterns over a rolling window you choose (7, 30, 90, 180, or 360 days). Unlike the Statistics tab — which uses a calendar date picker — Insights always queries the most recent <em>N</em> days so trends stay current without manual date adjustment.</p>
+<p style="margin:0;">All charts update simultaneously when you change the period or toggle Self traffic. No page reload is needed.</p>
+</div>
+
+<h3>Period Selector (7 / 30 / 90 / 180 / 360 days)</h3>
+<p>The amber button in the header shows the active window. Clicking any period re-fetches every chart on the page — KPI cards, traffic sources, referrer growth, country charts, top posts, and Your Content — all in a single AJAX call. The default is <strong>30 days</strong>. Use longer windows (180 or 360 days) to spot seasonal trends; use 7 days to diagnose a sudden spike or drop.</p>
+
+<h3>Self Toggle (Self: ON / Self: OFF)</h3>
+<p>Many site owners browse their own content regularly, and those views appear as "Self" referrer traffic (the HTTP referrer matches your own domain). The <strong>Self toggle</strong> filters this traffic client-side — no new AJAX request is made. When Self is <strong>OFF</strong>:</p>
+<ul>
+<li>The Self slice is removed from Traffic Sources</li>
+<li>The Self series is hidden in Referrer Growth</li>
+<li>The Self column is hidden in Top Posts by Referrer</li>
+<li>Top Referrer KPI card shows your highest non-Self referrer instead</li>
+</ul>
+<p>Toggle Self ON to include your own browsing in all counts; toggle OFF to see only external visitor traffic.</p>
+
+<h3>KPI Cards — Four Key Metrics</h3>
+<p>Four cards across the top summarise the period in one glance. Each card shows the current value and a trend badge comparing it to the previous equal period (e.g. for a 30-day window, the previous 30 days).</p>
+<ul>
+<li><strong>Total Views</strong> — total page views recorded by the beacon during the period, from <code>wp_cs_analytics_views_v2</code>. Trend badge shows % change vs previous period (green ▲ = growth, red ▼ = decline).</li>
+<li><strong>Unique Visitors</strong> — count of distinct visitor hashes from <code>wp_cs_analytics_visitors_v2</code>. A visitor hash is derived from a salted hash of the IP address and user-agent — no raw IP is stored. Trend badge compares to previous period.</li>
+<li><strong>Top Country</strong> — two-letter ISO country code of the country with the most views this period, with a flag emoji prefix. Sub-line shows the view count for that country. Country data comes from <code>wp_cs_analytics_geo_v2</code>.</li>
+<li><strong>Top Referrer</strong> — the referrer label with the most views. When Self is OFF, this shows the top non-Self referrer. Sub-line shows the view count. "Direct" means no HTTP referrer header was present.</li>
+</ul>
+
+<h3>Traffic Sources (Doughnut Chart)</h3>
+<p>A doughnut chart breaking down where your views came from. Each slice represents a traffic source:</p>
+<ul>
+<li><strong>Direct</strong> — views with no HTTP referrer header. Includes visitors who typed your URL directly, used a bookmark, or arrived from a native app that strips referrers.</li>
+<li><strong>Self</strong> — views where the referrer matched your own domain (only shown when Self is ON).</li>
+<li><strong>Search engines</strong> — Google, Bing, Yahoo, DuckDuckGo, Ecosia, Yandex, Baidu — each identified by the referrer hostname.</li>
+<li><strong>Social networks</strong> — LinkedIn, Facebook, Instagram, Twitter/X, Reddit, Pinterest, YouTube.</li>
+<li><strong>Other hostnames</strong> — all remaining referrers shown by their domain name.</li>
+</ul>
+<p>Hover over any slice to see the exact view count and percentage. The custom legend below the chart shows all sources with their matching colour.</p>
+
+<h3>Referrer Growth (Line Chart)</h3>
+<p>A multi-line time-series chart showing how your top 8 referrers have trended over the period. Each series uses a distinct colour and dash pattern so sources remain distinguishable even in monochrome printing.</p>
+<ul>
+<li>For periods ≤ 30 days: one data point per day.</li>
+<li>For periods &gt; 30 days: one data point per ISO week (Monday-anchored).</li>
+<li>The Y-axis starts at zero — a flat line means consistent traffic, not missing data.</li>
+</ul>
+<p>Use this chart to identify which referrers are growing, plateauing, or losing send. A sudden spike on one referrer on a specific date points to a viral post or external link being shared.</p>
+
+<h3>Views by Country (Horizontal Bar Chart)</h3>
+<p>A ranked horizontal bar chart of your top 10 countries, each labelled with a flag emoji and two-letter country code. The bar width represents the view count; hover to see the count and the share of total views for that country.</p>
+<p>Countries are determined from the geo data captured at beacon-time. The source is typically the Cloudflare <code>CF-IPCountry</code> header, falling back to the DB-IP Lite database or your configured geo source in Display Settings. An <code>XX</code> code means the country could not be determined.</p>
+
+<h3>Countries Over Time (Line Chart with Flags)</h3>
+<p>A multi-line chart showing how your top 5 countries have trended over the same time buckets used by the Referrer Growth chart (daily for ≤30 days, weekly for &gt;30 days). Each line is labelled in the legend with a flag emoji and country code.</p>
+<p>This chart is especially useful for sites with international audiences — you can see whether a traffic bump was global or from a single geography, and whether your country mix is shifting over time.</p>
+
+<h3>Top Posts by Views (Horizontal Bar Chart)</h3>
+<p>The 15 posts with the most views during the period, sorted descending. Each bar has a distinct colour for quick scanning. Labels are truncated at 42 characters to fit the chart. This reflects the same data as the Statistics tab's Most Viewed list but always uses the Insights rolling window rather than the calendar range.</p>
+
+<h3>Top Posts by Referrer (Matrix Table)</h3>
+<p>A cross-reference table showing how each of your top 15 posts received traffic from each of the top 8 referrers. Columns are referrers; rows are posts.</p>
+<ul>
+<li>A value in a cell is the view count for that post from that referrer during the period.</li>
+<li>A dash (—) means zero views from that referrer to that post.</li>
+<li>When Self is OFF, the Self column is hidden.</li>
+<li>Post titles link to the live post.</li>
+</ul>
+<p>Use this table to find which referrers drive traffic to specific posts. For example, if a post gets heavy Google traffic but zero LinkedIn traffic, it is performing well in search but has not been shared socially.</p>
+
+<h3>Top Referrer Domains (Bar Chart)</h3>
+<p>A comprehensive horizontal bar chart of all referrer hostnames with views in the period (up to 15). This is broader than the Traffic Sources doughnut — it shows individual domains rather than grouping by type, so you can see distinct sources like <code>search.brave.com</code> and <code>kagi.com</code> separately from <code>www.google.com</code>.</p>
+<p>Known search engines and social networks are shown by their display name (e.g. "Google"); unknown hostnames are shown as-is.</p>
+
+<h3>Your Content — Top, Trending Up, Trending Down</h3>
+<p>A purple panel below the charts showing your own posts ranked by performance for the active Insights period. Three sub-tabs:</p>
+<ul>
+<li><strong>Top</strong> — posts ranked by total views descending.</li>
+<li><strong>Trending Up</strong> — posts whose view count grew the most (as a percentage) compared to the previous equal period. A post that got 10 views last period and 25 this period appears here with a ▲ 150% badge.</li>
+<li><strong>Trending Down</strong> — posts whose view count declined the most vs the previous period. Useful for finding content that was once popular but is losing momentum.</li>
+</ul>
+<p>Each row shows a featured image thumbnail (or grey placeholder), the post title (linked), the URL path, and the view count right-aligned. The header shows "Last N days" matching the active period selector.</p>
+
+<h3>Post Analytics — Per-Post 30-Day Timeline</h3>
+<p>A teal panel at the bottom of Insights providing a deep-dive into any individual post's recent history.</p>
+<ul>
+<li><strong>Search bar</strong> — type any part of a post title to filter the sortable list below. Results update as you type.</li>
+<li><strong>Sortable post list</strong> — click <em>Post</em> to sort alphabetically or <em>Total Views</em> to rank by lifetime views. Click any row to expand the 30-day timeline.</li>
+<li><strong>Expanded timeline</strong> — for each day that had views, shows the date, total count, and a split bar:
+  <ul>
+  <li>Green portion = views from your own domain (Self)</li>
+  <li>Teal portion = views from external referrers</li>
+  </ul>
+  Labels show "self: N" and the top external referrer hostname with its count. Click the row again to collapse.
+</li>
+</ul>
+<p>Data comes from <code>wp_cs_analytics_referrers_v2</code> filtered to the last 30 days for the selected <code>post_id</code>. This timeline always uses a fixed 30-day window regardless of the Insights period selector.</p>`,
 
         'history': `
 <p>The <strong>Post History</strong> tab provides a full day-by-day breakdown of views for any individual post or page — useful for diagnosing traffic spikes, measuring the impact of promotions, and spotting seasonal patterns.</p>

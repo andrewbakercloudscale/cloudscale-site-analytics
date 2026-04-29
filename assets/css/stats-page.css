@@ -242,8 +242,9 @@
     align-items: center;
     border-radius: 7px 7px 0 0;
 }
-.cspv-section-header-green  { background: linear-gradient(135deg, #1a7a3a, #1db954); }
-.cspv-section-header-orange { background: linear-gradient(135deg, #c45c00, #f47c20); }
+.cspv-section-header-pink   { background: linear-gradient(135deg, #9d174d, #ec4899); }
+.cspv-section-header-green  { background: linear-gradient(135deg, #9d174d, #ec4899); }
+.cspv-section-header-orange { background: linear-gradient(135deg, #c2400b, #f97316); }
 .cspv-ref-toggle-wrap { display: flex; gap: 0; }
 .cspv-ref-toggle {
     background: rgba(255,255,255,.2); border: none; color: rgba(255,255,255,.7);
@@ -253,7 +254,7 @@
 .cspv-ref-toggle:first-child { border-radius: 3px 0 0 3px; }
 .cspv-ref-toggle:last-child  { border-radius: 0 3px 3px 0; }
 .cspv-ref-toggle:hover { background: rgba(255,255,255,.3); }
-.cspv-ref-toggle.active { background: rgba(255,255,255,.95); color: #c45c00; }
+.cspv-ref-toggle.active { background: rgba(255,255,255,.95); color: #c2400b; }
 .cspv-section-header-red    { background: linear-gradient(135deg, #8b1a1a, #e53e3e); }
 .cspv-range-label { font-size: 11px; font-weight: 400; opacity: .85; }
 
@@ -347,8 +348,8 @@
     position: absolute; left: -6px; top: -5px; bottom: -5px;
     border-radius: 2px; z-index: 0; transition: width .35s ease;
 }
-.cspv-panel:first-child .cspv-bar-fill { background: #e8f5ff; }
-.cspv-panel:last-child  .cspv-bar-fill { background: #fff3e8; }
+.cspv-panel:first-child .cspv-bar-fill { background: #fce7f3; }
+.cspv-panel:last-child  .cspv-bar-fill { background: #fff4ed; }
 .cspv-bar-label {
     position: relative; z-index: 1;
     font-size: 13px; color: #1a2332;
@@ -637,6 +638,96 @@ body.cspv-modal-open { overflow: hidden; }
     font-size: 13px; color: #555; line-height: 1.7;
 }
 .cspv-help-card-body strong { color: #1a2332; }
+
+/* ── Insights tab ────────────────────────────────────────── */
+.cspv-insights-subtabs {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 16px;
+    background: #f9fafb;
+}
+.cspv-insights-sub {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+    white-space: nowrap;
+}
+.cspv-insights-sub:hover { color: #1a2332; }
+.cspv-insights-sub.active { color: #7e22ce; border-bottom-color: #c026d3; }
+.cspv-insights-col-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    flex-shrink: 0;
+}
+.cspv-insights-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f4ff;
+    gap: 12px;
+}
+.cspv-insights-row:last-child { border-bottom: none; }
+.cspv-insights-thumb-wrap { flex-shrink: 0; }
+.cspv-insights-thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 6px;
+    display: block;
+}
+.cspv-insights-thumb-ph {
+    width: 48px;
+    height: 48px;
+    background: #e5e7eb;
+    border-radius: 6px;
+}
+.cspv-insights-meta { flex: 1; min-width: 0; }
+.cspv-insights-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a2332;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cspv-insights-title a { color: #7e22ce; text-decoration: none; }
+.cspv-insights-title a:hover { text-decoration: underline; }
+.cspv-insights-url {
+    font-size: 11px;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+.cspv-trend-badge {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.cspv-trend-up   { color: #059669; background: #d1fae5; }
+.cspv-trend-down { color: #dc2626; background: #fee2e2; }
+.cspv-insights-views {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+    min-width: 40px;
+    text-align: right;
+    flex-shrink: 0;
+}
 
 /* ── Post History tab ──────────────────────────────────── */
 .cspv-ph-card {

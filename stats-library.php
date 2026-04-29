@@ -634,6 +634,86 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
 }
 
 /**
+ * Return top posts with trend data for the Insights tab.
+ *
+ * @since 1.0.0
+ * @param  string $from_str       Current period start (Y-m-d H:i:s).
+ * @param  string $to_str         Current period end   (Y-m-d H:i:s).
+ * @param  string $prev_from_str  Previous period start.
+ * @param  string $prev_to_str    Previous period end.
+ * @param  int    $limit          Max posts to evaluate.
+ * @return array  { top, trending_up, trending_down }
+ */
+function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_str, $limit = 20 ) {
+    global $wpdb;
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY post_id ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $limit ) );
+
+    if ( empty( $rows ) ) {
+        return array( 'top' => array(), 'trending_up' => array(), 'trending_down' => array() );
+    }
+
+    $post_ids = array_map( function( $r ) { return (int) $r->post_id; }, $rows );
+    $ids_str  = implode( ',', $post_ids );
+
+    $prev_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression, $ids_str contains only integers
+        "SELECT post_id, {$cnt} AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s AND post_id IN ({$ids_str})
+         GROUP BY post_id",
+        $prev_from_str, $prev_to_str ) );
+
+    $prev_map = array();
+    foreach ( (array) $prev_rows as $r ) {
+        $prev_map[ (int) $r->post_id ] = (int) $r->views;
+    }
+
+    $result = array();
+    foreach ( $rows as $r ) {
+        $pid        = absint( $r->post_id );
+        $post       = get_post( $pid );
+        $views      = (int) $r->views;
+        $prev_views = isset( $prev_map[ $pid ] ) ? $prev_map[ $pid ] : 0;
+        $pct_change = $prev_views > 0 ? (int) round( ( ( $views - $prev_views ) / $prev_views ) * 100 ) : null;
+
+        $thumb_url = '';
+        if ( $post ) {
+            $thumb_id = get_post_thumbnail_id( $pid );
+            if ( $thumb_id ) {
+                $img = wp_get_attachment_image_src( $thumb_id, array( 48, 48 ) );
+                if ( $img ) { $thumb_url = $img[0]; }
+            }
+        }
+
+        $result[] = array(
+            'title'      => $post ? html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ) : 'Post #' . $pid,
+            'url'        => ( $post && 'publish' === $post->post_status ) ? get_permalink( $post ) : '',
+            'thumbnail'  => $thumb_url,
+            'views'      => $views,
+            'prev_views' => $prev_views,
+            'pct_change' => $pct_change,
+        );
+    }
+
+    $trending_up   = array_values( array_filter( $result, function( $i ) { return $i['pct_change'] !== null && $i['pct_change'] > 0; } ) );
+    $trending_down = array_values( array_filter( $result, function( $i ) { return $i['pct_change'] !== null && $i['pct_change'] < 0; } ) );
+
+    usort( $trending_up,   function( $a, $b ) { return $b['pct_change'] - $a['pct_change']; } );
+    usort( $trending_down, function( $a, $b ) { return $a['pct_change'] - $b['pct_change']; } );
+
+    return array(
+        'top'          => $result,
+        'trending_up'  => $trending_up,
+        'trending_down' => $trending_down,
+    );
+}
+
+/**
  * Return unique visitor count per post for a date range.
  *
  * @since 1.0.0

@@ -24,6 +24,7 @@ add_action( 'wp_ajax_cspv_referrer_drill', 'cspv_ajax_referrer_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
 add_action( 'wp_ajax_cspv_purge_visitors',           'cspv_ajax_purge_visitors' );
 add_action( 'wp_ajax_cspv_save_display_settings',   'cspv_ajax_save_display_settings' );
+add_action( 'wp_ajax_cspv_insights',               'cspv_ajax_insights' );
 
 /**
  * Inject viewport meta tag on the plugin page so mobile media queries fire correctly.
@@ -953,6 +954,40 @@ function cspv_ajax_save_display_settings() {
     wp_send_json_success( array( 'message' => 'Display settings saved.' ) );
 }
 
+/**
+ * AJAX handler: top posts with trend data for the Insights tab.
+ *
+ * @since 1.0.0
+ */
+function cspv_ajax_insights() {
+    check_ajax_referer( 'cspv_insights', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Unauthorized', 403 );
+        return;
+    }
+
+    $from_raw = isset( $_POST['from'] ) ? sanitize_text_field( wp_unslash( $_POST['from'] ) ) : '';
+    $to_raw   = isset( $_POST['to']   ) ? sanitize_text_field( wp_unslash( $_POST['to']   ) ) : '';
+
+    $from = DateTime::createFromFormat( 'Y-m-d', $from_raw, wp_timezone() );
+    $to   = DateTime::createFromFormat( 'Y-m-d', $to_raw,   wp_timezone() );
+    if ( ! $from || ! $to ) { wp_send_json_error( 'Invalid dates', 400 ); return; }
+    if ( $from > $to ) { $tmp = $from; $from = $to; $to = $tmp; }
+
+    $from_str      = $from->format( 'Y-m-d' ) . ' 00:00:00';
+    $to_str        = $to->format( 'Y-m-d' )   . ' 23:59:59';
+    $diff_days     = max( 1, (int) date_diff( $from, $to )->days );
+    $prev_from     = clone $from; $prev_from->modify( '-' . $diff_days . ' days' );
+    $prev_to       = clone $to;   $prev_to->modify(   '-' . $diff_days . ' days' );
+
+    wp_send_json_success( cspv_insights_top_pages(
+        $from_str, $to_str,
+        $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
+        $prev_to->format( 'Y-m-d' )   . ' 23:59:59',
+        20
+    ) );
+}
+
 // ---------------------------------------------------------------------------
 // Page render
 // ---------------------------------------------------------------------------
@@ -1018,6 +1053,7 @@ function cspv_render_stats_page() {
     $ajax_url        = admin_url( 'admin-ajax.php' );
     $ajax_nonce      = wp_create_nonce( 'cspv_chart_data' );
     $throttle_nonce  = wp_create_nonce( 'cspv_throttle' );
+    $insights_nonce  = wp_create_nonce( 'cspv_insights' );
     $display_nonce   = wp_create_nonce( 'cspv_display_save' );
     $today           = current_time( 'Y-m-d' );
     $throttle_enabled = cspv_throttle_enabled();
@@ -1076,6 +1112,7 @@ function cspv_render_stats_page() {
     <!-- ═══════════════════════ TAB BAR ═════════════════════════════ -->
     <div id="cspv-tab-bar">
         <button class="cspv-tab active" data-tab="stats">📊 Statistics</button>
+        <button class="cspv-tab" data-tab="insights">💡 Insights</button>
         <button class="cspv-tab" data-tab="display">👁 Display</button>
         <button class="cspv-tab" data-tab="throttle">🛡 IP Throttle</button>
         <button class="cspv-tab" data-tab="history">🔍 Post History</button>
@@ -1211,7 +1248,7 @@ function cspv_render_stats_page() {
         <!-- Session depth panel -->
         <div id="cspv-depth-panel" style="margin-top:16px;">
             <div class="cspv-panel" style="flex:1;">
-                <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#a78bfa);border-radius:6px 6px 0 0;">
+                <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#4c1d95,#8b5cf6);border-radius:6px 6px 0 0;">
                     <span>📊 Pages Served Per Session: <span id="cspv-depth-range" style="font-weight:400;opacity:0.8;"></span></span>
                 </div>
                 <div id="cspv-depth-content" style="padding:16px;">
@@ -1262,7 +1299,7 @@ function cspv_render_stats_page() {
 
         <!-- Site Health -->
         <div class="cspv-panel" style="margin-top:24px;">
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#065f46,#059669);">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
                 <span>🏥 Site Health</span>
             </div>
             <div style="padding:20px 24px;">
@@ -1272,13 +1309,37 @@ function cspv_render_stats_page() {
 
     </div><!-- /stats tab -->
 
+    <!-- ═══════════════════════ INSIGHTS TAB ════════════════════════ -->
+    <div id="cspv-tab-insights" class="cspv-tab-content">
+
+        <div class="cspv-panel">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#7e22ce,#c026d3);">
+                <span>💡 Your Content</span>
+                <span id="cspv-insights-range" class="cspv-range-label"></span>
+            </div>
+            <div id="cspv-insights-body">
+                <div class="cspv-insights-subtabs">
+                    <button class="cspv-insights-sub active" data-sub="top">Top</button>
+                    <button class="cspv-insights-sub" data-sub="up">Trending Up</button>
+                    <button class="cspv-insights-sub" data-sub="down">Trending Down</button>
+                    <span style="flex:1;"></span>
+                    <span class="cspv-insights-col-header">Views</span>
+                </div>
+                <div id="cspv-insights-list">
+                    <div class="cspv-loading">Select a date range on the Statistics tab then open Insights.</div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /insights tab -->
+
     <!-- ═══════════════════════ DISPLAY TAB ═════════════════════════ -->
     <div id="cspv-tab-display" class="cspv-tab-content">
 
         <form method="post" action="">
             <?php wp_nonce_field( 'cspv_display_save', 'cspv_display_nonce' ); ?>
 
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#9d174d,#ec4899);">
                 <span>👁 View Counter Display <a class="cspv-info-btn" data-info="display-position" title="Info">i</a></span>
             </div>
 
@@ -1486,7 +1547,7 @@ function cspv_render_stats_page() {
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>
                 <p style="margin:16px 0 0;display:flex;align-items:center;gap:12px;">
-                    <button type="button" id="cspv-save-display" style="background:linear-gradient(135deg,#2d1b69,#7c3aed);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button>
+                    <button type="button" id="cspv-save-display" style="background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button>
                     <span id="cspv-display-saved" style="display:none;color:#059669;font-weight:600;font-size:14px;">✓ Saved</span>
                 </p>
                 </div>
@@ -1496,7 +1557,7 @@ function cspv_render_stats_page() {
 
         <!-- Data Management -->
         <div style="margin-top:24px;">
-            <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#a855f7);border-radius:6px 6px 0 0;">
+            <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#4c1d95,#8b5cf6);border-radius:6px 6px 0 0;">
                 <span>🗑 Data Management</span>
             </div>
             <div style="padding:16px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
@@ -1890,17 +1951,23 @@ wp_add_inline_script( 'cspv-stats-page', 'var cspvStats=' . wp_json_encode( arra
     'nonce'          => $ajax_nonce,
     'throttleNonce'  => $throttle_nonce,
     'displayNonce'   => $display_nonce,
+    'insightsNonce'  => $insights_nonce,
 ) ) . ';' );
 ob_start();
 ?>
 (function () {
     'use strict';
 
-    var ajaxUrl       = cspvStats.ajaxUrl;
-    var nonce         = cspvStats.nonce;
-    var throttleNonce = cspvStats.throttleNonce;
-    var displayNonce  = cspvStats.displayNonce;
-    var chartInst     = null;
+    var ajaxUrl        = cspvStats.ajaxUrl;
+    var nonce          = cspvStats.nonce;
+    var throttleNonce  = cspvStats.throttleNonce;
+    var displayNonce   = cspvStats.displayNonce;
+    var insightsNonce  = cspvStats.insightsNonce;
+    var chartInst      = null;
+
+    // ── Insights state ─────────────────────────────────────────────
+    var insightsData = null;
+    var insightsSub  = 'top';
 
     // ── Tab switching ──────────────────────────────────────────────
     function activateTab(tabName) {
@@ -1911,6 +1978,7 @@ ob_start();
         document.querySelectorAll('.cspv-tab-content').forEach(function(c){ c.classList.remove('active'); });
         btn.classList.add('active');
         pane.classList.add('active');
+        if (tabName === 'insights') { loadInsights(); }
     }
     document.querySelectorAll('.cspv-tab').forEach(function(btn) {
         btn.addEventListener('click', function() { activateTab(btn.dataset.tab); });
@@ -1994,6 +2062,9 @@ ob_start();
             document.getElementById('cspv-from').value = from;
             document.getElementById('cspv-to').value   = to;
         }
+
+        // Invalidate insights so next tab switch reloads fresh
+        insightsData = null;
 
         // Reset UI
         document.getElementById('cspv-chart-msg').classList.remove('hidden');
@@ -2279,6 +2350,85 @@ ob_start();
     function esc(s) {
         var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
     }
+
+    // ── Insights tab ───────────────────────────────────────────────
+    function loadInsights() {
+        var from = document.getElementById('cspv-from').value;
+        var to   = document.getElementById('cspv-to').value;
+        if (!from || !to) return;
+
+        var rangeEl = document.getElementById('cspv-insights-range');
+        if (rangeEl) rangeEl.textContent = fmtDate(from) + ' – ' + fmtDate(to);
+
+        document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-loading">Loading…</div>';
+
+        var fd = new FormData();
+        fd.append('action', 'cspv_insights');
+        fd.append('nonce',  insightsNonce);
+        fd.append('from',   from);
+        fd.append('to',     to);
+
+        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(json) {
+                if (json.success) {
+                    insightsData = json.data;
+                    renderInsightsList();
+                } else {
+                    document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-empty">Could not load insights.</div>';
+                }
+            })
+            .catch(function() {
+                document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-empty">Request failed.</div>';
+            });
+    }
+
+    function renderInsightsList() {
+        if (!insightsData) return;
+        var key   = insightsSub === 'top' ? 'top' : insightsSub === 'up' ? 'trending_up' : 'trending_down';
+        var items = insightsData[key];
+        var el    = document.getElementById('cspv-insights-list');
+        if (!items || items.length === 0) {
+            var msgs = { top: 'No posts viewed in this period.', up: 'No posts trending up.', down: 'No posts trending down.' };
+            el.innerHTML = '<div class="cspv-empty">' + (msgs[insightsSub] || 'No data.') + '</div>';
+            return;
+        }
+        el.innerHTML = items.map(function(item) {
+            var thumb = item.thumbnail
+                ? '<img src="' + esc(item.thumbnail) + '" class="cspv-insights-thumb" alt="" loading="lazy">'
+                : '<div class="cspv-insights-thumb cspv-insights-thumb-ph"></div>';
+            var titleLink = item.url
+                ? '<a href="' + esc(item.url) + '" target="_blank" rel="noopener">' + esc(item.title) + '</a>'
+                : esc(item.title);
+            var urlPath = '';
+            try { urlPath = new URL(item.url).pathname; } catch(e) { urlPath = item.url; }
+            var badge = '';
+            if (item.pct_change !== null && item.pct_change !== undefined) {
+                var pct   = parseInt(item.pct_change, 10);
+                var cls   = pct >= 0 ? 'cspv-trend-up' : 'cspv-trend-down';
+                var arrow = pct >= 0 ? '↑' : '↓';
+                badge = '<span class="cspv-trend-badge ' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+            }
+            return '<div class="cspv-insights-row">'
+                + '<div class="cspv-insights-thumb-wrap">' + thumb + '</div>'
+                + '<div class="cspv-insights-meta">'
+                +   '<div class="cspv-insights-title">' + titleLink + '</div>'
+                +   '<div class="cspv-insights-url">' + esc(urlPath) + '</div>'
+                + '</div>'
+                + badge
+                + '<span class="cspv-insights-views">' + item.views.toLocaleString() + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    document.querySelectorAll('.cspv-insights-sub').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.cspv-insights-sub').forEach(function(b){ b.classList.remove('active'); });
+            btn.classList.add('active');
+            insightsSub = btn.dataset.sub;
+            if (insightsData) { renderInsightsList(); } else { loadInsights(); }
+        });
+    });
 
     // ── Referrer rendering (sites vs pages toggle) ────────────────
     function renderReferrers() {

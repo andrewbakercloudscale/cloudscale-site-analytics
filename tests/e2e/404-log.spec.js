@@ -32,7 +32,7 @@ test.describe('404 Error Log', () => {
         await expect(panel).toBeVisible();
 
         // ── Step 3: assert the URL appears in the log ────────────────────────
-        // The table renders full URLs (e.g. https://your-wordpress-site.example.com/cspv-test-404-…)
+        // The table renders full URLs (e.g. https://andrewbaker.ninja/cspv-test-404-…)
         // so we match on the slug fragment which is unique to this test run.
         await expect(
             panel.locator(`text=${NOT_FOUND_SLUG}`),

@@ -9,6 +9,7 @@ const ADMIN_PAGE = '/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics
 
 test('analytics page loads data without JS errors', async ({ page }) => {
     const jsErrors = [];
+    const networkErrors = [];
     // Only track errors originating from our plugin, not from other admin page plugins
     page.on('pageerror', err => {
         if (err.stack && err.stack.includes('cloudscale-devtools')) return;
@@ -16,6 +17,11 @@ test('analytics page loads data without JS errors', async ({ page }) => {
     });
     page.on('console', msg => {
         if (msg.type() === 'error') jsErrors.push('CONSOLE ERROR: ' + msg.text());
+    });
+    page.on('response', response => {
+        if (response.status() >= 400) {
+            networkErrors.push(`HTTP ${response.status()}: ${response.url()}`);
+        }
     });
 
     await page.goto(ADMIN_PAGE, { waitUntil: 'domcontentloaded' });
@@ -34,6 +40,11 @@ test('analytics page loads data without JS errors', async ({ page }) => {
     const referrers  = await page.locator('#cspv-referrers').innerHTML();
     console.log('TOP POSTS panel:', topPosts.slice(0, 200));
     console.log('REFERRERS panel:', referrers.slice(0, 200));
+
+    // Log network errors for debugging
+    if (networkErrors.length > 0) {
+        console.log('NETWORK ERRORS:', networkErrors.join('\n'));
+    }
 
     // Fail if there were unexpected JS errors
     expect(jsErrors, 'unexpected JS errors: ' + jsErrors.join('; ')).toHaveLength(0);

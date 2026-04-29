@@ -26,5 +26,3 @@ WORKING-NOTES.md
 generate-help-docs.sh
 docs/screenshots/
 .env.test
-tests/auth.json
-tests/.env

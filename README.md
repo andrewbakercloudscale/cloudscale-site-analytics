@@ -8,7 +8,7 @@ CloudScale Analytics fixes this with a lightweight JavaScript beacon that fires 
 
 Completely free. No subscriptions. No external services. No tracking pixels. Your data stays on your server.
 
-> Full write up with screenshots: [CloudScale Free WordPress Analytics: Analytics that Work Behind Cloudflare](https://your-wordpress-site.example.com/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/)
+> Full write up with screenshots: [CloudScale Free WordPress Analytics: Analytics that Work Behind Cloudflare](https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/)
 
 ## How It Works
 
@@ -122,4 +122,4 @@ GPLv2 or later. See [LICENSE](LICENSE) for the full text.
 
 ## Author
 
-[Andrew Baker](https://your-wordpress-site.example.com/) - CIO at Capitec Bank, South Africa.
+[Andrew Baker](https://andrewbaker.ninja/) - CIO at Capitec Bank, South Africa.

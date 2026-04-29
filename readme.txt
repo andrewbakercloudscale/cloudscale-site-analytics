@@ -201,7 +201,7 @@ No data is transmitted to any external service during normal page view tracking.
 
 This plugin is free software released under the GPLv2 or later license.
 
-Copyright (C) 2026 Andrew Baker (https://your-wordpress-site.example.com)
+Copyright (C) 2026 Andrew Baker (https://andrewbaker.ninja)
 
 You may copy, distribute and modify the software as long as you track changes/dates in source files. Any modifications to or software including (via compiler) GPL licensed code must also be made available under the GPL along with build and install instructions.
 

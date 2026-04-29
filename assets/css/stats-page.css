@@ -846,6 +846,8 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ins-ref-tbl a { color: #3b82f6; text-decoration: none; }
 .cspv-ins-ref-tbl a:hover { text-decoration: underline; }
 .cspv-ins-ref-tbl tr:hover td { background: #f0f9ff !important; }
+.cspv-ins-ref-tbl tfoot td { background: #1a2332; color: #fff; font-weight: 700; font-size: 11px; padding: 6px 10px; border-top: 2px solid #334155; border-bottom: none; }
+.cspv-ins-ref-tbl tfoot td:first-child { text-align: left; color: #94a3b8; font-weight: 600; }
 
 /* Post Analytics (Post History) rows */
 .cspv-ph-row:hover { background: #e8f4fd !important; }

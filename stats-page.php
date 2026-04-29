@@ -1417,9 +1417,9 @@ function cspv_render_stats_page() {
                         </div>
                         <div id="cspv-ins-traffic-legend" class="cspv-ins-legend"></div>
                     </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;">
+                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;display:flex;flex-direction:column;">
                         <div class="cspv-ins-chart-title">Referrer Growth</div>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;flex:1;min-height:200px;">
                             <canvas id="cspv-ins-growth-chart"></canvas>
                         </div>
                         <div id="cspv-ins-growth-legend" class="cspv-ins-legend"></div>
@@ -2734,6 +2734,19 @@ ob_start();
         }
         var headers = insSelfOn ? pbr.headers : pbr.headers.filter(function(h){ return h !== 'Self'; });
         var selfIdx = pbr.headers.indexOf('Self');
+
+        // Build index map: visible header index → original header index
+        var visibleIdxs = [];
+        pbr.headers.forEach(function(h, hi) {
+            if (insSelfOn || hi !== selfIdx) visibleIdxs.push(hi);
+        });
+
+        // Compute column totals for the visible columns
+        var colTotals = visibleIdxs.map(function(hi) {
+            return pbr.rows.reduce(function(sum, row) { return sum + (row.counts[hi] || 0); }, 0);
+        });
+        var grandTotal = colTotals.reduce(function(a, b) { return a + b; }, 0) || 1;
+
         var html = '<table class="cspv-ins-ref-tbl"><thead><tr><th>Post</th>';
         headers.forEach(function(h){ html += '<th>' + esc(h) + '</th>'; });
         html += '</tr></thead><tbody>';
@@ -2748,7 +2761,12 @@ ob_start();
             });
             html += '</tr>';
         });
-        html += '</tbody></table>';
+        html += '</tbody><tfoot><tr><td>% of referrers</td>';
+        colTotals.forEach(function(ct) {
+            var pct = Math.round(ct / grandTotal * 100);
+            html += '<td>' + pct + '%</td>';
+        });
+        html += '</tr></tfoot></table>';
         wrap.innerHTML = html;
     }
 

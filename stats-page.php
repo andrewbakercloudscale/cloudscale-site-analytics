@@ -985,7 +985,7 @@ function cspv_ajax_insights() {
         $from_str, $to_str,
         $prev_from->format( 'Y-m-d' ) . ' 00:00:00',
         $prev_to->format( 'Y-m-d' )   . ' 23:59:59',
-        20
+        100
     ) );
 }
 
@@ -1363,7 +1363,7 @@ function cspv_render_stats_page() {
                         <button class="cspv-ins-period" data-period="360">360 days</button>
                     </div>
                     <button id="cspv-ins-self-toggle" class="cspv-ins-self-btn cspv-ins-self-on" title="Toggle Self (own-domain) traffic">Self: ON</button>
-                    <button id="cspv-ins-explain" class="cspv-info-btn" data-info="insights-dashboard" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:4px 10px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;">? Explain</button>
+                    <button id="cspv-ins-explain" class="cspv-ins-explain-btn" data-info="insights-dashboard">? Explain</button>
                 </div>
             </div>
         </div>
@@ -1417,9 +1417,9 @@ function cspv_render_stats_page() {
                         </div>
                         <div id="cspv-ins-traffic-legend" class="cspv-ins-legend"></div>
                     </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;">
+                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;display:flex;flex-direction:column;">
                         <div class="cspv-ins-chart-title">Referrer Growth</div>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;flex:1;min-height:200px;">
                             <canvas id="cspv-ins-growth-chart"></canvas>
                         </div>
                         <div id="cspv-ins-growth-legend" class="cspv-ins-legend"></div>
@@ -2734,6 +2734,19 @@ ob_start();
         }
         var headers = insSelfOn ? pbr.headers : pbr.headers.filter(function(h){ return h !== 'Self'; });
         var selfIdx = pbr.headers.indexOf('Self');
+
+        // Build index map: visible header index → original header index
+        var visibleIdxs = [];
+        pbr.headers.forEach(function(h, hi) {
+            if (insSelfOn || hi !== selfIdx) visibleIdxs.push(hi);
+        });
+
+        // Compute column totals for the visible columns
+        var colTotals = visibleIdxs.map(function(hi) {
+            return pbr.rows.reduce(function(sum, row) { return sum + (row.counts[hi] || 0); }, 0);
+        });
+        var grandTotal = colTotals.reduce(function(a, b) { return a + b; }, 0) || 1;
+
         var html = '<table class="cspv-ins-ref-tbl"><thead><tr><th>Post</th>';
         headers.forEach(function(h){ html += '<th>' + esc(h) + '</th>'; });
         html += '</tr></thead><tbody>';
@@ -2748,7 +2761,12 @@ ob_start();
             });
             html += '</tr>';
         });
-        html += '</tbody></table>';
+        html += '</tbody><tfoot><tr><td>% of referrers</td>';
+        colTotals.forEach(function(ct) {
+            var pct = Math.round(ct / grandTotal * 100);
+            html += '<td>' + pct + '%</td>';
+        });
+        html += '</tr></tfoot></table>';
         wrap.innerHTML = html;
     }
 
@@ -4094,10 +4112,25 @@ ob_start();
         'post-history': {
             title: '🔍 Post View History',
             body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Tracked Views</strong> is the actual number of beacon view records in the log table for this post.</p><p>The <strong>timeline slider</strong> (7–80 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>↗</strong> link next to any post title to open it on your site.</p>'
+        },
+        'insights-dashboard': {
+            title: '💡 Insights Dashboard',
+            body: '<p>The <strong>Insights</strong> tab gives you a rolling-window view of your site\'s performance — unlike the Statistics tab which uses a calendar date picker, Insights always shows the last N days relative to today.</p>'
+                + '<p><strong>Period buttons</strong> (7 / 30 / 90 / 180 / 360 days) change the window for every chart and metric simultaneously.</p>'
+                + '<p><strong>Self toggle</strong> filters out traffic from your own domain. <span style="color:#22c55e;font-weight:700;">Green = ON</span> (self-traffic excluded), <span style="color:#ef4444;font-weight:700;">Red = OFF</span> (self-traffic included). Filtering happens client-side instantly with no reload.</p>'
+                + '<p><strong>KPI cards</strong> show Total Views, Unique Visitors, Top Country, and Top Referrer for the period. The ▲/▼ badge compares to the previous equal-length period.</p>'
+                + '<p><strong>Traffic Sources</strong> — doughnut breakdown of Direct, Self, search engines, social, and other referrers.</p>'
+                + '<p><strong>Referrer Growth</strong> — top 8 referrer domains plotted over time. Each line uses a distinct dash pattern so they\'re distinguishable in print.</p>'
+                + '<p><strong>Top Posts by Views</strong> — horizontal bar chart of your 15 most-viewed posts for the period.</p>'
+                + '<p><strong>Countries Over Time</strong> — daily line chart for the top 5 countries, with flag emoji labels.</p>'
+                + '<p><strong>Views by Country</strong> — ranked horizontal bar of the top 10 countries.</p>'
+                + '<p><strong>Top Referrer Domains</strong> — bar chart of all referrer hostnames with view counts.</p>'
+                + '<p><strong>Your Content</strong> — Top / Trending Up / Trending Down tabs showing up to 20 posts each with thumbnail, view count, and trend badge. Posts with no prior-period data show a <span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:4px;font-size:11px;">New</span> badge.</p>'
+                + '<p><strong>Post Analytics</strong> — per-post 30-day timeline with self vs external referrer split. Use the search box to find any post.</p>'
         }
     };
 
-    document.querySelectorAll('.cspv-info-btn').forEach(function(btn) {
+    document.querySelectorAll('.cspv-info-btn, .cspv-ins-explain-btn').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();

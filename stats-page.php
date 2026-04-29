@@ -1115,7 +1115,6 @@ function cspv_render_stats_page() {
         <button class="cspv-tab" data-tab="insights">💡 Insights</button>
         <button class="cspv-tab" data-tab="display">👁 Display</button>
         <button class="cspv-tab" data-tab="throttle">🛡 IP Throttle</button>
-        <button class="cspv-tab" data-tab="history">🔍 Post History</button>
         <span class="cspv-tab-spacer"></span>
     </div>
 
@@ -1327,6 +1326,51 @@ function cspv_render_stats_page() {
                 </div>
                 <div id="cspv-insights-list">
                     <div class="cspv-loading">Select a date range on the Statistics tab then open Insights.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cspv-panel" style="margin-top:20px;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#0e7490,#06b6d4);">
+                <span>🔍 Post Analytics</span>
+            </div>
+            <div style="padding:20px 24px;">
+                <!-- Search bar -->
+                <div style="display:flex;gap:8px;margin-bottom:16px;max-width:600px;">
+                    <input type="text" id="cspv-ph-search" placeholder="Search posts by title..." autocomplete="off"
+                           style="flex:1;padding:10px 14px;border:2px solid #06b6d4;border-radius:6px;font-size:14px;">
+                    <button id="cspv-ph-search-btn" style="padding:10px 20px;background:linear-gradient(135deg,#0e7490,#06b6d4);
+                        color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">Search Posts</button>
+                </div>
+                <!-- Post list -->
+                <div id="cspv-ph-list" style="max-height:400px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;margin-bottom:20px;">
+                    <?php if ( empty( $ph_top_posts ) ) : ?>
+                        <div style="padding:20px;text-align:center;color:#888;">No posts with views found.</div>
+                    <?php else : ?>
+                        <div id="cspv-ph-header" style="display:flex;align-items:center;padding:4px 16px;background:#0e7490;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">
+                            <div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post ▼</div>
+                            <div class="cspv-ph-sort" data-col="views" style="width:100px;text-align:right;cursor:pointer;">Total Views</div>
+                        </div>
+                        <?php foreach ( $ph_top_posts as $i => $p ) :
+                            $views = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
+                            $bg    = $i % 2 === 0 ? '#fff' : '#f8f9fa';
+                        ?>
+                        <div class="cspv-ph-row" data-id="<?php echo (int) $p->ID; ?>"
+                             data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
+                             data-views="<?php echo esc_attr( (int) $views ); ?>"
+                             data-url="<?php echo esc_attr( get_permalink( $p->ID ) ); ?>"
+                             style="display:flex;align-items:center;
+                            padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
+                            <div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo esc_html( $p->post_type ); ?></span>
+                                <a class="cspv-ph-view-link" href="<?php echo esc_url( get_permalink( $p->ID ) ); ?>" target="_blank" rel="noopener" style="color:#06b6d4;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">↗</a>
+                            </div>
+                            <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#06b6d4;font-variant-numeric:tabular-nums;">
+                                <?php echo esc_html( number_format( $views ) ); ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1850,57 +1894,6 @@ function cspv_render_stats_page() {
     </div><!-- /throttle tab -->
 
     <!-- ═══════════════════════ POST HISTORY TAB ═══════════════════ -->
-    <div id="cspv-tab-history" class="cspv-tab-content">
-
-        <div class="cspv-section-header" style="background:linear-gradient(135deg,#1a5276,#2e86c1);">
-            <span>🔍 Post View History <a class="cspv-info-btn" data-info="post-history" title="Info">i</a></span>
-        </div>
-
-        <div style="padding:20px 24px;">
-
-            <!-- Search bar with button -->
-            <div style="display:flex;gap:8px;margin-bottom:16px;max-width:600px;">
-                <input type="text" id="cspv-ph-search" placeholder="Search posts by title..." autocomplete="off"
-                       style="flex:1;padding:10px 14px;border:2px solid #2e86c1;border-radius:6px;font-size:14px;">
-                <button id="cspv-ph-search-btn" style="padding:10px 20px;background:linear-gradient(135deg,#1a5276,#2e86c1);
-                    color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">Search Posts</button>
-            </div>
-
-            <!-- Post list -->
-            <div id="cspv-ph-list" style="max-height:400px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;margin-bottom:20px;">
-                <?php if ( empty( $ph_top_posts ) ) : ?>
-                    <div style="padding:20px;text-align:center;color:#888;">No posts with views found.</div>
-                <?php else : ?>
-                    <!-- Column headers (sortable) -->
-                    <div id="cspv-ph-header" style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">
-                        <div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post ▼</div>
-                        <div class="cspv-ph-sort" data-col="views" style="width:100px;text-align:right;cursor:pointer;">Total Views</div>
-                    </div>
-                    <?php foreach ( $ph_top_posts as $i => $p ) :
-                        $views     = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
-                        $bg = $i % 2 === 0 ? '#fff' : '#f8f9fa';
-                    ?>
-                    <div class="cspv-ph-row" data-id="<?php echo (int) $p->ID; ?>"
-                         data-title="<?php echo esc_attr( strtolower( $p->post_title ) ); ?>"
-                         data-views="<?php echo esc_attr( (int) $views ); ?>"
-                         data-url="<?php echo esc_attr( get_permalink( $p->ID ) ); ?>"
-                         style="display:flex;align-items:center;
-                        padding:2px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">
-                        <div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                            <?php echo esc_html( $p->post_title ); ?> <span style="color:#aaa;font-weight:400;font-size:11px;"><?php echo esc_html( $p->post_type ); ?></span>
-                            <a class="cspv-ph-view-link" href="<?php echo esc_url( get_permalink( $p->ID ) ); ?>" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">↗</a>
-                        </div>
-                        <div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">
-                            <?php echo esc_html( number_format( $views ) ); ?>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-
-        </div>
-
-    </div><!-- /history tab -->
 
     <!-- ══════════════════ REFERRER DRILL MODAL ═════════════════════ -->
     <div class="cspv-modal-overlay" id="cspv-ref-drill-modal">
@@ -3678,16 +3671,16 @@ ob_start();
                     listBox.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">No posts found for \u201c' + q + '\u201d</div>';
                     return;
                 }
-                var html = '<div style="display:flex;align-items:center;padding:4px 16px;background:#1a5276;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">' +
+                var html = '<div style="display:flex;align-items:center;padding:4px 16px;background:#0e7490;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">' +
                     '<div style="flex:1;">Post</div><div style="width:120px;text-align:right;">Tracked Views</div></div>';
                 resp.data.forEach(function(p, i) {
                     var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
-                    var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#2e86c1;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
+                    var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#06b6d4;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
                     html += '<div class="cspv-ph-row" data-id="' + p.id + '" data-url="' + escHtml(p.url || '') + '" style="display:flex;align-items:center;' +
                         'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
                         '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
                         escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span>' + viewLink + '</div>' +
-                        '<div style="width:120px;text-align:right;font-weight:800;font-size:14px;color:#2e86c1;font-variant-numeric:tabular-nums;">' + (p.pageviews || 0).toLocaleString() + '</div></div>';
+                        '<div style="width:120px;text-align:right;font-weight:800;font-size:14px;color:#06b6d4;font-variant-numeric:tabular-nums;">' + (p.pageviews || 0).toLocaleString() + '</div></div>';
                 });
                 listBox.innerHTML = html;
                 wireRowClicks();
@@ -3707,7 +3700,7 @@ ob_start();
         function loadPostExpand(postId, rowEl) {
             var expandDiv = document.createElement('div');
             expandDiv.className = 'cspv-ph-expand';
-            expandDiv.style.cssText = 'padding:12px 16px;background:#f0f7ff;border-bottom:2px solid #2e86c1;font-size:12px;color:#888;';
+            expandDiv.style.cssText = 'padding:12px 16px;background:#ecfeff;border-bottom:2px solid #06b6d4;font-size:12px;color:#888;';
             expandDiv.textContent = 'Loading…';
             rowEl.parentNode.insertBefore(expandDiv, rowEl.nextSibling);
 
@@ -3732,7 +3725,7 @@ ob_start();
             tl.forEach(function(r) { if (r.views > maxV) maxV = r.views; });
 
             var html = '<div style="display:flex;align-items:center;padding:8px 16px 6px;justify-content:space-between;">' +
-                '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a5276;">Last 30 days with views</span>' +
+                '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7490;">Last 30 days with views</span>' +
                 '<span style="font-size:11px;color:#555;">Total: <strong style="color:#059669;">' + (data.meta_count || 0).toLocaleString() + '</strong></span>' +
                 '</div>';
 
@@ -3757,22 +3750,22 @@ ob_start();
                     var extPct  = (hasExt  && total > 0) ? Math.round(((r.ref_hits || 0) / total) * barW) : (hasExt ? barW : 0);
                     var barHtml = '';
                     if (hasSelf) barHtml += '<div style="height:5px;width:' + selfPct + '%;background:linear-gradient(90deg,#059669,#6ee7b7);border-radius:3px;max-width:80px;min-width:2px;"></div>';
-                    if (hasExt)  barHtml += '<div style="height:5px;width:' + extPct  + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;max-width:80px;min-width:2px;"></div>';
-                    if (!hasSelf && !hasExt) barHtml = '<div style="height:5px;width:' + barW + '%;background:linear-gradient(90deg,#2e86c1,#85c1e9);border-radius:3px;max-width:120px;min-width:2px;"></div>';
+                    if (hasExt)  barHtml += '<div style="height:5px;width:' + extPct  + '%;background:linear-gradient(90deg,#0e7490,#06b6d4);border-radius:3px;max-width:80px;min-width:2px;"></div>';
+                    if (!hasSelf && !hasExt) barHtml = '<div style="height:5px;width:' + barW + '%;background:linear-gradient(90deg,#0e7490,#06b6d4);border-radius:3px;max-width:120px;min-width:2px;"></div>';
                     var labelsHtml = '';
                     if (hasSelf) labelsHtml += '<span style="font-size:11px;font-weight:600;color:#059669;white-space:nowrap;">self: ' + selfHits + '</span>';
-                    if (hasExt)  labelsHtml += '<span style="font-size:11px;font-weight:600;color:#2e86c1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(extStr) + '</span>';
-                    var bg = i % 2 === 0 ? '#f8fbff' : '#fff';
-                    html += '<div style="display:flex;align-items:center;padding:5px 16px;background:' + bg + ';border-bottom:1px solid #e8f0f8;font-size:12px;">' +
+                    if (hasExt)  labelsHtml += '<span style="font-size:11px;font-weight:600;color:#0e7490;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(extStr) + '</span>';
+                    var bg = i % 2 === 0 ? '#f0fdff' : '#fff';
+                    html += '<div style="display:flex;align-items:center;padding:5px 16px;background:' + bg + ';border-bottom:1px solid #cffafe;font-size:12px;">' +
                         '<div style="width:75px;font-weight:600;color:#333;">' + dayStr + '</div>' +
-                        '<div style="width:55px;text-align:right;font-weight:800;color:#2e86c1;font-variant-numeric:tabular-nums;">' + r.views.toLocaleString() + '</div>' +
+                        '<div style="width:55px;text-align:right;font-weight:800;color:#0e7490;font-variant-numeric:tabular-nums;">' + r.views.toLocaleString() + '</div>' +
                         '<div style="flex:1;padding-left:12px;display:flex;align-items:center;gap:4px;">' +
                         barHtml + labelsHtml +
                         '</div></div>';
                 });
             }
 
-            expandDiv.style.cssText = 'background:#f0f7ff;border-bottom:2px solid #2e86c1;';
+            expandDiv.style.cssText = 'background:#ecfeff;border-bottom:2px solid #06b6d4;';
             expandDiv.innerHTML = html;
         }
 

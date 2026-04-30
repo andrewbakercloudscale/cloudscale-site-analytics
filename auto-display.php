@@ -135,18 +135,18 @@ add_action( 'init', function () {
 
 // -------------------------------------------------------------------------
 // 3. Front end auto injection
-//    "before_content" = above the post title (via the_title)
-//    "after_content"  = below the post body  (via the_content)
+//    "before_content" = prepended to post body (via the_content)
+//    "after_content"  = appended to post body  (via the_content)
 //    "both"           = both positions
+//
+// NOTE: we intentionally do NOT hook the_title — injecting HTML inside
+// the_title causes the counter to land inside the theme's <h1> element,
+// which corrupts the page's H1 as seen by search engines.
 // -------------------------------------------------------------------------
-add_filter( 'the_title',   'cspv_auto_display_above_title', 99, 2 );
 add_filter( 'the_content', 'cspv_auto_display_views', 99 );
 
 /**
  * Build the view counter HTML element using current display settings.
- *
- * Used by both the title and content hooks so the output is consistent
- * regardless of which injection position is configured.
  *
  * @since 1.0.0
  * @return string Counter HTML string.
@@ -168,48 +168,17 @@ function cspv_build_counter_html() {
 }
 
 /**
- * Inject the view counter above the post title on singular pages.
+ * Inject the view counter into post content on singular pages.
  *
- * Hooked to `the_title` at priority 99. Guards ensure the counter only
- * appears once for the main queried post, never in widgets or nav menus.
- *
- * @since 1.0.0
- * @param string $title   Post title.
- * @param int    $post_id Post ID.
- * @return string Modified title with counter prepended, or unchanged title.
- */
-function cspv_auto_display_above_title( $title, $post_id = 0 ) {
-    // Only on singular front end, only for the main queried post
-    if ( ! is_singular() || is_feed() || is_admin() ) {
-        return $title;
-    }
-    // Only for the main post in the loop (not widget titles, nav menus, etc)
-    if ( ! in_the_loop() || (int) $post_id !== (int) get_queried_object_id() ) {
-        return $title;
-    }
-
-    $position = get_option( 'cspv_auto_display', 'before_content' );
-    if ( $position !== 'before_content' && $position !== 'both' ) {
-        return $title;
-    }
-
-    $post_types = get_option( 'cspv_display_post_types', get_option( 'cspv_track_post_types', array( 'post' ) ) );
-    if ( ! in_array( get_post_type(), $post_types, true ) ) {
-        return $title;
-    }
-
-    // Prepend the counter above the title text
-    return cspv_build_counter_html() . $title;
-}
-
-/**
- * Inject the view counter below post content on singular pages.
- *
- * Hooked to `the_content` at priority 99. Fires for after_content and both modes.
+ * Hooked to `the_content` at priority 99.
+ * - before_content: counter prepended to the post body (rendered after the
+ *   theme's <h1>, so the H1 text is never polluted).
+ * - after_content: counter appended to the post body.
+ * - both: counter prepended and appended.
  *
  * @since 1.0.0
  * @param string $content Post content.
- * @return string Modified content with counter appended, or unchanged content.
+ * @return string Modified content, or unchanged content.
  */
 function cspv_auto_display_views( $content ) {
     if ( ! is_singular() || is_feed() || is_admin() ) {
@@ -217,7 +186,7 @@ function cspv_auto_display_views( $content ) {
     }
 
     $position = get_option( 'cspv_auto_display', 'before_content' );
-    if ( $position === 'off' || $position === 'before_content' ) {
+    if ( $position === 'off' ) {
         return $content;
     }
 
@@ -228,6 +197,9 @@ function cspv_auto_display_views( $content ) {
 
     $html = cspv_build_counter_html();
 
+    if ( $position === 'before_content' || $position === 'both' ) {
+        $content = $html . $content;
+    }
     if ( $position === 'after_content' || $position === 'both' ) {
         $content = $content . $html;
     }

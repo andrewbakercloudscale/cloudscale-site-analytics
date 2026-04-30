@@ -1105,6 +1105,80 @@ function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_po
 }
 
 /**
+ * Return the top landing pages for each top referrer source.
+ *
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  string $own_host
+ * @param  int    $max_refs   Max referrer buckets to return.
+ * @param  int    $max_pages  Max landing pages per referrer.
+ * @return array  Array of { label, total, is_self, pages: [{ title, url, views }] }
+ */
+function cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host, $max_refs = 10, $max_pages = 5 ) {
+    global $wpdb;
+    $src       = cspv_referrer_source();
+    $ref_table = $src['table'];
+
+    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_post_id = $has_ref ? $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'post_id' ) ) : null; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    if ( ! $has_post_id ) { return array(); }
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        "SELECT referrer, post_id, COALESCE(SUM(view_count),0) AS views
+         FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' AND post_id > 0
+         GROUP BY referrer, post_id ORDER BY views DESC LIMIT 3000",
+        $from_str, $to_str ) );
+
+    if ( empty( $rows ) ) { return array(); }
+
+    $ref_pages  = array();
+    $ref_totals = array();
+
+    foreach ( $rows as $r ) {
+        $pid     = absint( $r->post_id );
+        $host    = (string) wp_parse_url( $r->referrer, PHP_URL_HOST );
+        if ( ! $host ) { $host = $r->referrer; }
+        $is_self = $own_host && ( strcasecmp( $host, $own_host ) === 0 || stripos( $host, $own_host ) !== false );
+        $label   = $is_self ? 'Self' : cspv_insights_label( $host );
+
+        if ( ! isset( $ref_pages[ $label ] ) )           { $ref_pages[ $label ]        = array(); }
+        if ( ! isset( $ref_pages[ $label ][ $pid ] ) )   { $ref_pages[ $label ][ $pid ] = 0; }
+        if ( ! isset( $ref_totals[ $label ] ) )           { $ref_totals[ $label ]        = 0; }
+        $ref_pages[ $label ][ $pid ] += (int) $r->views;
+        $ref_totals[ $label ]        += (int) $r->views;
+    }
+
+    arsort( $ref_totals );
+    $top_labels = array_keys( array_slice( $ref_totals, 0, $max_refs, true ) );
+
+    $result = array();
+    foreach ( $top_labels as $label ) {
+        $page_views = $ref_pages[ $label ];
+        arsort( $page_views );
+        $top_pids = array_slice( $page_views, 0, $max_pages, true );
+        $pages    = array();
+        foreach ( $top_pids as $pid => $views ) {
+            $post = get_post( $pid );
+            if ( ! $post ) { continue; }
+            $pages[] = array(
+                'title' => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
+                'url'   => get_permalink( $pid ),
+                'views' => $views,
+            );
+        }
+        if ( empty( $pages ) ) { continue; }
+        $result[] = array(
+            'label'   => $label,
+            'total'   => $ref_totals[ $label ],
+            'is_self' => ( $label === 'Self' ),
+            'pages'   => $pages,
+        );
+    }
+    return $result;
+}
+
+/**
  * Return top referrer domains with labels (including Self) for the bar chart.
  *
  * @param  string $from_str

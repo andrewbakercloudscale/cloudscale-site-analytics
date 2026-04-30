@@ -1050,6 +1050,7 @@ function cspv_ajax_insights_dashboard() {
         'peak_hours'              => cspv_insights_peak_hours( $from_str, $to_str ),
         'top_posts'               => cspv_insights_top_posts_data( $from_str, $to_str ),
         'top_posts_by_referrer'   => cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host ),
+        'referrer_landing_pages'  => cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host ),
         'views_by_country'        => cspv_top_countries( $from_str, $to_str, 10 ),
         'top_countries_over_time' => cspv_insights_countries_over_time( $from_str, $to_str, $period ),
         'top_referrer_domains'    => cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host ),
@@ -1503,6 +1504,12 @@ function cspv_render_stats_page() {
                     <div id="cspv-ins-ref-table-wrap" style="overflow-x:auto;">
                         <div id="cspv-ins-ref-table"></div>
                     </div>
+                </div>
+
+                <!-- Referrer Landing Pages -->
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
+                    <div class="cspv-ins-chart-title">Top Landing Pages per Referrer</div>
+                    <div id="cspv-ins-ref-landing" style="padding:12px 16px;"></div>
                 </div>
 
                 <!-- Top Referrer Domains -->
@@ -2606,6 +2613,7 @@ ob_start();
         renderInsPeakHours(d.peak_hours);
         renderInsPostsTable(d.top_posts);
         renderInsRefTable(d.top_posts_by_referrer);
+        renderInsRefLanding(d.referrer_landing_pages);
         renderInsRefsChart(d.top_referrer_domains);
     }
 
@@ -2976,6 +2984,41 @@ ob_start();
             datasets.map(function(ds){ return ds.label; }),
             function(i){ return insColor(i + 5); },
             function(i){ return INS_DASHES[i % INS_DASHES.length]; });
+    }
+
+    function renderInsRefLanding(data) {
+        var wrap = document.getElementById('cspv-ins-ref-landing');
+        if (!wrap) return;
+        var filtered = insFilterSelf(data || []);
+        if (!filtered.length) {
+            wrap.innerHTML = '<div style="color:#9ca3af;font-size:13px;">No referrer data available for this period.</div>';
+            return;
+        }
+        var grandTotal = filtered.reduce(function(s, r) { return s + r.total; }, 0) || 1;
+        var html = '<div class="cspv-ref-landing-grid">';
+        filtered.forEach(function(ref, i) {
+            var color = insColor(i);
+            var pctRef = Math.round(ref.total / grandTotal * 100);
+            html += '<div class="cspv-ref-landing-card">'
+                + '<div class="cspv-ref-landing-hdr" style="border-left:3px solid ' + color + ';">'
+                + '<span class="cspv-ref-landing-name">' + esc(ref.label) + '</span>'
+                + '<span class="cspv-ref-landing-total">' + ref.total.toLocaleString() + ' views <span class="cspv-ref-landing-hdr-pct">(' + pctRef + '%)</span></span>'
+                + '</div><ol class="cspv-ref-landing-list">';
+            ref.pages.forEach(function(p) {
+                var pct = ref.total > 0 ? Math.round(p.views / ref.total * 100) : 0;
+                html += '<li>'
+                    + '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" class="cspv-ref-landing-title">'
+                    + esc(p.title.length > 44 ? p.title.slice(0, 44) + '…' : p.title)
+                    + '</a>'
+                    + '<span class="cspv-ref-landing-views">'
+                    + p.views.toLocaleString()
+                    + ' <span class="cspv-ref-landing-pct">(' + pct + '%)</span></span>'
+                    + '</li>';
+            });
+            html += '</ol></div>';
+        });
+        html += '</div>';
+        wrap.innerHTML = html;
     }
 
     function renderInsRefsChart(refs) {

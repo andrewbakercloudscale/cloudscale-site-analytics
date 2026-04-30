@@ -707,9 +707,9 @@ function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_s
     usort( $trending_down, function( $a, $b ) { return $a['pct_change'] - $b['pct_change']; } );
 
     return array(
-        'top'          => $result,
-        'trending_up'  => $trending_up,
-        'trending_down' => $trending_down,
+        'top'          => array_slice( $result, 0, 20 ),
+        'trending_up'  => array_slice( $trending_up, 0, 20 ),
+        'trending_down' => array_slice( $trending_down, 0, 20 ),
     );
 }
 

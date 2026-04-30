@@ -37,6 +37,13 @@ cd "$SCRIPT_DIR"
 bash build.sh
 
 echo ""
+echo "Archiving deployment zip..."
+mkdir -p "$SCRIPT_DIR/archive"
+DEPLOY_STAMP=$(date +%Y-%m-%d-%H%M%S)
+cp "$ZIP" "$SCRIPT_DIR/archive/${PLUGIN_NAME}-${DEPLOY_STAMP}.zip"
+echo "Archived: $SCRIPT_DIR/archive/${PLUGIN_NAME}-${DEPLOY_STAMP}.zip"
+
+echo ""
 echo "Backing up current version on server..."
 pi_ssh \
     "docker cp ${CONTAINER}:${PLUGIN_DIR}/${PLUGIN_NAME} /tmp/${PLUGIN_NAME}-rollback 2>/dev/null \
@@ -95,3 +102,8 @@ if [ "$HTTP_STATUS" != "200" ]; then
     exit 1
 fi
 echo "Site health: OK (HTTP $HTTP_STATUS)"
+
+
+echo ""
+echo "Purging Cloudflare cache..."
+bash "$SCRIPT_DIR/purge-cloudflare.sh"

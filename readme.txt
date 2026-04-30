@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.9.223
+Stable tag: 2.9.260
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,11 +48,15 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 
 == Installation ==
 
-1. Upload the `cloudscale-wordpress-free-analytics` folder to `/wp-content/plugins/`
-2. Activate the plugin in Plugins > Installed Plugins
-3. The database table is created automatically on activation
-4. Add the Cloudflare Cache Rule (see FAQ)
-5. Configure display settings in Tools > CloudScale Site Analytics > Display tab
+Download: https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip
+Source: https://github.com/andrewbakercloudscale/wordpress-free-analytics
+
+1. Download the zip from S3 (link above) or clone from GitHub
+2. Upload via Plugins > Add New > Upload Plugin, or unzip into `/wp-content/plugins/`
+3. Activate the plugin in Plugins > Installed Plugins
+4. The database tables are created automatically on activation
+5. Add the Cloudflare Cache Rule (see FAQ)
+6. Configure display settings in Tools > CloudScale Site Analytics > Display tab
 
 == Frequently Asked Questions ==
 

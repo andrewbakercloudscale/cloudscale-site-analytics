@@ -19,7 +19,7 @@ helpLib.run({
         operatingSystem: 'WordPress',
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        softwareVersion: '2.9.254',
+        softwareVersion: '2.9.260',
         downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
     },

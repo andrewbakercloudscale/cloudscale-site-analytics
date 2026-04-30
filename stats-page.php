@@ -1143,7 +1143,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <a href="https://your-wordpress-site.example.com/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <a href="https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
             <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>
@@ -2083,7 +2083,7 @@ function cspv_render_stats_page() {
             </div>
             <div class="cspv-modal-body" id="cspv-help-modal-body" style="padding:24px;"></div>
             <div style="padding:0 24px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <a href="https://your-wordpress-site.example.com/wordpress-plugin-help/analytics-help/" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
+                <a href="https://andrewbaker.ninja/wordpress-plugin-help/analytics-help/" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
                 <button id="cspv-help-modal-ok" class="cspv-btn-primary" style="padding:8px 28px;">Got it</button>
             </div>
         </div>

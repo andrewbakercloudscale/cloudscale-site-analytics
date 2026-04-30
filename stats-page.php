@@ -1173,7 +1173,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <a href="https://your-wordpress-site.example.com/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
             <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>
@@ -1207,48 +1207,58 @@ function cspv_render_stats_page() {
             </div>
         </div>
 
-        <!-- Summary cards -->
-        <div id="cspv-cards">
-            <div class="cspv-card" id="cspv-card-views">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">👁</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
-                </div>
-                <div class="cspv-card-value" id="stat-delta">—</div>
-                <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+        <!-- Site Health + Summary cards panel -->
+        <div class="cspv-panel" style="margin-bottom:18px;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
+                <span>🏥 Site Health</span>
             </div>
-            <div class="cspv-card" id="cspv-card-posts">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">📄</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
-                </div>
-                <div class="cspv-card-value" id="stat-posts-delta">—</div>
-                <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+            <div style="padding:20px 24px 0;">
+                <?php cspv_render_site_health_html( 'full' ); ?>
             </div>
-            <div class="cspv-card" id="cspv-card-visitors">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">👤</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
+            <div style="padding:16px 24px 4px;">
+                <div id="cspv-cards" style="margin-bottom:0;">
+                    <div class="cspv-card" id="cspv-card-views">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">👁</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-posts">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">📄</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-posts-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-visitors">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">👤</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-visitors-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-hotpages">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">🔥</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-depth">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">📊</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-depth-avg" style="font-size:20px;margin-top:6px;"></div>
+                        <div class="cspv-card-value" id="stat-depth-max" style="font-size:20px;margin-top:2px;"></div>
+                        <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
+                    </div>
                 </div>
-                <div class="cspv-card-value" id="stat-visitors-delta">—</div>
-                <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
-            </div>
-            <div class="cspv-card" id="cspv-card-hotpages">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">🔥</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
-                </div>
-                <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
-                <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
-            </div>
-            <div class="cspv-card" id="cspv-card-depth">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">📊</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
-                </div>
-                <div class="cspv-card-sub" id="stat-depth-avg" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:6px;"></div>
-                <div class="cspv-card-sub" id="stat-depth-max" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
-                <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
             </div>
         </div>
 
@@ -1362,16 +1372,6 @@ function cspv_render_stats_page() {
             </div>
             <div id="cspv-404-inner" style="padding:20px 24px;">
                 <?php cspv_render_404_html(); ?>
-            </div>
-        </div>
-
-        <!-- Site Health -->
-        <div class="cspv-panel" style="margin-top:24px;">
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
-                <span>🏥 Site Health</span>
-            </div>
-            <div style="padding:20px 24px;">
-                <?php cspv_render_site_health_html( 'full' ); ?>
             </div>
         </div>
 
@@ -2129,7 +2129,7 @@ function cspv_render_stats_page() {
             </div>
             <div class="cspv-modal-body" id="cspv-help-modal-body" style="padding:24px;"></div>
             <div style="padding:0 24px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <a href="https://your-wordpress-site.example.com/wordpress-plugin-help/analytics-help/" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
+                <a href="<?php echo esc_url( home_url( '/wordpress-plugin-help/analytics-help/' ) ); ?>" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
                 <button id="cspv-help-modal-ok" class="cspv-btn-primary" style="padding:8px 28px;">Got it</button>
             </div>
         </div>

@@ -108,12 +108,39 @@ function cspv_enqueue_admin_assets( $hook ) {
     wp_enqueue_script( 'cspv-leaflet-js',
         CSPV_PLUGIN_URL . 'assets/js/leaflet.min.js',
         array(), '1.9.4', true );
+    $css_ver = filemtime( CSPV_PLUGIN_DIR . 'assets/css/stats-page.css' ) ?: CSPV_VERSION;
     wp_enqueue_style( 'cspv-stats-page',
         CSPV_PLUGIN_URL . 'assets/css/stats-page.css',
-        array(), CSPV_VERSION );
+        array(), $css_ver );
     wp_register_script( 'cspv-stats-page', false,
         array( 'cspv-chartjs', 'cspv-leaflet-js' ), CSPV_VERSION, true );
     wp_enqueue_script( 'cspv-stats-page' );
+
+    // Auto-reload when a new version is deployed — avoids stale CSS on open tabs
+    // and iOS Safari bfcache restores without requiring manual cache clearing.
+    add_action( 'admin_footer', 'cspv_version_check_script' );
+}
+
+function cspv_version_check_script() {
+    $v = esc_js( CSPV_VERSION );
+    ?>
+<script>
+(function(){
+    var v='<?php echo $v; ?>',k='cspv_ver';
+    var stored=localStorage.getItem(k);
+    localStorage.setItem(k,v);
+    if(stored&&stored!==v){window.location.reload();return;}
+    // iOS bfcache: fires when tab is restored from cache
+    window.addEventListener('pageshow',function(e){
+        if(e.persisted&&localStorage.getItem(k)!==v)window.location.reload();
+    });
+    // Tab refocus after another tab loaded a newer version
+    document.addEventListener('visibilitychange',function(){
+        if(document.visibilityState==='visible'&&localStorage.getItem(k)!==v)window.location.reload();
+    });
+})();
+</script>
+    <?php
 }
 
 // ---------------------------------------------------------------------------
@@ -1013,13 +1040,17 @@ function cspv_ajax_insights_dashboard() {
     $to_str   = $to->format( 'Y-m-d H:i:s' );
     $own_host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 
+    $kpi = cspv_insights_kpi( $from_str, $to_str, $own_host );
     wp_send_json_success( array(
         'period'                  => $period,
-        'kpi'                     => cspv_insights_kpi( $from_str, $to_str, $own_host ),
+        'kpi'                     => $kpi,
+        'smart_summary'           => cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $kpi ),
         'traffic_sources'         => cspv_insights_traffic_sources( $from_str, $to_str, $own_host ),
         'referrer_growth'         => cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period ),
+        'peak_hours'              => cspv_insights_peak_hours( $from_str, $to_str ),
         'top_posts'               => cspv_insights_top_posts_data( $from_str, $to_str ),
         'top_posts_by_referrer'   => cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host ),
+        'referrer_landing_pages'  => cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host ),
         'views_by_country'        => cspv_top_countries( $from_str, $to_str, 10 ),
         'top_countries_over_time' => cspv_insights_countries_over_time( $from_str, $to_str, $period ),
         'top_referrer_domains'    => cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host ),
@@ -1143,7 +1174,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <a href="https://andrewbaker.ninja/2026/02/27/cloudscale-free-wordpress-analytics-analytics-that-work-behind-cloudflare/" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
             <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>
@@ -1177,48 +1208,58 @@ function cspv_render_stats_page() {
             </div>
         </div>
 
-        <!-- Summary cards -->
-        <div id="cspv-cards">
-            <div class="cspv-card" id="cspv-card-views">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">👁</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
-                </div>
-                <div class="cspv-card-value" id="stat-delta">—</div>
-                <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+        <!-- Site Health + Summary cards panel -->
+        <div class="cspv-panel" style="margin-bottom:18px;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
+                <span>🏥 Site Health</span>
             </div>
-            <div class="cspv-card" id="cspv-card-posts">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">📄</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
-                </div>
-                <div class="cspv-card-value" id="stat-posts-delta">—</div>
-                <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+            <div style="padding:20px 24px 0;">
+                <?php cspv_render_site_health_html( 'full' ); ?>
             </div>
-            <div class="cspv-card" id="cspv-card-visitors">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">👤</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
+            <div style="padding:16px 24px 4px;">
+                <div id="cspv-cards" style="margin-bottom:0;">
+                    <div class="cspv-card" id="cspv-card-views">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">👁</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-posts">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">📄</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-posts-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-visitors">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">👤</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-visitors-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-hotpages">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">🔥</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
+                        <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
+                    </div>
+                    <div class="cspv-card" id="cspv-card-depth">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="cspv-card-icon" style="margin:0;">📊</div>
+                            <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
+                        </div>
+                        <div class="cspv-card-value" id="stat-depth-avg" style="font-size:20px;margin-top:6px;"></div>
+                        <div class="cspv-card-value" id="stat-depth-max" style="font-size:20px;margin-top:2px;"></div>
+                        <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
+                    </div>
                 </div>
-                <div class="cspv-card-value" id="stat-visitors-delta">—</div>
-                <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
-            </div>
-            <div class="cspv-card" id="cspv-card-hotpages">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">🔥</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
-                </div>
-                <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
-                <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
-            </div>
-            <div class="cspv-card" id="cspv-card-depth">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="cspv-card-icon" style="margin:0;">📊</div>
-                    <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
-                </div>
-                <div class="cspv-card-sub" id="stat-depth-avg" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:6px;"></div>
-                <div class="cspv-card-sub" id="stat-depth-max" style="font-size:17px;font-weight:700;color:#0066ff;margin-top:2px;"></div>
-                <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
             </div>
         </div>
 
@@ -1326,22 +1367,12 @@ function cspv_render_stats_page() {
         </div>
 
         <!-- 404 Tracking -->
-        <div id="cspv-404-panel" class="cspv-panel" style="margin-top:24px;">
+        <div class="cspv-panel" style="margin-top:24px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
                 <span>🚫 404 Error Log</span>
             </div>
             <div id="cspv-404-inner" style="padding:20px 24px;">
                 <?php cspv_render_404_html(); ?>
-            </div>
-        </div>
-
-        <!-- Site Health -->
-        <div class="cspv-panel" style="margin-top:24px;">
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
-                <span>🏥 Site Health</span>
-            </div>
-            <div style="padding:20px 24px;">
-                <?php cspv_render_site_health_html( 'full' ); ?>
             </div>
         </div>
 
@@ -1408,16 +1439,25 @@ function cspv_render_stats_page() {
                     </div>
                 </div>
 
+                <!-- Smart Summary -->
+                <div id="cspv-ins-summary-card" class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="display:none;">
+                    <div class="cspv-ins-summary-header">
+                        <div class="cspv-ins-chart-title" style="margin:0;">✨ Smart Summary</div>
+                        <div class="cspv-ins-summary-subtitle">Auto-generated from your data</div>
+                    </div>
+                    <ul id="cspv-ins-summary-list" class="cspv-ins-summary-list"></ul>
+                </div>
+
                 <!-- Row: Traffic Sources + Referrer Growth -->
                 <div class="cspv-ins-chart-row">
-                    <div class="cspv-ins-chart-panel" style="flex:0 0 300px;max-width:320px;">
+                    <div class="cspv-ins-chart-panel cspv-ins-panel-narrow">
                         <div class="cspv-ins-chart-title">Traffic Sources</div>
                         <div style="position:relative;height:200px;">
                             <canvas id="cspv-ins-traffic-chart"></canvas>
                         </div>
                         <div id="cspv-ins-traffic-legend" class="cspv-ins-legend"></div>
                     </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;display:flex;flex-direction:column;">
+                    <div class="cspv-ins-chart-panel cspv-ins-panel-wide" style="display:flex;flex-direction:column;">
                         <div class="cspv-ins-chart-title">Referrer Growth</div>
                         <div style="position:relative;flex:1;min-height:200px;">
                             <canvas id="cspv-ins-growth-chart"></canvas>
@@ -1428,13 +1468,13 @@ function cspv_render_stats_page() {
 
                 <!-- Row: Views by Country (bar) + Countries Over Time -->
                 <div class="cspv-ins-chart-row">
-                    <div class="cspv-ins-chart-panel" style="flex:0 0 300px;max-width:320px;">
+                    <div class="cspv-ins-chart-panel cspv-ins-panel-narrow">
                         <div class="cspv-ins-chart-title">Views by Country</div>
                         <div style="position:relative;" id="cspv-ins-country-wrap">
                             <canvas id="cspv-ins-country-chart"></canvas>
                         </div>
                     </div>
-                    <div class="cspv-ins-chart-panel" style="flex:1;min-width:280px;">
+                    <div class="cspv-ins-chart-panel cspv-ins-panel-wide">
                         <div class="cspv-ins-chart-title">Countries Over Time</div>
                         <div style="position:relative;height:220px;">
                             <canvas id="cspv-ins-country-time-chart"></canvas>
@@ -1443,12 +1483,19 @@ function cspv_render_stats_page() {
                     </div>
                 </div>
 
-                <!-- Top Posts by Views -->
+                <!-- Peak Traffic Hours heatmap -->
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
+                    <div class="cspv-ins-chart-title" style="background:linear-gradient(135deg,#991b1b,#ef4444);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">⏰ Peak Traffic Hours</div>
+                    <div id="cspv-ins-peak-hours-wrap" style="padding-top:14px;">
+                        <div id="cspv-ins-peak-best"></div>
+                        <div id="cspv-ins-peak-heatmap"></div>
+                    </div>
+                </div>
+
+                <!-- Top Posts by Views (audience table) -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Views</div>
-                    <div style="position:relative;" id="cspv-ins-posts-wrap">
-                        <canvas id="cspv-ins-posts-chart"></canvas>
-                    </div>
+                    <div id="cspv-ins-posts-wrap" style="overflow-x:auto;"></div>
                 </div>
 
                 <!-- Top Posts by Referrer -->
@@ -1457,6 +1504,12 @@ function cspv_render_stats_page() {
                     <div id="cspv-ins-ref-table-wrap" style="overflow-x:auto;">
                         <div id="cspv-ins-ref-table"></div>
                     </div>
+                </div>
+
+                <!-- Referrer Landing Pages -->
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
+                    <div class="cspv-ins-chart-title">Top Landing Pages per Referrer</div>
+                    <div id="cspv-ins-ref-landing" style="padding:12px 16px;"></div>
                 </div>
 
                 <!-- Top Referrer Domains -->
@@ -2083,7 +2136,7 @@ function cspv_render_stats_page() {
             </div>
             <div class="cspv-modal-body" id="cspv-help-modal-body" style="padding:24px;"></div>
             <div style="padding:0 24px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <a href="https://andrewbaker.ninja/wordpress-plugin-help/analytics-help/" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
+                <a href="<?php echo esc_url( home_url( '/wordpress-plugin-help/analytics-help/' ) ); ?>" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
                 <button id="cspv-help-modal-ok" class="cspv-btn-primary" style="padding:8px 28px;">Got it</button>
             </div>
         </div>
@@ -2524,7 +2577,7 @@ ob_start();
     function loadInsDashboard() {
         document.getElementById('cspv-ins-loading').style.display = 'block';
         document.getElementById('cspv-ins-content').style.display = 'none';
-        ['cspv-ins-traffic-chart','cspv-ins-growth-chart','cspv-ins-posts-chart',
+        ['cspv-ins-traffic-chart','cspv-ins-growth-chart',
          'cspv-ins-country-chart','cspv-ins-country-time-chart','cspv-ins-refs-chart']
             .forEach(insDestroyChart);
 
@@ -2552,12 +2605,15 @@ ob_start();
         if (!insDashData) return;
         var d = insDashData;
         renderInsKPI(d.kpi);
+        renderInsSmartSummary(d.smart_summary);
         renderInsTrafficSources(d.traffic_sources);
         renderInsGrowthChart(d.referrer_growth);
         renderInsCountryChart(d.views_by_country);
         renderInsCountryTimeChart(d.top_countries_over_time);
-        renderInsPostsChart(d.top_posts);
+        renderInsPeakHours(d.peak_hours);
+        renderInsPostsTable(d.top_posts);
         renderInsRefTable(d.top_posts_by_referrer);
+        renderInsRefLanding(d.referrer_landing_pages);
         renderInsRefsChart(d.top_referrer_domains);
     }
 
@@ -2699,31 +2755,121 @@ ob_start();
         insCustomLegend('cspv-ins-growth-legend', series.map(function(s){ return s.label; }), function(i){ return insColor(i); }, function(i){ return INS_DASHES[i % INS_DASHES.length]; });
     }
 
-    function renderInsPostsChart(posts) {
-        insDestroyChart('cspv-ins-posts-chart');
-        var ctx = document.getElementById('cspv-ins-posts-chart');
-        var wrap = document.getElementById('cspv-ins-posts-wrap');
-        if (!ctx || !posts || !posts.length) return;
-        var h = Math.max(140, posts.length * 30);
-        ctx.height = h;
-        if (wrap) wrap.style.height = h + 'px';
-        insCharts['cspv-ins-posts-chart'] = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: posts.map(function(p){ return p.title.length > 42 ? p.title.slice(0, 42) + '…' : p.title; }),
-                datasets: [{ data: posts.map(function(p){ return p.views; }),
-                    backgroundColor: posts.map(function(_, i){ return insColor(i); }),
-                    borderRadius: 4, borderSkipped: false }]
-            },
-            options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
-                    y: { ticks: { font: { size: 11 } }, grid: { display: false } }
-                }
+    function renderInsSmartSummary(items) {
+        var card = document.getElementById('cspv-ins-summary-card');
+        var list = document.getElementById('cspv-ins-summary-list');
+        if (!card || !list) return;
+        if (!items || !items.length) { card.style.display = 'none'; return; }
+        var html = '';
+        items.forEach(function(item) {
+            var cls = 'cspv-ins-sum-item cspv-ins-sum-' + (item.type || 'neutral');
+            var detail = '';
+            if (item.detail && item.detail.length) {
+                detail = ': ' + item.detail.map(function(cc) {
+                    return countryFlag(cc) + cc;
+                }).join(' ');
+            }
+            html += '<li class="' + cls + '">';
+            html += '<span class="cspv-ins-sum-icon">' + esc(item.icon) + '</span>';
+            html += '<span class="cspv-ins-sum-text">' + esc(item.text) + detail + '</span>';
+            html += '</li>';
+        });
+        list.innerHTML = html;
+        card.style.display = 'block';
+    }
+
+    function renderInsPeakHours(data) {
+        var wrap = document.getElementById('cspv-ins-peak-heatmap');
+        var best = document.getElementById('cspv-ins-peak-best');
+        if (!wrap) return;
+        if (!data || !data.length) {
+            wrap.innerHTML = '<div style="color:#9ca3af;padding:12px;font-size:13px;">Not enough data for this period.</div>';
+            return;
+        }
+        var matrix = [], maxVal = 0, d, h;
+        for (d = 0; d < 7; d++) { matrix[d] = []; for (h = 0; h < 24; h++) matrix[d][h] = 0; }
+        data.forEach(function(r) {
+            if (r.dow >= 0 && r.dow < 7 && r.hour >= 0 && r.hour < 24) {
+                matrix[r.dow][r.hour] += r.views;
+                if (matrix[r.dow][r.hour] > maxVal) maxVal = matrix[r.dow][r.hour];
             }
         });
+        if (maxVal === 0) { wrap.innerHTML = '<div style="color:#9ca3af;padding:12px;font-size:13px;">No data.</div>'; return; }
+
+        var peakDow = 0, peakHour = 0;
+        for (d = 0; d < 7; d++) for (h = 0; h < 24; h++) if (matrix[d][h] > matrix[peakDow][peakHour]) { peakDow = d; peakHour = h; }
+
+        var days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        var fullDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        function fmt12(hh) { var ap = hh < 12 ? 'am' : 'pm'; var h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh; return h12 + ap; }
+
+        if (best) best.innerHTML = '<span class="cspv-ins-peak-best-text">⏰ Peak time: <strong>' + fullDays[peakDow] + ' at ' + fmt12(peakHour) + '</strong> · ' + matrix[peakDow][peakHour].toLocaleString() + ' views</span>';
+
+        // Heatmap grid — cells use flex:1 so they stretch to fill the panel width
+        var html = '<div class="cspv-ins-heatmap-grid">';
+        // Header row (hour labels)
+        html += '<div class="cspv-ins-hm-row cspv-ins-hm-header"><div class="cspv-ins-hm-day-label"></div>';
+        for (h = 0; h < 24; h++) html += '<div class="cspv-ins-hm-hour-label">' + (h % 6 === 0 ? fmt12(h) : '') + '</div>';
+        html += '</div>';
+        // Data rows
+        for (d = 0; d < 7; d++) {
+            html += '<div class="cspv-ins-hm-row"><div class="cspv-ins-hm-day-label">' + days[d] + '</div>';
+            for (h = 0; h < 24; h++) {
+                var v = matrix[d][h];
+                var t = maxVal > 0 ? v / maxVal : 0;
+                // Red palette: #fef2f2 (254,242,242) → #dc2626 (220,38,38)
+                var r2 = Math.round(254 - 34 * t), g2 = Math.round(242 - 204 * t), b2 = Math.round(242 - 204 * t);
+                var pk = (d === peakDow && h === peakHour) ? ' cspv-ins-hm-peak' : '';
+                html += '<div class="cspv-ins-hm-cell' + pk + '" style="background:rgb(' + r2 + ',' + g2 + ',' + b2 + ')" title="' + fullDays[d] + ' ' + fmt12(h) + ': ' + v.toLocaleString() + ' views"></div>';
+            }
+            html += '</div>';
+        }
+        html += '</div>'; // close heatmap-grid
+
+        // Legend — outside the grid so it doesn't inherit the row flex layout
+        var mid1 = Math.round(maxVal * 0.33), mid2 = Math.round(maxVal * 0.67);
+        html += '<div class="cspv-ins-hm-legend">';
+        html += '<span class="cspv-ins-hm-legend-label">0</span>';
+        html += '<div class="cspv-ins-hm-legend-bar">';
+        html += '<div class="cspv-ins-hm-legend-ticks">';
+        html += '<span>' + mid1.toLocaleString() + '</span>';
+        html += '<span>' + mid2.toLocaleString() + '</span>';
+        html += '</div></div>';
+        html += '<span class="cspv-ins-hm-legend-label">' + maxVal.toLocaleString() + ' views</span>';
+        html += '</div>';
+
+        wrap.innerHTML = html;
+    }
+
+    function renderInsPostsTable(posts) {
+        var wrap = document.getElementById('cspv-ins-posts-wrap');
+        if (!wrap || !posts || !posts.length) return;
+        var maxV = posts[0].views || 1;
+        var hasAud = posts.some(function(p) { return p.unique_visitors > 0; });
+        var html = '<table class="cspv-ins-posts-tbl"><thead><tr>';
+        html += '<th class="left">Post</th><th>Views</th>';
+        if (hasAud) html += '<th>Readers</th><th>Audience</th>';
+        html += '</tr></thead><tbody>';
+        posts.forEach(function(p, i) {
+            var pct = Math.round(p.views / maxV * 100);
+            var col = insColor(i);
+            html += '<tr>';
+            html += '<td class="cspv-ins-pt-title-cell"><a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.title.length > 55 ? p.title.slice(0,52)+'…' : p.title) + '</a></td>';
+            html += '<td class="cspv-ins-pt-num-cell"><div class="cspv-ins-pt-bar-wrap"><div class="cspv-ins-pt-bar-fill" style="width:' + pct + '%;background:' + col + '"></div><span class="cspv-ins-pt-bar-label">' + p.views.toLocaleString() + '</span></div></td>';
+            if (hasAud) {
+                var u = p.unique_visitors || 0;
+                html += '<td class="cspv-ins-pt-num-cell">' + (u > 0 ? u.toLocaleString() : '—') + '</td>';
+                html += '<td class="cspv-ins-pt-aud-cell">';
+                if (u > 0) {
+                    html += '<div class="cspv-ins-aud-bar"><div class="cspv-ins-aud-new" style="width:' + (p.new_pct||0) + '%"></div><div class="cspv-ins-aud-ret" style="width:' + (p.returning_pct||0) + '%"></div></div>';
+                    html += '<span class="cspv-ins-aud-label">' + (p.new_pct||0) + '% new · ' + (p.returning_pct||0) + '% returning</span>';
+                } else { html += '—'; }
+                html += '</td>';
+            }
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
     }
 
     function renderInsRefTable(pbr) {
@@ -2838,6 +2984,41 @@ ob_start();
             datasets.map(function(ds){ return ds.label; }),
             function(i){ return insColor(i + 5); },
             function(i){ return INS_DASHES[i % INS_DASHES.length]; });
+    }
+
+    function renderInsRefLanding(data) {
+        var wrap = document.getElementById('cspv-ins-ref-landing');
+        if (!wrap) return;
+        var filtered = insFilterSelf(data || []);
+        if (!filtered.length) {
+            wrap.innerHTML = '<div style="color:#9ca3af;font-size:13px;">No referrer data available for this period.</div>';
+            return;
+        }
+        var grandTotal = filtered.reduce(function(s, r) { return s + r.total; }, 0) || 1;
+        var html = '<div class="cspv-ref-landing-grid">';
+        filtered.forEach(function(ref, i) {
+            var color = insColor(i);
+            var pctRef = Math.round(ref.total / grandTotal * 100);
+            html += '<div class="cspv-ref-landing-card">'
+                + '<div class="cspv-ref-landing-hdr" style="border-left:3px solid ' + color + ';">'
+                + '<span class="cspv-ref-landing-name">' + esc(ref.label) + '</span>'
+                + '<span class="cspv-ref-landing-total">' + ref.total.toLocaleString() + ' views <span class="cspv-ref-landing-hdr-pct">(' + pctRef + '%)</span></span>'
+                + '</div><ol class="cspv-ref-landing-list">';
+            ref.pages.forEach(function(p) {
+                var pct = ref.total > 0 ? Math.round(p.views / ref.total * 100) : 0;
+                html += '<li>'
+                    + '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" class="cspv-ref-landing-title">'
+                    + esc(p.title.length > 44 ? p.title.slice(0, 44) + '…' : p.title)
+                    + '</a>'
+                    + '<span class="cspv-ref-landing-views">'
+                    + p.views.toLocaleString()
+                    + ' <span class="cspv-ref-landing-pct">(' + pct + '%)</span></span>'
+                    + '</li>';
+            });
+            html += '</ol></div>';
+        });
+        html += '</div>';
+        wrap.innerHTML = html;
     }
 
     function renderInsRefsChart(refs) {

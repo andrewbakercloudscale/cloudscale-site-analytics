@@ -135,11 +135,11 @@ add_action( 'init', function () {
 
 // -------------------------------------------------------------------------
 // 3. Front end auto injection
-//    "before_content" = above the post title (via the_title)
-//    "after_content"  = below the post body  (via the_content)
-//    "both"           = both positions
+//    "before_content" = prepended to the_content (JS then moves the element
+//                       before article.firstChild — above the featured image).
+//    "after_content"  = appended to the_content.
+//    "both"           = both positions.
 // -------------------------------------------------------------------------
-add_filter( 'the_title',   'cspv_auto_display_above_title', 99, 2 );
 add_filter( 'the_content', 'cspv_auto_display_views', 99 );
 
 /**
@@ -168,48 +168,16 @@ function cspv_build_counter_html() {
 }
 
 /**
- * Inject the view counter above the post title on singular pages.
+ * Inject the view counter into post content, then JS repositions it.
  *
- * Hooked to `the_title` at priority 99. Guards ensure the counter only
- * appears once for the main queried post, never in widgets or nav menus.
- *
- * @since 1.0.0
- * @param string $title   Post title.
- * @param int    $post_id Post ID.
- * @return string Modified title with counter prepended, or unchanged title.
- */
-function cspv_auto_display_above_title( $title, $post_id = 0 ) {
-    // Only on singular front end, only for the main queried post
-    if ( ! is_singular() || is_feed() || is_admin() ) {
-        return $title;
-    }
-    // Only for the main post in the loop (not widget titles, nav menus, etc)
-    if ( ! in_the_loop() || (int) $post_id !== (int) get_queried_object_id() ) {
-        return $title;
-    }
-
-    $position = get_option( 'cspv_auto_display', 'before_content' );
-    if ( $position !== 'before_content' && $position !== 'both' ) {
-        return $title;
-    }
-
-    $post_types = get_option( 'cspv_display_post_types', get_option( 'cspv_track_post_types', array( 'post' ) ) );
-    if ( ! in_array( get_post_type(), $post_types, true ) ) {
-        return $title;
-    }
-
-    // Prepend the counter above the title text
-    return cspv_build_counter_html() . $title;
-}
-
-/**
- * Inject the view counter below post content on singular pages.
- *
- * Hooked to `the_content` at priority 99. Fires for after_content and both modes.
+ * For before_content / both: counter is prepended to the_content and a small
+ * inline script moves the .cspv-auto-views element before article.firstChild
+ * (i.e. above the featured image, regardless of theme structure).
+ * For after_content: counter is appended after the post body.
  *
  * @since 1.0.0
  * @param string $content Post content.
- * @return string Modified content with counter appended, or unchanged content.
+ * @return string Modified content with counter injected, or unchanged content.
  */
 function cspv_auto_display_views( $content ) {
     if ( ! is_singular() || is_feed() || is_admin() ) {
@@ -217,7 +185,7 @@ function cspv_auto_display_views( $content ) {
     }
 
     $position = get_option( 'cspv_auto_display', 'before_content' );
-    if ( $position === 'off' || $position === 'before_content' ) {
+    if ( $position === 'off' ) {
         return $content;
     }
 
@@ -230,6 +198,10 @@ function cspv_auto_display_views( $content ) {
 
     if ( $position === 'after_content' || $position === 'both' ) {
         $content = $content . $html;
+    }
+
+    if ( $position === 'before_content' || $position === 'both' ) {
+        $content = $html . $content;
     }
 
     return $content;
@@ -304,4 +276,20 @@ function cspv_auto_display_style() {
     wp_register_style( 'cspv-auto-display', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
     wp_enqueue_style( 'cspv-auto-display' );
     wp_add_inline_style( 'cspv-auto-display', $css );
+
+    // On singular pages with before_content mode, move the counter above the
+    // featured image by relocating it before article.firstChild in the DOM.
+    if ( is_singular() && in_array( get_option( 'cspv_auto_display', 'before_content' ), array( 'before_content', 'both' ), true ) ) {
+        wp_register_script( 'cspv-auto-display-relocate', false, array(), CSPV_VERSION, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle
+        wp_enqueue_script( 'cspv-auto-display-relocate' );
+        wp_add_inline_script( 'cspv-auto-display-relocate', '
+document.addEventListener("DOMContentLoaded",function(){
+    var c=document.querySelector(".cspv-auto-views");
+    if(!c) return;
+    var a=c.closest("article")||document.querySelector("article");
+    if(a&&a.firstChild) a.insertBefore(c,a.firstChild);
+    var d=document.getElementById("cspv-debug-toggle");
+    if(d){c.appendChild(d);d.style.display="";}
+});' );
+    }
 }

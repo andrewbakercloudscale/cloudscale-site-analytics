@@ -1326,7 +1326,7 @@ function cspv_render_stats_page() {
         </div>
 
         <!-- 404 Tracking -->
-        <div class="cspv-panel" style="margin-top:24px;">
+        <div id="cspv-404-panel" class="cspv-panel" style="margin-top:24px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
                 <span>🚫 404 Error Log</span>
             </div>

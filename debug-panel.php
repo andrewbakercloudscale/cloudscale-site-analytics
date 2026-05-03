@@ -70,13 +70,12 @@ function cspv_debug_panel_enqueue() {
     wp_enqueue_script( 'cspv-debug-panel' );
 }
 
-// Inject the debug button right after the auto-display counter
+// Inject the hidden debug toggle button at the top of post content for admins.
+// The auto-display relocate JS moves it into the counter element after load.
 add_filter( 'the_content', 'cspv_inject_debug_button', 100 );
 
 /**
  * Prepend a hidden debug toggle button to post content for admins.
- *
- * JavaScript relocates the button into the view counter element after load.
  *
  * @since 2.0.0
  * @param string $content Post content.
@@ -85,12 +84,8 @@ add_filter( 'the_content', 'cspv_inject_debug_button', 100 );
 function cspv_inject_debug_button( $content ) {
     if ( ! is_singular() ) { return $content; }
     if ( ! current_user_can( 'manage_options' ) ) { return $content; }
-
-    // Always prepend a hidden button; JS will relocate it into the counter container
     $btn = '<button id="cspv-debug-toggle" style="display:none" title="View Diagnostics">🐛 Debug</button>';
-    $content = wp_kses_post( $btn ) . $content;
-
-    return $content;
+    return wp_kses_post( $btn ) . $content;
 }
 
 // Render the panel in wp_footer

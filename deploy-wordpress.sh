@@ -74,26 +74,54 @@ pi_ssh "
 "
 
 echo ""
-echo "Restarting container to flush PHP-FPM opcache..."
-pi_ssh "docker restart ${CONTAINER} && echo 'Container restarted OK'"
-
-echo ""
-echo "Clearing PHP opcache (post-restart)..."
-sleep 3
-pi_ssh "docker exec ${CONTAINER} php -r 'opcache_reset();' 2>/dev/null && echo 'opcache cleared' || echo 'opcache not available'"
+echo "Flushing OPcache..."
+# Small pause to let filesystem sync before hitting the AJAX endpoint.
+sleep 2
+# Preferred: flush via AJAX endpoint — PHP-FPM keeps running, zero downtime.
+OPCACHE_TOKEN=$(pi_ssh "docker exec ${CONTAINER} php ${WP_PATH}/wp-cli.phar --allow-root option get csdt_opcache_token 2>/dev/null" 2>/dev/null | tr -d '[:space:]' || echo "")
+OPCACHE_FLUSHED=0
+if [[ -n "$OPCACHE_TOKEN" ]]; then
+    FLUSH_RESP=$(curl -sk -X POST --max-time 12 \
+        "${SITE_URL}/wp-admin/admin-ajax.php" \
+        -d "action=csdt_opcache_flush&token=${OPCACHE_TOKEN}" 2>/dev/null || echo "")
+    if echo "$FLUSH_RESP" | grep -q '"flushed":true'; then
+        echo "  OPcache flushed via AJAX endpoint — no PHP-FPM restart needed."
+        OPCACHE_FLUSHED=1
+    else
+        echo "  AJAX flush failed — falling back to PHP-FPM graceful reload."
+    fi
+fi
+if [[ "$OPCACHE_FLUSHED" == "0" ]]; then
+    echo "  Sending PHP-FPM graceful reload (SIGUSR2)..."
+    pi_ssh "docker exec ${CONTAINER} kill -USR2 1 2>/dev/null || true"
+    echo "  Waiting 20 s for PHP-FPM workers to fully respawn on the Pi..."
+    sleep 20
+    echo "  Reloading nginx to clear upstream error state..."
+    pi_ssh "docker exec pi_nginx nginx -s reload 2>/dev/null || true"
+    sleep 3
+    echo "  PHP-FPM reloaded."
+fi
 
 echo ""
 echo "Checking site health after deploy..."
-HTTP_STATUS=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 "$SITE_URL/")
-if [ "$HTTP_STATUS" != "200" ]; then
+PHP_OK=0
+for attempt in 1 2 3 4 5; do
+    HTTP_STATUS=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 \
+        -X POST "${SITE_URL}/wp-admin/admin-ajax.php" -d "action=heartbeat" 2>/dev/null)
+    if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "400" ]]; then
+        PHP_OK=1; break
+    fi
+    echo "  Attempt ${attempt}/5: PHP returned HTTP ${HTTP_STATUS} — retrying in 8s…"
+    sleep 8
+done
+if [[ "$PHP_OK" != "1" ]]; then
     echo ""
-    echo "ERROR: Site returned HTTP $HTTP_STATUS after deploy — auto-rolling back!"
+    echo "ERROR: PHP-FPM not responding (HTTP $HTTP_STATUS) — auto-rolling back!"
     pi_ssh "
         if [ -d /tmp/${PLUGIN_NAME}-rollback ]; then
             docker exec ${CONTAINER} rm -rf ${PLUGIN_DIR}/${PLUGIN_NAME} && \
             docker cp /tmp/${PLUGIN_NAME}-rollback ${CONTAINER}:${PLUGIN_DIR}/${PLUGIN_NAME} && \
             docker exec ${CONTAINER} chown -R www-data:www-data ${PLUGIN_DIR}/${PLUGIN_NAME} && \
-            docker exec ${CONTAINER} bash -c 'kill -USR2 1 2>/dev/null || true' && \
             echo 'Auto-rolled back to previous version.'
         else
             echo 'ERROR: No rollback backup available!'
@@ -101,7 +129,7 @@ if [ "$HTTP_STATUS" != "200" ]; then
     "
     exit 1
 fi
-echo "Site health: OK (HTTP $HTTP_STATUS)"
+echo "Site health: OK (PHP responding, HTTP $HTTP_STATUS)"
 
 
 echo ""

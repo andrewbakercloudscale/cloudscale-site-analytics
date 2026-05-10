@@ -55,6 +55,32 @@ function cspv_count_expr() {
     return 'COALESCE(SUM(view_count),0)';
 }
 
+function cspv_views_table_exists(): bool {
+    static $exists = null;
+    if ( $exists !== null ) return $exists;
+    global $wpdb;
+    $exists = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', cspv_views_table() ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    return $exists;
+}
+
+function cspv_404_table_exists(): bool {
+    static $exists = null;
+    if ( $exists !== null ) return $exists;
+    global $wpdb;
+    $exists = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cs_analytics_404_v2' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    return $exists;
+}
+
+function cspv_earliest_view_date(): ?string {
+    static $earliest = false;
+    if ( $earliest !== false ) return $earliest;
+    if ( ! cspv_views_table_exists() ) { $earliest = null; return null; }
+    global $wpdb;
+    $table    = cspv_views_table();
+    $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+    return $earliest;
+}
+
 /**
  * Return the referrer table name and aggregate count expression.
  *
@@ -234,8 +260,7 @@ function cspv_rolling_24h_views() {
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-    if ( ! $table_exists ) {
+    if ( ! cspv_views_table_exists() ) {
         $cache = array( 'current' => 0, 'prior' => 0, 'from_str' => '', 'to_str' => '' );
         return $cache;
     }
@@ -280,8 +305,7 @@ function cspv_rolling_window_views( $seconds ) {
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-    if ( ! $table_exists ) {
+    if ( ! cspv_views_table_exists() ) {
         return 0;
     }
 

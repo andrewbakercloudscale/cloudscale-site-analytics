@@ -130,7 +130,7 @@ function cspv_render_dashboard_widget() {
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = cspv_views_table_exists();
 
     $today   = current_time( 'Y-m-d' );
     $today_s = $today . ' 00:00:00';
@@ -147,11 +147,9 @@ function cspv_render_dashboard_widget() {
 
     // Days of tracking data (used to gate period comparisons)
     $data_days = 0;
-    if ( $table_exists ) {
-        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
-        if ( $earliest ) {
-            $data_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
-        }
+    $earliest  = cspv_earliest_view_date();
+    if ( $earliest ) {
+        $data_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
     }
 
     if ( $table_exists ) {

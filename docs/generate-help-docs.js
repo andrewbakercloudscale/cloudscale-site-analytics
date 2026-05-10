@@ -19,7 +19,7 @@ helpLib.run({
         operatingSystem: 'WordPress',
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        softwareVersion: '2.9.260',
+        softwareVersion: '2.9.268',
         downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
     },
@@ -131,24 +131,118 @@ helpLib.run({
     sections: [
         {
             id: 'statistics', label: 'Statistics Dashboard', file: 'panel-statistics.png', tab: 'stats',
-            intro: 'The main analytics dashboard showing page views over time, top posts, referrer sources, a Cloudflare cache bypass tester, and 404 error log. All data is stored in your own WordPress database with no data sent to any third party.',
+            elementSelector: '#cspv-tab-stats',
+            intro: 'The main analytics dashboard showing page views over time, top posts, referrer sources, and a Cloudflare cache bypass tester. All data is stored in your own WordPress database with no data sent to any third party.',
+            jsBeforeShot: async () => {
+                await new Promise(function(resolve) {
+                    var tries = 0;
+                    var check = function() {
+                        var msg = document.getElementById('cspv-chart-msg');
+                        if (!msg || msg.classList.contains('hidden')) { resolve(); }
+                        else if (++tries < 50) { setTimeout(check, 300); }
+                        else { resolve(); }
+                    };
+                    setTimeout(check, 500);
+                });
+                await new Promise(function(r) { setTimeout(r, 2000); });
+                ['#cspv-top-posts', '#cspv-referrers', '#cspv-all-time'].forEach(function(sel) {
+                    document.querySelectorAll(sel + ' .cspv-row').forEach(function(r, i) { if (i >= 4) r.style.display = 'none'; });
+                });
+                // Hide sections with their own dedicated screenshots
+                var geo = document.getElementById('cspv-geo-panel');
+                if (geo) geo.style.display = 'none';
+                document.querySelectorAll('#cspv-tab-stats .cspv-section-header').forEach(function(h) {
+                    var txt = h.textContent;
+                    if (txt.includes('404') || txt.includes('Site Health')) {
+                        var panel = h.closest('.cspv-panel');
+                        if (panel) panel.style.display = 'none';
+                    }
+                });
+            },
+            jsAfterShot: () => {
+                var geo = document.getElementById('cspv-geo-panel');
+                if (geo) geo.style.display = '';
+                document.querySelectorAll('#cspv-tab-stats .cspv-section-header').forEach(function(h) {
+                    var txt = h.textContent;
+                    if (txt.includes('404') || txt.includes('Site Health')) {
+                        var panel = h.closest('.cspv-panel');
+                        if (panel) panel.style.display = '';
+                    }
+                });
+            },
         },
         {
             id: 'geography', label: 'Geography', file: 'panel-geography.png', tab: 'stats',
             elementSelector: '#cspv-geo-panel',
             intro: 'An interactive world map showing where your visitors come from, built from country data captured at the time of each beacon hit. Supports drill-down to city level for any country.',
+            jsBeforeShot: async () => {
+                await new Promise(function(r) { setTimeout(r, 2000); });
+            },
+        },
+        {
+            id: '404-log', label: '404 Error Log', file: 'panel-404-log.png', tab: 'stats',
+            elementSelector: '#cspv-404-panel',
+            jsClip: true,
+            intro: 'Tracks every 404 (page not found) response on your site, with the requested URL, referring source, and timestamp. Use this to find broken inbound links and set up 301 redirects before they cost you rankings.',
+            jsBeforeShot: () => {
+                // Give the wrapper panel a stable ID so the elementSelector can target it
+                var inner = document.getElementById('cspv-404-inner');
+                if (inner) {
+                    var panel = inner.parentElement;
+                    if (panel && !panel.id) panel.id = 'cspv-404-panel';
+                }
+                document.querySelectorAll('#cspv-404-inner tbody tr').forEach(function(tr, i) { if (i >= 5) tr.style.display = 'none'; });
+            },
         },
         {
             id: 'display', label: 'Display Settings', file: 'panel-display.png', tab: 'display',
+            elementSelector: '#cspv-tab-display',
             intro: 'Controls where view count badges appear on your posts, the visual style and colour of counters, which post types are tracked, and the geography source configuration.',
         },
         {
             id: 'throttle', label: 'IP Throttle', file: 'panel-throttle.png', tab: 'throttle',
+            elementSelector: '#cspv-tab-throttle',
             intro: 'Four panels for keeping your stats accurate: automatic bot blocking by request rate, client and server-side view deduplication, blocked IP management, and an emergency switch to pause all tracking.',
+            jsBeforeShot: () => {
+                document.querySelectorAll('.cspv-block-row').forEach(function(r, i) { if (i >= 4) r.style.display = 'none'; });
+            },
         },
         {
             id: 'insights', label: 'Insights', file: 'panel-insights.png', tab: 'insights',
+            elementSelector: '#cspv-tab-insights',
             intro: 'A rich analytics dashboard showing how your content performs across traffic sources, referrer domains, geography, and time — with KPI cards, pie charts, line charts, a referrer timeline, and a top-posts-by-referrer breakdown table. Includes a Self toggle to filter internal navigation from all charts at once.',
+            jsBeforeShot: async () => {
+                await new Promise(function(resolve) {
+                    var tries = 0;
+                    var check = function() {
+                        var loading = document.getElementById('cspv-ins-loading');
+                        if (!loading || window.getComputedStyle(loading).display === 'none') { resolve(); }
+                        else if (++tries < 50) { setTimeout(check, 300); }
+                        else { resolve(); }
+                    };
+                    setTimeout(check, 500);
+                });
+                await new Promise(function(resolve) {
+                    var tries = 0;
+                    var check = function() {
+                        var w1 = document.getElementById('cspv-ins-posts-wrap');
+                        var w2 = document.getElementById('cspv-ins-refs-wrap');
+                        var w3 = document.getElementById('cspv-ins-country-wrap');
+                        if (w1 && w1.clientHeight > 0 && w2 && w2.clientHeight > 0 && w3 && w3.clientHeight > 0) {
+                            resolve();
+                        } else if (++tries < 60) {
+                            setTimeout(check, 200);
+                        } else {
+                            resolve();
+                        }
+                    };
+                    setTimeout(check, 100);
+                });
+                await new Promise(function(r) { setTimeout(r, 4000); });
+                var list = document.getElementById('cspv-insights-list');
+                if (list) { Array.from(list.children).forEach(function(el, i) { if (i >= 4) el.style.display = 'none'; }); }
+                document.querySelectorAll('.cspv-ins-ref-tbl tbody tr').forEach(function(tr, i) { if (i >= 4) tr.style.display = 'none'; });
+            },
         },
     ],
 
@@ -156,7 +250,7 @@ helpLib.run({
 
 'statistics': `
 <div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
-<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Site Analytics?</h2>
+<h2 style="margin:0 0 10px;font-size:1.3em;font-weight:700;color:#0f172a;background:transparent;">Why CloudScale Site Analytics?</h2>
 <p style="margin:0 0 10px;">If your site runs behind Cloudflare, WP Rocket, or any other caching layer, server-side analytics see only the 5–20% of requests that reach PHP. Your stats are wrong by a factor of 5 to 10.</p>
 <p style="margin:0 0 10px;">CloudScale solves this with a JavaScript beacon that fires after the browser loads the page, regardless of where the HTML came from. The beacon POSTs to a REST endpoint that bypasses the CDN cache, so every real visit is counted. <strong>You finally see your actual traffic.</strong></p>
 <p style="margin:0 0 10px;">Unlike Google Analytics or Jetpack, your visitor data never leaves your server. No third-party scripts, no tracking pixels, no GDPR headaches from external data processors. IP addresses are hashed before storage; the raw IP is never written to the database.</p>
@@ -164,7 +258,7 @@ helpLib.run({
 </div>
 <p>The <strong>Statistics Dashboard</strong> shows page view data stored directly in your WordPress database across five custom tables (<code>wp_cspv_views_v2</code>, <code>wp_cspv_referrers_v2</code>, <code>wp_cspv_geo_v2</code>, <code>wp_cspv_visitors_v2</code>, <code>wp_cspv_404_v2</code>). No data is ever sent to Google, Facebook, or any external service.</p>
 <p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-wordpress-free-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request rather than a cached response, it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
-<h3>Views, Top Posts and Referrers</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Views, Top Posts and Referrers</h3>
 <ul>
 <li><strong>Period selector</strong>: switch between Today, 7 days, 30 days, 90 days, and All time. Each period queries the <code>wp_cspv_views_v2</code> table directly; no aggregation tables are needed.</li>
 <li><strong>Totals bar</strong>: Total Views, Unique Posts Viewed, and Lifetime totals pulled in a single indexed query on <code>viewed_at</code>.</li>
@@ -172,19 +266,26 @@ helpLib.run({
 <li><strong>Most Viewed (Period)</strong>: top posts ranked by view count for the selected period, with direct edit links.</li>
 <li><strong>Referrers</strong>: parsed from the <code>document.referrer</code> value sent by the beacon and stored in <code>wp_cspv_referrers_v2</code>. Toggle between <strong>Sites</strong> (referrer domain) and <strong>Pages</strong> (full referring URL). Direct traffic with no referrer appears as "Direct". Click any referrer domain to see a <strong>Top Pages</strong> breakdown: which of your posts and pages that source sent the most traffic to, with view counts and a Copy button.</li>
 </ul>
-<h3>All Time Top Posts</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">All Time Top Posts</h3>
 <p>A separate ranked table showing lifetime view counts across all time, independent of the period selector. Includes imported Jetpack view counts blended with live beacon data if you migrated from Jetpack Stats. Useful for identifying your most valuable evergreen content.</p>
-<h3>Cloudflare Cache Bypass</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Cloudflare Cache Bypass</h3>
 <p>An interactive test panel that verifies your Cloudflare Cache Rule is correctly configured to bypass caching for the beacon REST endpoint. Without this rule, Cloudflare caches the REST responses and beacon POSTs fail silently; your view counts appear to record but nothing is actually written.</p>
 <p><strong>Required Cache Rule:</strong> In your Cloudflare dashboard, go to Caching, then Cache Rules, and create a rule: URI Path <em>contains</em> <code>/wp-json/cloudscale-wordpress-free-analytics/</code>, Cache Status: <em>Bypass</em>.</p>
 <p>Click <strong>Test Cache Bypass</strong> to send a probe request through the beacon endpoint and check whether the response has the expected headers. A green status badge confirms Cloudflare is bypassing the cache correctly; a red badge means the rule is missing or misconfigured.</p>
-<h3>404 Error Log</h3>
-<p>Tracks every 404 (page not found) response served by your site and logs the requested URL, referrer, and timestamp. Stored in <code>wp_cspv_404_v2</code>. Useful for finding broken links from external sites, detecting content that has moved without a redirect, and identifying crawler probing paths.</p>
-<p>The log shows the most recent 404 events with the requested path and the source (referrer or direct). Use this to set up 301 redirects for your most-hit missing pages before they cost you rankings or visitor trust.</p>
-<p><strong>Privacy:</strong> visitor IP addresses are hashed with SHA-256 combined with your site's <code>wp_salt</code> before storage. The raw IP is never written to the database. The hash is used only for deduplication and throttle checks.</p>
-<h3>Download &amp; Source Code</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Download &amp; Source Code</h3>
 <p><strong>Direct download (S3):</strong> <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip">cloudscale-wordpress-free-analytics.zip</a> — always the latest stable release. Upload via <em>Plugins → Add New → Upload Plugin</em> in wp-admin.</p>
 <p><strong>Source code (GitHub):</strong> <a href="https://github.com/andrewbakercloudscale/wordpress-free-analytics" target="_blank" rel="noopener">github.com/andrewbakercloudscale/wordpress-free-analytics</a> — MIT licensed, issues and pull requests welcome.</p>`,
+
+'404-log': `
+<p>The <strong>404 Error Log</strong> tracks every page-not-found response served by your site and stores the requested URL, HTTP referrer, and timestamp in <code>wp_cspv_404_v2</code>.</p>
+<ul>
+<li><strong>Requested URL</strong>: the path that returned a 404, shown as a relative URL. Repeated entries for the same path indicate a persistent broken link worth redirecting.</li>
+<li><strong>Source</strong>: the referring domain or page that sent the visitor to the missing URL. <em>Direct</em> means no referrer — typed URL, bookmark, or email link.</li>
+<li><strong>Timestamp</strong>: when the 404 occurred. Sort by most recent or filter by date range to focus on recent breakage.</li>
+<li><strong>Clear Log</strong>: removes all stored 404 entries. Use after you have actioned the redirects so the log only shows new breakage going forward.</li>
+</ul>
+<p><strong>How to use it:</strong> export or note the highest-frequency 404 paths, then add 301 redirects in your <code>.htaccess</code>, nginx config, or a redirect plugin. Fixing high-traffic 404s preserves link equity, improves user experience, and stops crawl budget being wasted on dead URLs.</p>
+<p><strong>Privacy:</strong> IP addresses are hashed with SHA-256 combined with your <code>wp_salt</code> before storage. The raw IP is never written to the database.</p>`,
 
 'geography': `
 <p>An interactive world map showing where your visitors come from, powered by data stored in <code>wp_cspv_geo_v2</code>. Country-level tracking is built into the beacon; no third-party geolocation service is used.</p>
@@ -197,7 +298,7 @@ helpLib.run({
 
 'display': `
 <p>The <strong>Display Settings</strong> tab controls how view counts appear on your site, configures the sidebar widgets, and provides data management tools.</p>
-<h3>View Counter Display</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">View Counter Display</h3>
 <ul>
 <li><strong>Display position</strong>: before post content, after post content, both, or off. The count is read from the <code>_cspv_view_count</code> post meta key, which is synced from <code>wp_cspv_views_v2</code> on each beacon hit.</li>
 <li><strong>Counter style</strong>: choose between Badge (coloured pill with gradient), Pill (outlined), or Minimal (plain text). Five colour options: blue, pink, red, purple, grey.</li>
@@ -205,12 +306,12 @@ helpLib.run({
 <li><strong>Post types to display on</strong>: which post types show the view counter. Unselected types will not display the badge.</li>
 <li><strong>Post types to track</strong>: which post types fire the beacon and record views. Useful for excluding WooCommerce products, landing pages, or other post types you don't want counted.</li>
 </ul>
-<h3>Widgets</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Widgets</h3>
 <ul>
 <li><strong>Top Posts widget</strong>: register via Appearance > Widgets or the block widget editor. Queries <code>wp_cspv_views_v2</code> for a configurable view window (default: all time). Settings: total posts to pool (default 10), posts per page, thumbnail width, and sort order (most viewed or most recent).</li>
 <li><strong>Recent Posts widget</strong>: shows the most recently published posts with view counts. Configurable post count and optional publication date display.</li>
 </ul>
-<h3>Geography Source</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Geography Source</h3>
 <p>Controls how visitor country is resolved for the geography map and country breakdown.</p>
 <ul>
 <li><strong>Auto</strong>: tries Cloudflare first (zero performance cost), then falls back to DB-IP if the CF-IPCountry header is absent. Recommended for most sites.</li>
@@ -219,13 +320,13 @@ helpLib.run({
 <li><strong>Disabled</strong>: skips geography tracking entirely. The map and country stats will show no data.</li>
 </ul>
 <p>The DB-IP Lite database (~30 MB) is stored in your uploads folder and updates monthly. Click <strong>Download DB-IP</strong> to install or refresh it.</p>
-<h3>Data Management</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Data Management</h3>
 <p>The <strong>Purge Visitor Hashes</strong> tool removes historical unique visitor tracking data from the <code>wp_cspv_visitors_v2</code> table older than a selected threshold (30, 60, 90, 180 days, 1 year, or all data). This table records hashed IP addresses for deduplication and throttle checks; it grows indefinitely unless periodically purged.</p>
 <p>Purging old visitor hashes frees database storage but removes the ability to deduplicate views from that period retroactively. View counts already recorded in <code>wp_cspv_views_v2</code> are not affected. The panel shows the current row count and date range before you purge.</p>`,
 
 'throttle': `
 <p>The <strong>IP Throttle</strong> tab has four panels that work together to prevent inflated statistics from bots, repeat loads, and your own browsing.</p>
-<h3>IP Throttle Protection</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">IP Throttle Protection</h3>
 <p>Automatically blocks IP addresses that send an excessive number of beacon requests within a rolling time window, typically aggressive scrapers, bots, or misconfigured load tests. Blocked IPs receive an HTTP 200 response (silent drop) so attackers have no signal to change behaviour. Blocks auto-expire after 1 hour.</p>
 <ul>
 <li><strong>Enable protection</strong>: toggle to activate automatic IP blocking.</li>
@@ -234,42 +335,42 @@ helpLib.run({
 <li><strong>Exclude logged-in users</strong>: prevents any authenticated WordPress session from being counted. Detected via the <code>logged_in_{hash}</code> cookie in the beacon.</li>
 <li><strong>Exclude administrators</strong>: more granular; only users with the <code>administrator</code> role are excluded. Editors, Authors, and Contributors are still counted.</li>
 </ul>
-<h3>View Deduplication</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">View Deduplication</h3>
 <p>Prevents the same visitor from inflating view counts by visiting the same post multiple times within a configurable window. Works at two levels simultaneously:</p>
 <ul>
 <li><strong>Client-side (localStorage)</strong>: the beacon records a key in <code>localStorage</code> per post on first fire. Subsequent visits to the same post from the same browser do not fire the beacon again within the window. Catches duplicate views from in-app browsers (e.g. WhatsApp opening a link, then the user opening it again in Chrome).</li>
 <li><strong>Server-side (IP and post ID lookup)</strong>: the REST endpoint checks <code>wp_cspv_views_v2</code> for a recent row matching the same hashed IP and <code>post_id</code> within the dedup window. This catches duplicates from clients that clear localStorage or use private browsing.</li>
 </ul>
 <p>Configure the <strong>dedup window</strong> (1 hour to 48 hours). Setting it shorter counts repeat visits within a day; longer prevents the same reader from contributing more than once per session period.</p>
-<h3>Blocked IPs</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Blocked IPs</h3>
 <p>Shows all IPs currently blocked by the throttle system. IPs are stored as one-way SHA-256 hashes; they cannot be reversed to a real IP address. Each entry shows the block timestamp and time remaining until auto-expiry.</p>
 <ul>
 <li><strong>Unblock</strong>: removes a specific IP hash from the blocklist immediately, before the auto-expiry timer.</li>
 <li><strong>Clear All</strong>: removes all blocked IPs at once. Use after a false-positive event (e.g. a load test triggered the throttle).</li>
 </ul>
-<h3>Page Tracking</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Page Tracking</h3>
 <p>An emergency kill switch that instantly stops all view tracking across the entire site. When paused, the tracking beacon script is not loaded on any page and the REST recording endpoint silently rejects all requests. Historical data is fully preserved.</p>
 <p>Use this during content imports, database migrations, load tests, or any period when you do not want views recorded. The status badge on the panel header shows <strong>TRACKING ACTIVE</strong> (green) or <strong>TRACKING PAUSED</strong> (red) at a glance. Toggle it off to resume normal tracking immediately.</p>`,
 
 'insights': `
 <p>The <strong>Insights</strong> tab provides a rich analytics dashboard loaded on demand when you open the tab. Use the period buttons (7 / 30 / 90 / 180 days) in the header to change the time window — all charts update together. Each chart has an <strong>? Explain</strong> button that opens context-specific documentation inline.</p>
-<h3>Self Toggle</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Self Toggle</h3>
 <p>The <strong>Self: ON/OFF</strong> button at the top of the Insights tab filters <em>Self</em> traffic — visits where your own domain was the HTTP referrer — out of every chart, table, and KPI card simultaneously, without re-fetching data from the server. For sites where internal navigation accounts for the majority of referrals (often 80–90%), toggling Self OFF makes it far easier to evaluate external acquisition channels. Toggle it back ON to include all traffic again.</p>
-<h3>KPI Cards</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">KPI Cards</h3>
 <p>Four summary metrics for the selected period: <strong>Total Views</strong>, <strong>Unique Visitors</strong> (distinct visitor hashes), <strong>Top Country</strong> (most views by geography), and <strong>Top Referrer</strong> (highest-traffic source domain). When Self is OFF, Total Views, Unique Visitors, and Top Referrer all exclude Self traffic so the numbers reflect external acquisition only.</p>
-<h3>Traffic Sources</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Traffic Sources</h3>
 <p>A doughnut chart breaking all views by how the visitor arrived. Known search engines (Google, Bing, DuckDuckGo, Yandex, Baidu, Ecosia) and social networks (LinkedIn, Facebook, Twitter/X, Reddit, Instagram, Pinterest) get their own labelled slices. <strong>Direct</strong> means no referrer header was sent — typed URL, bookmark, or email client. <strong>Self</strong> is internal navigation from your own domain (a reader clicking from one post to another). Slices that share similar hues automatically receive distinct canvas hatch patterns so they stay distinguishable at a glance.</p>
-<h3>Referrer Growth Timeline</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Referrer Growth Timeline</h3>
 <p>A multi-line chart showing how each traffic source has trended over time. Known engines and social networks appear under their brand name; your own domain appears as <strong>Self</strong>; every other external site appears under its own hostname (e.g. <em>news.ycombinator.com</em>). Each line has a unique colour from a 20-hue vivid palette, a distinct dash pattern, and a distinct point shape so they remain readable even when many sources overlap. Periods of 30 days or fewer use daily buckets; longer periods use weekly buckets (ISO week start). Sources with zero traffic are hidden automatically.</p>
-<h3>Top Posts by Views</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Top Posts by Views</h3>
 <p>A horizontal bar chart ranking your most-viewed content for the selected period. Each bar uses a distinct colour from the vivid 20-hue palette; bars that would share a similar hue automatically receive a hatch pattern fill instead, so every bar is visually distinct. Hover any bar to see the exact view count.</p>
-<h3>Top Posts by Referrer</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Top Posts by Referrer</h3>
 <p>A table showing up to 20 of your top posts with a view-count breakdown by traffic source. Columns are the top referrer sources for the period — including <strong>Self</strong> (internal navigation), named search engines, social platforms, and external domains. Rows alternate between white and a soft blue background for readability. Dashes indicate zero views from that source. Use this to identify which posts rank in Google, which spread on social, and which are discovered through your own internal links.</p>
-<h3>Views by Country</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Views by Country</h3>
 <p>A doughnut chart showing the top 10 countries by view count for the selected period, built from the geo table. Hover for exact counts and percentages.</p>
-<h3>Top Countries Over Time</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Top Countries Over Time</h3>
 <p>A multi-line chart for the top 5 countries, showing how geographic traffic shifts over the selected period. Useful for spotting when a post goes viral in a specific market or when SEO efforts in a new region start paying off.</p>
-<h3>Top Referrer Domains</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Top Referrer Domains</h3>
 <p>A horizontal bar chart ranking the top referring domains. <strong>Self</strong> appears here when your own domain is the top source through internal navigation. Each bar uses a distinct vivid colour; similar hues get a hatch pattern automatically. Aggregated from full referrer URLs stored in <code>wp_cspv_referrers_v2</code>. Useful for identifying which sites, directories, or communities send you the most traffic.</p>`,
 
     },

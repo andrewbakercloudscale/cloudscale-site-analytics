@@ -61,14 +61,11 @@ function cspv_compute_site_health() {
     $cnt   = cspv_count_expr();
     $today = current_time( 'Y-m-d' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = cspv_views_table_exists();
 
-    $earliest  = null;
+    $earliest  = cspv_earliest_view_date();
     $data_days = 0;
-    if ( $table_exists ) {
-        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
-    }
-    $today_ts = strtotime( $today );
+    $today_ts  = strtotime( $today );
     if ( $earliest ) {
         $data_days = floor( ( $today_ts - strtotime( $earliest ) ) / 86400 );
     }

@@ -31,8 +31,10 @@ add_action( 'admin_init', 'cspv_maybe_create_404_table', 5 );
  * @return void
  */
 function cspv_maybe_create_404_table() {
-	global $wpdb;
-	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cs_analytics_404_v2' ) ) ) {
+	static $done = false;
+	if ( $done ) return;
+	$done = true;
+	if ( ! cspv_404_table_exists() ) {
 		cspv_create_table_404_v2();
 	}
 }
@@ -92,7 +94,7 @@ function cspv_track_404() {
 	global $wpdb;
 	$table = $wpdb->prefix . 'cs_analytics_404_v2';
 
-	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+	if ( ! cspv_404_table_exists() ) {
 		return;
 	}
 
@@ -193,7 +195,7 @@ function cspv_render_404_html() {
 	global $wpdb;
 	$table = $wpdb->prefix . 'cs_analytics_404_v2';
 
-	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+	if ( ! cspv_404_table_exists() ) {
 		echo '<p style="color:#888;font-size:13px;">404 log table not found — deactivate and reactivate the plugin to create it.</p>';
 		return;
 	}

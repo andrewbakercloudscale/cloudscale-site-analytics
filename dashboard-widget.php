@@ -140,10 +140,14 @@ function cspv_render_dashboard_widget() {
     $yest_e  = $yest . ' 23:59:59';
     $week_s  = wp_date( 'Y-m-d', strtotime( '-6 days', strtotime( $today ) ) ) . ' 00:00:00';
 
-    $today_views    = 0;
-    $yest_views     = 0;
-    $week_views     = 0;
-
+    $today_views       = 0;
+    $yest_views        = 0;
+    $week_views        = 0;
+    $rolling_24h_views = 0;
+    $prev_rolling_24h  = 0;
+    $prev_12h_views    = 0;
+    $prev_day1_views   = 0;
+    $prev7_views       = 0;
 
     // Days of tracking data (used to gate period comparisons)
     $data_days = 0;
@@ -153,23 +157,51 @@ function cspv_render_dashboard_widget() {
     }
 
     if ( $table_exists ) {
-        $today_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $today_s, $today_e ) );
+        // Pre-compute all scalar date strings needed by the batch query.
+        $sc_now         = new DateTime( 'now', wp_timezone() );
+        $rolling_from   = ( clone $sc_now )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        $rolling_to     = $sc_now->format( 'Y-m-d H:i:s' );
+        $rolling_prior  = ( clone $sc_now )->modify( '-48 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_12h_from  = ( clone $sc_now )->modify( '-36 hours' )->format( 'Y-m-d H:i:s' );
+        $day1_end_dt    = current_time( 'Y-m-d H:00:00' );
+        $day1_start_dt  = wp_date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end_dt ) ) );
+        $prev_start_dt  = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end_dt ) ) );
+        $prev7_start_dt = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
+        $prev7_end_dt   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
 
-        $yest_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $yest_s, $yest_e ) );
-
-        $week_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at >= %s", $week_s ) );
-
-        // Rolling 24h: shared stats library (single source of truth)
-        $r24               = cspv_rolling_24h_views();
-        $rolling_24h_views = $r24['current'];
-        $prev_rolling_24h  = $r24['prior'];
-
-        // Top pages and referrers are now fetched via AJAX on tab switch
+        // Single CASE-WHEN batch query replaces 7–8 individual scalar queries.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+        $sc = $wpdb->get_row( $wpdb->prepare(
+            "SELECT
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS today_views,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS yest_views,
+                COALESCE(SUM(CASE WHEN viewed_at >= %s             THEN view_count END),0) AS week_views,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS rolling_current,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS rolling_prior,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_12h,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_day1,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_7d
+             FROM `{$table}` WHERE viewed_at >= %s",
+            $today_s,       $today_e,
+            $yest_s,        $yest_e,
+            $week_s,
+            $rolling_from,  $rolling_to,
+            $rolling_prior, $rolling_from,
+            $prev_12h_from, $rolling_from,
+            $prev_start_dt, $day1_start_dt,
+            $prev7_start_dt, $prev7_end_dt,
+            $prev7_start_dt
+        ) );
+        if ( $sc ) {
+            $today_views       = (int) $sc->today_views;
+            $yest_views        = (int) $sc->yest_views;
+            $week_views        = (int) $sc->week_views;
+            $rolling_24h_views = (int) $sc->rolling_current;
+            $prev_rolling_24h  = (int) $sc->rolling_prior;
+            $prev_12h_views    = (int) $sc->prev_12h;
+            $prev_day1_views   = (int) $sc->prev_day1;
+            $prev7_views       = (int) $sc->prev_7d;
+        }
     }
 
     // Delta badge placeholder (computed after rolling 24h data is ready)
@@ -207,17 +239,6 @@ function cspv_render_dashboard_widget() {
         }
     }
 
-    // ── Prior 12 hours: same rolling window shifted back 24h (matches stats page) ──
-    $prev_12h_views = 0;
-    if ( $table_exists ) {
-        $prev_12h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-36 hours' )->format( 'Y-m-d H:i:s' );
-        $prev_12h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
-        $prev_12h_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev_12h_from, $prev_12h_to
-        ) );
-    }
-
     // ── 1 Day: 24-hour window grouped by hour bucket — single query ───────────
     $day1_labels = array();
     $day1_values = array();
@@ -248,17 +269,6 @@ function cspv_render_dashboard_widget() {
         $day1_values = array_values( $d1_map );
     }
 
-    // Previous 24 hours (for comparison)
-    $prev_day1_views = 0;
-    if ( $table_exists ) {
-        $day1_end   = current_time( 'Y-m-d H:00:00' );
-        $day1_start = wp_date( 'Y-m-d H:i:s', strtotime( '-24 hours', strtotime( $day1_end ) ) );
-        $prev_start = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end ) ) );
-        $prev_day1_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev_start, $day1_start ) );
-    }
-
     // Delta badge: today vs yesterday (initial render is 12 Hours tab)
     // Rolling 24h values available for JS when switching to 1 Day tab
     $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
@@ -279,7 +289,6 @@ function cspv_render_dashboard_widget() {
     // ── 7 Days: single GROUP BY query instead of one query per day ───────────
     $day7_labels = array();
     $day7_values = array();
-    $prev7_views = 0;
     {
         $d7_days = array();
         for ( $i = 6; $i >= 0; $i-- ) {
@@ -304,14 +313,6 @@ function cspv_render_dashboard_widget() {
         }
         $day7_values = array_values( $d7_map );
     }
-    if ( $table_exists ) {
-        $prev7_start = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
-        $prev7_end   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
-        $prev7_views = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-            $prev7_start, $prev7_end ) );
-    }
-
     // 1 Month (28 days) — query once, fill array
     $month_labels = array();
     $month_values = array();

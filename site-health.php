@@ -61,11 +61,14 @@ function cspv_compute_site_health() {
     $cnt   = cspv_count_expr();
     $today = current_time( 'Y-m-d' );
 
-    $table_exists = cspv_views_table_exists();
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
-    $earliest  = cspv_earliest_view_date();
+    $earliest  = null;
     $data_days = 0;
-    $today_ts  = strtotime( $today );
+    if ( $table_exists ) {
+        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+    }
+    $today_ts = strtotime( $today );
     if ( $earliest ) {
         $data_days = floor( ( $today_ts - strtotime( $earliest ) ) / 86400 );
     }
@@ -300,8 +303,8 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     </div>
 
     <?php // ── Traffic Growth ── ?>
-    <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#555;letter-spacing:.05em;margin-bottom:6px;">
-        📈 Traffic Growth per Time Window
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
+        Traffic Growth per Time Window
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '12' : '18' ); ?>px;">
     <?php foreach ( $health['growth'] as $label => $g ) :
@@ -310,34 +313,29 @@ function cspv_render_site_health_html( $context = 'widget' ) {
             $arrow     = $g['pct_change'] >= 0 ? '▲' : '▼';
             $val_color = $rag_colors[ $g['rag'] ];
     ?>
-        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
-            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
-            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
-                text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;
-                font-variant-numeric:tabular-nums;line-height:1.1;">
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;margin-top:4px;font-weight:600;">
-                <?php echo esc_html( number_format( $g['current'] ) ); ?> current
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:#374151;margin-top:5px;font-weight:600;font-variant-numeric:tabular-nums;">
+                <?php echo esc_html( number_format( $g['current'] ) ); ?>
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;opacity:.7;margin-top:2px;font-weight:500;">
-                <?php echo esc_html( number_format( $g['previous'] ) ); ?> prior
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:1px;">
+                vs <?php echo esc_html( number_format( $g['previous'] ) ); ?> prior
             </div>
         </div>
     <?php else : ?>
-        <div style="background:<?php echo esc_attr( $pc['light'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;
-            border:2px solid <?php echo esc_attr( $pc['border'] ); ?>;box-shadow:0 2px 8px <?php echo esc_attr( $pc['text'] ); ?>15;">
-            <div style="background:<?php echo esc_attr( $pc['grad'] ); ?>;color:#fff;font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:800;
-                text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:<?php echo esc_attr( $pc['text'] ); ?>;padding:2px 0;">
+            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:#d97706;padding:2px 0;">
                 Insufficient Data
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:<?php echo esc_attr( $pc['text'] ); ?>;opacity:.6;margin-top:2px;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:2px;">
                 need <?php echo (int) ( $g['days'] * 2 ); ?> days
             </div>
         </div>

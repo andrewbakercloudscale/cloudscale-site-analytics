@@ -840,7 +840,7 @@ body.cspv-modal-open { overflow: hidden; }
 }
 .cspv-ins-ref-tbl th:first-child { text-align: left; border-radius: 6px 0 0 0; }
 .cspv-ins-ref-tbl th:last-child  { border-radius: 0 6px 0 0; }
-.cspv-ins-ref-tbl tr:nth-child(even) td { background: #f8fafc; }
+.cspv-ins-ref-tbl tr:nth-child(even) td { background: #f0fdf4; }
 .cspv-ins-ref-tbl td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; color: #374151; }
 .cspv-ins-ref-tbl td:first-child { text-align: left; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cspv-ins-ref-tbl a { color: #3b82f6; text-decoration: none; }

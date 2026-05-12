@@ -1366,15 +1366,6 @@ function cspv_render_stats_page() {
             <div id="cspv-cf-test-log"></div>
         </div>
 
-        <!-- 404 Tracking -->
-        <div class="cspv-panel" style="margin-top:24px;">
-            <div class="cspv-section-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
-                <span>🚫 404 Error Log</span>
-            </div>
-            <div id="cspv-404-inner" style="padding:20px 24px;">
-                <?php cspv_render_404_html(); ?>
-            </div>
-        </div>
 
     </div><!-- /stats tab -->
 
@@ -1576,6 +1567,16 @@ function cspv_render_stats_page() {
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 404 Tracking -->
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:0;">
+                    <div id="cspv-404-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;" title="Click to expand/collapse">
+                        <span>🚫 404 Error Log <span id="cspv-404-chevron" style="font-size:12px;transition:transform .2s;display:inline-block;transform:rotate(-90deg);margin-left:6px;">&#9660;</span></span>
+                    </div>
+                    <div id="cspv-404-inner" style="padding:20px 24px;display:none;">
+                        <?php cspv_render_404_html(); ?>
                     </div>
                 </div>
 
@@ -4055,6 +4056,21 @@ ob_start();
         document.getElementById('cspv-help-modal-body').innerHTML = renderHelpCards(data.cards);
         openModal(document.getElementById('cspv-help-modal'));
     });
+    // 404 section collapse toggle (collapsed by default)
+    (function() {
+        var hdr     = document.getElementById('cspv-404-header');
+        var inner   = document.getElementById('cspv-404-inner');
+        var chevron = document.getElementById('cspv-404-chevron');
+        if (!hdr || !inner || !chevron) return;
+        function setOpen(open) {
+            inner.style.display   = open ? '' : 'none';
+            chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+            try { localStorage.setItem('cspv_404_open', open ? '1' : '0'); } catch(e) {}
+        }
+        try { if (localStorage.getItem('cspv_404_open') === '1') setOpen(true); } catch(e) {}
+        hdr.addEventListener('click', function() { setOpen(inner.style.display === 'none'); });
+    }());
+
     document.getElementById('cspv-help-modal-close').addEventListener('click', function() {
         closeModal(document.getElementById('cspv-help-modal'));
     });

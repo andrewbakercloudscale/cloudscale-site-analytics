@@ -148,6 +148,7 @@ function cspv_render_dashboard_widget() {
     $prev_12h_views    = 0;
     $prev_day1_views   = 0;
     $prev7_views       = 0;
+    $prev28_views      = 0;
 
     // Days of tracking data (used to gate period comparisons)
     $data_days = 0;
@@ -168,6 +169,9 @@ function cspv_render_dashboard_widget() {
         $prev_start_dt  = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end_dt ) ) );
         $prev7_start_dt = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
         $prev7_end_dt   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
+        $curr28_s       = wp_date( 'Y-m-d', strtotime( '-28 days', strtotime( $today ) ) ) . ' 00:00:00';
+        $prev28_s       = wp_date( 'Y-m-d', strtotime( '-56 days', strtotime( $today ) ) ) . ' 00:00:00';
+        $prev28_e       = wp_date( 'Y-m-d', strtotime( '-29 days', strtotime( $today ) ) ) . ' 23:59:59';
 
         // Single CASE-WHEN batch query replaces 7–8 individual scalar queries.
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
@@ -180,7 +184,8 @@ function cspv_render_dashboard_widget() {
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS rolling_prior,
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_12h,
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_day1,
-                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_7d
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_7d,
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_28d
              FROM `{$table}` WHERE viewed_at >= %s",
             $today_s,       $today_e,
             $yest_s,        $yest_e,
@@ -190,7 +195,8 @@ function cspv_render_dashboard_widget() {
             $prev_12h_from, $rolling_from,
             $prev_start_dt, $day1_start_dt,
             $prev7_start_dt, $prev7_end_dt,
-            $prev7_start_dt
+            $prev28_s,      $prev28_e,
+            $prev28_s
         ) );
         if ( $sc ) {
             $today_views       = (int) $sc->today_views;
@@ -201,6 +207,7 @@ function cspv_render_dashboard_widget() {
             $prev_12h_views    = (int) $sc->prev_12h;
             $prev_day1_views   = (int) $sc->prev_day1;
             $prev7_views       = (int) $sc->prev_7d;
+            $prev28_views      = (int) $sc->prev_28d;
         }
     }
 
@@ -480,6 +487,7 @@ function cspv_render_dashboard_widget() {
         'prevDay1Views' => (int) $prev_day1_views,
         'rolling24h'    => (int) $rolling_24h,
         'prevRolling24h'=> (int) $prev_24h,
+        'prev28Views'   => (int) $prev28_views,
     ) ) . ';';
 
     wp_add_inline_script( 'cspv-dashboard-widget', $js_init );
@@ -526,8 +534,9 @@ function cspv_render_dashboard_widget() {
     var weekViews  = cspvDW.weekViews;
     var prev7Views = cspvDW.prev7Views;
     var prevDay1Views = cspvDW.prevDay1Views;
-    var rolling24h    = cspvDW.rolling24h;
+    var rolling24h     = cspvDW.rolling24h;
     var prevRolling24h = cspvDW.prevRolling24h;
+    var prev28Views    = cspvDW.prev28Views;
 
     function formatDelta(current, previous) {
         if (previous <= 0) return '';
@@ -554,6 +563,8 @@ function cspv_render_dashboard_widget() {
             current = rolling24h; previous = prevRolling24h; label = 'Last 24 hours';
         } else if (period === 'days') {
             current = total; previous = prev7Views; label = 'Last 7 days';
+        } else if (period === 'month') {
+            current = total; previous = prev28Views; label = data.summary;
         } else {
             current = total; previous = 0; label = data.summary;
         }

@@ -31,6 +31,15 @@
 
     if ( typeof cspvData === 'undefined' ) { return; }
 
+    // If this beacon was loaded cross-origin (e.g. QA subdomain loading
+    // production's script), the API calls would be blocked by connect-src.
+    // Bail early so no CSP violation is generated.
+    try {
+        var _apiHost  = new URL( cspvData.apiUrl ).hostname;
+        var _pageHost = window.location.hostname;
+        if ( _apiHost !== _pageHost ) { return; }
+    } catch ( e ) {}
+
     var debug   = cspvData.debug === true;
     var postId  = cspvData.postId ? String( cspvData.postId ) : null;
 

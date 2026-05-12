@@ -94,10 +94,15 @@ function cspv_compute_site_health() {
 
         if ( $has_enough_data ) {
             if ( $days === 1 ) {
-                // 1 Day: use shared rolling 24h function (matches widget and stats page)
+                // 1 Day: shared rolling 24h function
                 $r24      = cspv_rolling_24h_views();
                 $current  = $r24['current'];
                 $previous = $r24['prior'];
+            } elseif ( $days === 28 ) {
+                // 28 Days: shared rolling 28d function (also used by dashboard widget)
+                $r28      = cspv_rolling_28d_views();
+                $current  = $r28['current'];
+                $previous = $r28['prior'];
             } else {
                 $start = wp_date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
                 $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression

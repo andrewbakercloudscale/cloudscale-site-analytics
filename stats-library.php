@@ -8,6 +8,7 @@
  *
  * Functions exposed:
  *   cspv_rolling_24h_views()   → array { current, prior }
+ *   cspv_rolling_28d_views()   → array { current, prior }
  *   cspv_rolling_window_views( $seconds ) → int
  *
  * @package CloudScale_Free_Analytics
@@ -290,6 +291,52 @@ function cspv_rolling_24h_views() {
         'to_str'   => $to_str,
     );
 
+    return $cache;
+}
+
+/**
+ * Return current and prior 28-day view counts (day-boundary windows).
+ *
+ * Current:  last 28 calendar days (28 days ago 00:00:00 → now).
+ * Prior:    28 days before that (56 days ago 00:00:00 → 29 days ago 23:59:59).
+ * Matches the gate logic in site-health: required_days = 28 * 2 = 56.
+ *
+ * @since 2.9.279
+ * @return array { current: int, prior: int }
+ */
+function cspv_rolling_28d_views() {
+    static $cache = null;
+    if ( $cache !== null ) {
+        return $cache;
+    }
+
+    global $wpdb;
+    $table = cspv_views_table();
+    $cnt   = cspv_count_expr();
+
+    if ( ! cspv_views_table_exists() ) {
+        $cache = array( 'current' => 0, 'prior' => 0 );
+        return $cache;
+    }
+
+    $today_ts = strtotime( current_time( 'Y-m-d' ) );
+    $curr_s   = wp_date( 'Y-m-d', strtotime( '-28 days', $today_ts ) ) . ' 00:00:00';
+    $prev_s   = wp_date( 'Y-m-d', strtotime( '-56 days', $today_ts ) ) . ' 00:00:00';
+    $prev_e   = wp_date( 'Y-m-d', strtotime( '-29 days', $today_ts ) ) . ' 23:59:59';
+
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+    $row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT
+            COALESCE(SUM(CASE WHEN viewed_at >= %s               THEN {$cnt} END), 0) AS current_28d,
+            COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s   THEN {$cnt} END), 0) AS prior_28d
+         FROM `{$table}` WHERE viewed_at >= %s",
+        $curr_s, $prev_s, $prev_e, $prev_s
+    ) );
+
+    $cache = array(
+        'current' => $row ? (int) $row->current_28d : 0,
+        'prior'   => $row ? (int) $row->prior_28d   : 0,
+    );
     return $cache;
 }
 

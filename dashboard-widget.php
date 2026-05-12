@@ -169,10 +169,6 @@ function cspv_render_dashboard_widget() {
         $prev_start_dt  = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end_dt ) ) );
         $prev7_start_dt = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
         $prev7_end_dt   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
-        $curr28_s       = wp_date( 'Y-m-d', strtotime( '-28 days', strtotime( $today ) ) ) . ' 00:00:00';
-        $prev28_s       = wp_date( 'Y-m-d', strtotime( '-56 days', strtotime( $today ) ) ) . ' 00:00:00';
-        $prev28_e       = wp_date( 'Y-m-d', strtotime( '-29 days', strtotime( $today ) ) ) . ' 23:59:59';
-
         // Single CASE-WHEN batch query replaces 7–8 individual scalar queries.
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
         $sc = $wpdb->get_row( $wpdb->prepare(
@@ -184,8 +180,7 @@ function cspv_render_dashboard_widget() {
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS rolling_prior,
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_12h,
                 COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_day1,
-                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_7d,
-                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_28d
+                COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s THEN view_count END),0) AS prev_7d
              FROM `{$table}` WHERE viewed_at >= %s",
             $today_s,       $today_e,
             $yest_s,        $yest_e,
@@ -195,8 +190,7 @@ function cspv_render_dashboard_widget() {
             $prev_12h_from, $rolling_from,
             $prev_start_dt, $day1_start_dt,
             $prev7_start_dt, $prev7_end_dt,
-            $prev28_s,      $prev28_e,
-            $prev28_s
+            $prev7_start_dt
         ) );
         if ( $sc ) {
             $today_views       = (int) $sc->today_views;
@@ -207,8 +201,11 @@ function cspv_render_dashboard_widget() {
             $prev_12h_views    = (int) $sc->prev_12h;
             $prev_day1_views   = (int) $sc->prev_day1;
             $prev7_views       = (int) $sc->prev_7d;
-            $prev28_views      = (int) $sc->prev_28d;
         }
+
+        // 28-day prior: shared function (same path as site-health)
+        $r28          = cspv_rolling_28d_views();
+        $prev28_views = $r28['prior'];
     }
 
     // Delta badge placeholder (computed after rolling 24h data is ready)

@@ -292,8 +292,8 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     $overall_emoji = $rag_emoji[ $health['overall'] ];
 
     $w  = $context === 'widget';
-    $gs = $w ? '6'  : '10';
-    $ps = $w ? '8px 6px' : '12px 14px';
+    $gs = $w ? '6'  : '8';
+    $ps = $w ? '8px 6px' : '10px 8px';
     ?>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
         <span style="font-size:<?php echo (int) ( $w ? '13' : '15' ); ?>px;font-weight:800;color:#1a2332;">🏥 Site Health</span>
@@ -311,7 +311,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
         Traffic Growth per Time Window
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '12' : '18' ); ?>px;">
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '12' : '18' ); ?>px;">
     <?php foreach ( $health['growth'] as $label => $g ) :
         $pc = $period_colors[ $label ];
         if ( $g['sufficient'] ) :
@@ -322,10 +322,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
             <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '17' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:#374151;margin-top:5px;font-weight:600;font-variant-numeric:tabular-nums;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#374151;margin-top:4px;font-weight:600;font-variant-numeric:tabular-nums;">
                 <?php echo esc_html( number_format( $g['current'] ) ); ?>
             </div>
             <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:1px;">
@@ -351,7 +351,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
         Hot Pages per Time Window
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
     <?php foreach ( $health['hot_pages'] as $label => $h ) :
         $pc = $period_colors[ $label ];
         if ( $h['sufficient'] ) :
@@ -362,10 +362,10 @@ function cspv_render_site_health_html( $context = 'widget' ) {
             <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '17' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
                 <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
             </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:#374151;margin-top:5px;font-weight:600;font-variant-numeric:tabular-nums;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#374151;margin-top:4px;font-weight:600;font-variant-numeric:tabular-nums;">
                 <?php echo (int) $h['current_count']; ?> hot pages
             </div>
             <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:1px;">

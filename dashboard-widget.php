@@ -120,12 +120,12 @@ function cspv_register_dashboard_widget() {
 }
 
 /**
- * Render the dashboard widget HTML including the chart and summary stats.
+ * Query all data needed by the dashboard widget.
  *
  * @since 1.0.0
- * @return void
+ * @return array Associative array of every value consumed by cspv_render_dashboard_widget().
  */
-function cspv_render_dashboard_widget() {
+function cspv_dashboard_query_data() {
     global $wpdb;
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
@@ -394,6 +394,61 @@ function cspv_render_dashboard_widget() {
         'month'  => array( 'label' => '1 Month',  'labels' => $month_labels, 'values' => $month_values, 'total' => array_sum( $month_values ), 'summary' => 'Last 30 days' ),
         'months' => array( 'label' => '6 Months', 'labels' => $m6_labels,    'values' => $m6_values,    'total' => array_sum( $m6_values ),    'summary' => 'Last 6 months' ),
     );
+
+    return array(
+        'table_exists'      => $table_exists,
+        'today_views'       => $today_views,
+        'yest_views'        => $yest_views,
+        'week_views'        => $week_views,
+        'rolling_24h_views' => $rolling_24h_views,
+        'prev_rolling_24h'  => $prev_rolling_24h,
+        'prev_12h_views'    => $prev_12h_views,
+        'prev_day1_views'   => $prev_day1_views,
+        'prev7_views'       => $prev7_views,
+        'prev28_views'      => $prev28_views,
+        'data_days'         => $data_days,
+        'delta_html'        => $delta_html,
+        'rolling_24h'       => $rolling_24h,
+        'prev_24h'          => $prev_24h,
+        'init_current'      => $init_current,
+        'init_prev'         => $init_prev,
+        'periods'           => $periods,
+        'stats_url'         => $stats_url,
+        'throttle_on'       => $throttle_on,
+        'blocked'           => $blocked,
+        'widget_id'         => $widget_id,
+    );
+}
+
+/**
+ * Render the dashboard widget HTML including the chart and summary stats.
+ *
+ * @since 1.0.0
+ * @return void
+ */
+function cspv_render_dashboard_widget() {
+    $d                   = cspv_dashboard_query_data();
+    $table_exists        = $d['table_exists'];
+    $today_views         = $d['today_views'];
+    $yest_views          = $d['yest_views'];
+    $week_views          = $d['week_views'];
+    $rolling_24h_views   = $d['rolling_24h_views'];
+    $prev_rolling_24h    = $d['prev_rolling_24h'];
+    $prev_12h_views      = $d['prev_12h_views'];
+    $prev_day1_views     = $d['prev_day1_views'];
+    $prev7_views         = $d['prev7_views'];
+    $prev28_views        = $d['prev28_views'];
+    $data_days           = $d['data_days'];
+    $delta_html          = $d['delta_html'];
+    $rolling_24h         = $d['rolling_24h'];
+    $prev_24h            = $d['prev_24h'];
+    $init_current        = $d['init_current'];
+    $init_prev           = $d['init_prev'];
+    $periods             = $d['periods'];
+    $stats_url           = $d['stats_url'];
+    $throttle_on         = $d['throttle_on'];
+    $blocked             = $d['blocked'];
+    $widget_id           = $d['widget_id'];
     ?>
 
 <!-- Banner -->

@@ -126,19 +126,6 @@ function cspv_the_views( $args = array() ) {
     echo wp_kses_post( $args['after'] );
 }
 
-/**
- * Return the view count HTML as a string.
- *
- * @since 1.0.0
- * @param  array $args  Same as cspv_the_views().
- * @return string
- */
-function cspv_get_views_html( $args = array() ) {
-    ob_start();
-    cspv_the_views( $args );
-    return ob_get_clean();
-}
-
 // Output a small stylesheet once per page so the icon and number
 // sit neatly together without the theme needing any CSS changes.
 add_action( 'wp_enqueue_scripts', 'cspv_views_inline_style', 99 );

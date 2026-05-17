@@ -347,5 +347,45 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <?php endif; endforeach; ?>
     </div>
 
+    <?php // ── Hot Pages ── ?>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
+        Hot Pages per Time Window
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
+    <?php foreach ( $health['hot_pages'] as $label => $h ) :
+        $pc = $period_colors[ $label ];
+        if ( $h['sufficient'] ) :
+            $arrow     = $h['pct_change'] >= 0 ? '▲' : '▼';
+            $val_color = $rag_colors[ $h['rag'] ];
+    ?>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
+                <?php echo esc_html( $label ); ?>
+            </div>
+            <div style="font-size:<?php echo (int) ( $w ? '16' : '22' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
+                <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
+            </div>
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '11' ); ?>px;color:#374151;margin-top:5px;font-weight:600;font-variant-numeric:tabular-nums;">
+                <?php echo (int) $h['current_count']; ?> hot pages
+            </div>
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:1px;">
+                vs <?php echo (int) $h['previous_count']; ?> prior
+            </div>
+        </div>
+    <?php else : ?>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
+                <?php echo esc_html( $label ); ?>
+            </div>
+            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:#d97706;padding:2px 0;">
+                Insufficient Data
+            </div>
+            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:2px;">
+                need <?php echo (int) ( $h['days'] * 2 ); ?> days
+            </div>
+        </div>
+    <?php endif; endforeach; ?>
+    </div>
+
     <?php
 }

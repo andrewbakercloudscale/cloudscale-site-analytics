@@ -305,8 +305,9 @@ function cspv_dashboard_query_data() {
 
     // Delta badge: today vs yesterday (initial render is 12 Hours tab)
     // Rolling 24h values available for JS when switching to 1 Day tab
-    $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
-    $prev_24h    = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
+    $rolling_24h  = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
+    $prev_24h     = isset( $prev_rolling_24h ) ? $prev_rolling_24h : $prev_day1_views;
+    $prev_week_24h = array_sum( $day1_prev_values );
     // Initial render is 12 Hours tab, so use 12h values
     $init_current = array_sum( $hour_values );
     $init_prev    = $prev_12h_views;
@@ -440,6 +441,7 @@ function cspv_dashboard_query_data() {
         'delta_html'        => $delta_html,
         'rolling_24h'       => $rolling_24h,
         'prev_24h'          => $prev_24h,
+        'prev_week_24h'     => $prev_week_24h,
         'init_current'      => $init_current,
         'init_prev'         => $init_prev,
         'periods'           => $periods,
@@ -472,6 +474,7 @@ function cspv_render_dashboard_widget() {
     $delta_html          = $d['delta_html'];
     $rolling_24h         = $d['rolling_24h'];
     $prev_24h            = $d['prev_24h'];
+    $prev_week_24h       = $d['prev_week_24h'];
     $init_current        = $d['init_current'];
     $init_prev           = $d['init_prev'];
     $periods             = $d['periods'];
@@ -569,6 +572,7 @@ function cspv_render_dashboard_widget() {
         'prevDay1Views' => (int) $prev_day1_views,
         'rolling24h'    => (int) $rolling_24h,
         'prevRolling24h'=> (int) $prev_24h,
+        'prevWeek24h'   => (int) $prev_week_24h,
         'prev28Views'   => (int) $prev28_views,
     ) ) . ';';
 
@@ -619,6 +623,7 @@ function cspv_render_dashboard_widget() {
     var prevDay1Views = cspvDW.prevDay1Views;
     var rolling24h     = cspvDW.rolling24h;
     var prevRolling24h = cspvDW.prevRolling24h;
+    var prevWeek24h    = cspvDW.prevWeek24h || 0;
     var prev28Views    = cspvDW.prev28Views;
 
     function formatDelta(current, previous) {
@@ -660,11 +665,24 @@ function cspv_render_dashboard_widget() {
             var arrow = pct >= 0 ? '↑' : '↓';
             var color = pct >= 0 ? '#1db954' : '#e53e3e';
             mainCount.innerHTML = '<span style="color:' + color + ';">' + arrow + ' ' + Math.abs(pct) + '%</span>';
-            countsEl.innerHTML = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+            var countsHtml = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
                 + current.toLocaleString() + '</span>'
                 + '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
                 + '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
-                + previous.toLocaleString() + '</span>';
+                + previous.toLocaleString() + '</span>'
+                + '<span style="color:rgba(255,255,255,.4);font-size:11px;"> yday</span>';
+            if (period === 'day' && prevWeek24h > 0) {
+                var wPct   = Math.round(((current - prevWeek24h) / prevWeek24h) * 100);
+                var wArrow = wPct >= 0 ? '↑' : '↓';
+                var wColor = wPct >= 0 ? '#1db954' : '#e53e3e';
+                countsHtml += '<br><span style="color:' + wColor + ';font-size:12px;font-weight:700;">'
+                    + wArrow + ' ' + Math.abs(wPct) + '%</span>'
+                    + '<span style="color:rgba(255,255,255,.5);font-size:11px;"> vs </span>'
+                    + '<span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:600;">'
+                    + prevWeek24h.toLocaleString() + '</span>'
+                    + '<span style="color:rgba(255,255,255,.4);font-size:11px;"> last week</span>';
+            }
+            countsEl.innerHTML = countsHtml;
         } else {
             mainCount.innerHTML = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
             var needed = (requiredDays[period] || 2);

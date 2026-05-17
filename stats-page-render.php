@@ -3,7 +3,7 @@
  * CloudScale Analytics - Stats Page Render Functions
  *
  * @package CloudScale_Free_Analytics
- * @since   2.9.291
+ * @since   2.9.293
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

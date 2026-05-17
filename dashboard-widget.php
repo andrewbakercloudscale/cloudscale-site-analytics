@@ -491,6 +491,7 @@ function cspv_render_dashboard_widget() {
     ob_start();
     ?>
 (function() {
+    if (typeof cspvDW === 'undefined') { return; }
     var canvasId  = cspvDW.canvasId;
     var periodsId = cspvDW.periodsId;
 
@@ -812,8 +813,15 @@ function cspv_render_dashboard_widget() {
     }
 
     // Chart.js is enqueued locally via wp_enqueue_script (cspv-chartjs).
+    // If a caching/optimisation plugin has deferred chart.umd.min.js, window.Chart
+    // may not be defined yet when this IIFE runs — window.load fires after all
+    // deferred scripts have executed, so it works in both cases.
     if (window.Chart) {
         init();
+    } else {
+        window.addEventListener('load', function() {
+            if (window.Chart && !chartInst) { init(); }
+        });
     }
 
     // ── Referrer sites/pages toggle ─────────────────────────────

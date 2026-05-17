@@ -118,29 +118,15 @@ function cspv_enqueue_admin_assets( $hook ) {
 
     // Auto-reload when a new version is deployed — avoids stale CSS on open tabs
     // and iOS Safari bfcache restores without requiring manual cache clearing.
-    add_action( 'admin_footer', 'cspv_version_check_script' );
-}
-
-function cspv_version_check_script() {
-    $v = esc_js( CSPV_VERSION );
-    ?>
-<script>
-(function(){
-    var v='<?php echo $v; ?>',k='cspv_ver';
-    var stored=localStorage.getItem(k);
-    localStorage.setItem(k,v);
-    if(stored&&stored!==v){window.location.reload();return;}
-    // iOS bfcache: fires when tab is restored from cache
-    window.addEventListener('pageshow',function(e){
-        if(e.persisted&&localStorage.getItem(k)!==v)window.location.reload();
-    });
-    // Tab refocus after another tab loaded a newer version
-    document.addEventListener('visibilitychange',function(){
-        if(document.visibilityState==='visible'&&localStorage.getItem(k)!==v)window.location.reload();
-    });
-})();
-</script>
-    <?php
+    $ver_js  = '(function(){';
+    $ver_js .= 'var v=' . wp_json_encode( CSPV_VERSION ) . ',k="cspv_ver";';
+    $ver_js .= 'var stored=localStorage.getItem(k);';
+    $ver_js .= 'localStorage.setItem(k,v);';
+    $ver_js .= 'if(stored&&stored!==v){window.location.reload();return;}';
+    $ver_js .= 'window.addEventListener("pageshow",function(e){if(e.persisted&&localStorage.getItem(k)!==v)window.location.reload();});';
+    $ver_js .= 'document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&localStorage.getItem(k)!==v)window.location.reload();});';
+    $ver_js .= '})();';
+    wp_add_inline_script( 'cspv-stats-page', $ver_js );
 }
 
 // ---------------------------------------------------------------------------
@@ -431,7 +417,7 @@ function cspv_ajax_chart_data() {
             if ( 'disabled'   === $s ) { return 'disabled'; }
             // auto: CF wins if header present, else DB-IP if mmdb exists, else none
             if ( ! empty( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) { return 'cloudflare'; }
-            $mmdb = WP_CONTENT_DIR . '/uploads/cspv-geo/dbip-city-lite.mmdb';
+            $mmdb = wp_upload_dir()['basedir'] . '/cspv-geo/dbip-city-lite.mmdb';
             return file_exists( $mmdb ) ? 'dbip' : 'none';
         } )(),
         'session_depth'      => $session_depth,
@@ -587,7 +573,7 @@ function cspv_ajax_post_history() {
              GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
 
         // Split referrers into self (own domain) and top external per day
-        $site_host   = preg_replace( '/^www\./', '', parse_url( home_url(), PHP_URL_HOST ) );
+        $site_host   = preg_replace( '/^www\./', '', wp_parse_url( home_url(), PHP_URL_HOST ) );
         $self_hits   = array();   // day => count
         $top_ext     = array();   // day => ['ref' => url, 'cnt' => n]
         foreach ( (array) $ref_rows as $rr ) {
@@ -768,7 +754,8 @@ function cspv_ajax_referrer_drill() {
  * @return array|WP_Error  { size, updated, ip_version, node_count } on success.
  */
 function cspv_download_dbip_file() {
-    $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
+    $upload    = wp_upload_dir();
+    $mmdb_dir  = $upload['basedir'] . '/cspv-geo';
     $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
     $gz_path   = $mmdb_dir . '/dbip-city-lite.mmdb.gz';
 
@@ -801,14 +788,14 @@ function cspv_download_dbip_file() {
         if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         return new WP_Error( 'gz_open_failed', 'Failed to open gzipped file.' );
     }
-    $out = fopen( $mmdb_path, 'wb' );
+    $out = fopen( $mmdb_path, 'wb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- WP Filesystem has no gzopen; streaming gzip decompression requires native fopen/fwrite.
     if ( ! $out ) {
         gzclose( $gz );
         if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         return new WP_Error( 'write_failed', 'Failed to write mmdb file.' );
     }
     while ( ! gzeof( $gz ) ) {
-        fwrite( $out, gzread( $gz, 8192 ) );
+        fwrite( $out, gzread( $gz, 8192 ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- paired with fopen above; no WP Filesystem equivalent for gzip streaming.
     }
     gzclose( $gz );
     fclose( $out );
@@ -870,7 +857,13 @@ function cspv_ajax_download_dbip() {
 // ---------------------------------------------------------------------------
 // WP-Cron: auto-update DB-IP Lite once per month
 // ---------------------------------------------------------------------------
-add_action( 'cspv_dbip_auto_update', 'cspv_dbip_auto_update_run' );
+add_action( 'cspv_dbip_auto_update', function() {
+    try {
+        cspv_dbip_auto_update_run();
+    } catch ( \Throwable $e ) {
+        // Prevent WP-Cron crash loops on PHP 8+ fatal errors.
+    }
+} );
 
 /**
  * Cron callback: download a fresh DB-IP Lite file when the installed copy
@@ -1102,7 +1095,7 @@ function cspv_render_stats_page() {
         // Auto-download DB-IP when source requires it and the file is missing
         $geo_notice = '';
         if ( in_array( $geo, array( 'auto', 'dbip' ), true ) ) {
-            $mmdb_path = WP_CONTENT_DIR . '/uploads/cspv-geo/dbip-city-lite.mmdb';
+            $mmdb_path = wp_upload_dir()['basedir'] . '/cspv-geo/dbip-city-lite.mmdb';
             if ( ! file_exists( $mmdb_path ) ) {
                 $dl = cspv_download_dbip_file();
                 if ( is_wp_error( $dl ) ) {
@@ -1174,7 +1167,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( wp_parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
             <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>
@@ -1766,7 +1759,8 @@ function cspv_render_stats_page() {
                         <div>
                             <strong style="font-size:13px;">DB-IP Lite Database</strong><br>
                             <?php
-                            $mmdb_dir  = WP_CONTENT_DIR . '/uploads/cspv-geo';
+                            $upload    = wp_upload_dir();
+                            $mmdb_dir  = $upload['basedir'] . '/cspv-geo';
                             $mmdb_path = $mmdb_dir . '/dbip-city-lite.mmdb';
                             $mmdb_last = get_option( 'cspv_dbip_last_updated', '' );
                             if ( file_exists( $mmdb_path ) ) {

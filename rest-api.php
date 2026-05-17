@@ -23,7 +23,7 @@ add_action( 'rest_api_init', 'cspv_register_endpoint' );
  * Uses the stored option (refreshed monthly by cron); falls back to
  * the hardcoded list published at cloudflare.com/ips-v4 and ips-v6.
  *
- * @since 2.9.286
+ * @since 2.9.289
  * @return string[]
  */
 function cspv_get_cf_ip_ranges() {
@@ -44,7 +44,7 @@ function cspv_get_cf_ip_ranges() {
 /**
  * Check whether an IP address falls within any Cloudflare egress CIDR range.
  *
- * @since 2.9.286
+ * @since 2.9.289
  * @param  string $ip  Raw IP address (IPv4 or IPv6).
  * @return bool
  */
@@ -96,7 +96,7 @@ add_action( 'cspv_refresh_cf_ips', 'cspv_refresh_cf_ip_ranges' );
 /**
  * Fetch the latest Cloudflare IPv4 and IPv6 egress ranges and cache in wp_options.
  *
- * @since 2.9.286
+ * @since 2.9.289
  * @return void
  */
 function cspv_refresh_cf_ip_ranges() {

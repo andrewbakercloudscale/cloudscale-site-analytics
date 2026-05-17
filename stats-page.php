@@ -912,7 +912,7 @@ function cspv_ajax_purge_visitors() {
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
     $days  = absint( wp_unslash( $_POST['days'] ?? 90 ) );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
@@ -942,7 +942,7 @@ function cspv_ajax_purge_visitors() {
  * Persist display + geo settings from $_POST. Returns a geo-notice string (may be empty).
  * Called by both the AJAX handler and the POST-based form handler.
  *
- * @since 2.9.285
+ * @since 2.9.286
  * @return string  Admin notice suffix, e.g. ' DB-IP Lite (45 MB) downloaded automatically.'
  */
 function cspv_save_display_settings() {
@@ -1815,7 +1815,7 @@ function cspv_render_stats_page() {
                 <div id="cspv-purge-status" style="font-size:11px;color:#666;margin-top:8px;"></div>
                 <?php
                 global $wpdb;
-                $vis_table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+                $vis_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
                 $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
                 if ( $vis_exists ) {
                     $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression

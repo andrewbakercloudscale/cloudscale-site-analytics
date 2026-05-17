@@ -54,8 +54,9 @@
             var k = 'cspv_sid';
             var sid = sessionStorage.getItem( k );
             if ( ! sid ) {
-                sid = Math.random().toString( 36 ).slice( 2 ) +
-                      Math.random().toString( 36 ).slice( 2 );
+                var arr = new Uint32Array( 3 );
+                crypto.getRandomValues( arr );
+                sid = arr[0].toString( 36 ) + arr[1].toString( 36 ) + arr[2].toString( 36 );
                 sessionStorage.setItem( k, sid );
             }
             return sid;

@@ -14,6 +14,106 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
+// ---------------------------------------------------------------------------
+// Cloudflare IP validation — prevents CF header spoofing on non-CF traffic
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the current Cloudflare egress IP ranges (CIDR notation).
+ * Uses the stored option (refreshed monthly by cron); falls back to
+ * the hardcoded list published at cloudflare.com/ips-v4 and ips-v6.
+ *
+ * @since 2.9.286
+ * @return string[]
+ */
+function cspv_get_cf_ip_ranges() {
+    $stored = get_option( 'cspv_cf_ip_ranges', array() );
+    if ( ! empty( $stored ) ) {
+        return $stored;
+    }
+    return array(
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+        '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+        '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+        '104.24.0.0/14',   '172.64.0.0/13',   '131.0.72.0/22',
+        '2400:cb00::/32',  '2606:4700::/32',   '2803:f800::/32',  '2405:b500::/32',
+        '2405:8100::/32',  '2a06:98c0::/29',   '2c0f:f248::/32',
+    );
+}
+
+/**
+ * Check whether an IP address falls within any Cloudflare egress CIDR range.
+ *
+ * @since 2.9.286
+ * @param  string $ip  Raw IP address (IPv4 or IPv6).
+ * @return bool
+ */
+function cspv_is_cloudflare_ip( $ip ) {
+    static $cache = array();
+    if ( ! $ip ) {
+        return false;
+    }
+    if ( isset( $cache[ $ip ] ) ) {
+        return $cache[ $ip ];
+    }
+    $is_ipv6 = strpos( $ip, ':' ) !== false;
+    foreach ( cspv_get_cf_ip_ranges() as $cidr ) {
+        list( $subnet, $bits ) = explode( '/', $cidr );
+        $bits = (int) $bits;
+        if ( $is_ipv6 ) {
+            if ( strpos( $subnet, ':' ) === false ) { continue; }
+            $ip_bin     = inet_pton( $ip );
+            $subnet_bin = inet_pton( $subnet );
+            if ( $ip_bin === false || $subnet_bin === false ) { continue; }
+            $full_bytes = intdiv( $bits, 8 );
+            $rem_bits   = $bits % 8;
+            $mask       = str_repeat( "\xff", $full_bytes );
+            if ( $rem_bits ) { $mask .= chr( 0xff << ( 8 - $rem_bits ) ); }
+            $mask = str_pad( $mask, 16, "\x00" );
+            if ( ( $ip_bin & $mask ) === ( $subnet_bin & $mask ) ) {
+                $cache[ $ip ] = true;
+                return true;
+            }
+        } else {
+            if ( strpos( $subnet, ':' ) !== false ) { continue; }
+            $ip_long     = ip2long( $ip );
+            $subnet_long = ip2long( $subnet );
+            if ( $ip_long === false || $subnet_long === false ) { continue; }
+            $mask = $bits === 0 ? 0 : ( -1 << ( 32 - $bits ) );
+            if ( ( $ip_long & $mask ) === ( $subnet_long & $mask ) ) {
+                $cache[ $ip ] = true;
+                return true;
+            }
+        }
+    }
+    $cache[ $ip ] = false;
+    return false;
+}
+
+// Monthly cron: refresh Cloudflare IP ranges from the canonical source.
+add_action( 'cspv_refresh_cf_ips', 'cspv_refresh_cf_ip_ranges' );
+
+/**
+ * Fetch the latest Cloudflare IPv4 and IPv6 egress ranges and cache in wp_options.
+ *
+ * @since 2.9.286
+ * @return void
+ */
+function cspv_refresh_cf_ip_ranges() {
+    $v4 = wp_remote_get( 'https://www.cloudflare.com/ips-v4/', array( 'timeout' => 15 ) );
+    $v6 = wp_remote_get( 'https://www.cloudflare.com/ips-v6/', array( 'timeout' => 15 ) );
+    $ranges = array();
+    if ( ! is_wp_error( $v4 ) && 200 === wp_remote_retrieve_response_code( $v4 ) ) {
+        $ranges = array_merge( $ranges, array_filter( array_map( 'trim', explode( "\n", wp_remote_retrieve_body( $v4 ) ) ) ) );
+    }
+    if ( ! is_wp_error( $v6 ) && 200 === wp_remote_retrieve_response_code( $v6 ) ) {
+        $ranges = array_merge( $ranges, array_filter( array_map( 'trim', explode( "\n", wp_remote_retrieve_body( $v6 ) ) ) ) );
+    }
+    if ( ! empty( $ranges ) ) {
+        update_option( 'cspv_cf_ip_ranges', $ranges );
+    }
+}
+
 // Allow our public tracking endpoints to be called even when another plugin
 // uses rest_authentication_errors to restrict the REST API to logged-in users.
 // Our endpoints use permission_callback => '__return_true' (public by design)
@@ -144,19 +244,19 @@ function cspv_record_view( WP_REST_Request $request ) {
     }
 
     // --- Extract real IP (Cloudflare-aware) -------------------------
-    $raw_ip = '';
-    $ip_headers = array(
-        'HTTP_CF_CONNECTING_IP',   // Real IP passed by Cloudflare
-        'HTTP_X_FORWARDED_FOR',    // Standard proxy header
-        'HTTP_X_REAL_IP',          // Nginx proxy header
-        'REMOTE_ADDR',             // Direct connection fallback
-    );
-    foreach ( $ip_headers as $header ) {
-        if ( ! empty( $_SERVER[ $header ] ) ) {
-            // X-Forwarded-For can be a comma-separated list — take first entry
-            $raw_ip = trim( explode( ',', sanitize_text_field( wp_unslash( $_SERVER[ $header ] ) ) )[0] );
-            break;
-        }
+    // Only trust CF-Connecting-IP / CF-IPCountry when REMOTE_ADDR is a
+    // confirmed Cloudflare egress IP — forged headers are otherwise trivial.
+    $remote_addr = $_SERVER['REMOTE_ADDR'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated via filter_var below
+    $is_cf       = cspv_is_cloudflare_ip( $remote_addr );
+    $raw_ip      = '';
+    if ( $is_cf && ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
+        $raw_ip = trim( sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) );
+    } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+        $raw_ip = trim( explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) )[0] );
+    } elseif ( ! empty( $_SERVER['HTTP_X_REAL_IP'] ) ) {
+        $raw_ip = trim( sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_REAL_IP'] ) ) );
+    } else {
+        $raw_ip = $remote_addr;
     }
 
     // Validate it looks like an IP address before hashing
@@ -201,7 +301,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // --- Write to database -----------------------------------------
     global $wpdb;
-    $v2_table    = $wpdb->prefix . 'cs_analytics_views_v2';
+    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     // Confirm V2 table exists — result cached for 1 hour to avoid SHOW TABLES on every view.
@@ -240,7 +340,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Upsert referrer bucket (only if referrer is non empty)
     if ( $referrer !== '' ) {
-        $ref_table = $wpdb->prefix . 'cs_analytics_referrers_v2';
+        $ref_table = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$ref_table}` (post_id, viewed_at, referrer, view_count)
              VALUES (%d, %s, %s, 1)
@@ -253,14 +353,12 @@ function cspv_record_view( WP_REST_Request $request ) {
     $geo_source = get_option( 'cspv_geo_source', 'auto' );
     $country    = '';
     if ( $geo_source !== 'disabled' ) {
-        // Try CloudFlare header first (unless dbip only)
-        if ( $geo_source !== 'dbip' && isset( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
+        // Only trust CF-IPCountry when the connection is confirmed Cloudflare
+        if ( $is_cf && $geo_source !== 'dbip' && isset( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
             $country = strtoupper( substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ), 0, 2 ) );
         }
-        // Fall back to DB-IP mmdb lookup (unless cloudflare only)
+        // Fall back to DB-IP mmdb lookup (unless cloudflare only) — reuse already-resolved $raw_ip
         if ( $country === '' && $geo_source !== 'cloudflare' ) {
-            $raw_ip  = $request->get_header( 'X-Forwarded-For' ) ?: wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via filter_var(FILTER_VALIDATE_IP) below
-            $raw_ip  = trim( explode( ',', $raw_ip )[0] );
             $safe_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
             if ( $safe_ip !== '' ) {
                 $country = cspv_geo_lookup_dbip( $safe_ip );
@@ -271,7 +369,7 @@ function cspv_record_view( WP_REST_Request $request ) {
             $country = 'ZZ';
         }
         // Write to geo table — every view is recorded, ZZ = unknown/unresolved.
-        $geo_table = $wpdb->prefix . 'cs_analytics_geo_v2';
+        $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
              VALUES (%d, %s, %s, 1)
@@ -280,12 +378,11 @@ function cspv_record_view( WP_REST_Request $request ) {
         ) );
     }
 
-    // Track unique visitor (hashed IP, one row per visitor per post per day)
-    $visitor_raw = $request->get_header( 'X-Forwarded-For' ) ?: wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated via filter_var below
-    $visitor_ip  = filter_var( trim( explode( ',', $visitor_raw )[0] ), FILTER_VALIDATE_IP ) ?: '';
+    // Track unique visitor (hashed IP, one row per visitor per post per day) — reuse already-resolved $raw_ip
+    $visitor_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
         $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
-        $visitor_table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+        $visitor_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
         $visitor_date  = current_time( 'Y-m-d' );
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT IGNORE INTO `{$visitor_table}` (visitor_hash, post_id, viewed_at)
@@ -296,7 +393,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Session depth tracking (one row per session+post, INSERT IGNORE deduplicates)
     if ( $session_id !== '' ) {
-        $sess_table  = $wpdb->prefix . 'cs_analytics_sessions_v2';
+        $sess_table  = esc_sql( $wpdb->prefix . 'cs_analytics_sessions_v2' );
         $sess_exists = get_transient( 'cspv_sessions_table_exists' );
         if ( $sess_exists !== '1' ) {
             $found       = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0';
@@ -342,7 +439,7 @@ function cspv_ping( WP_REST_Request $request ) {
     return new WP_REST_Response(
         array(
             'status'  => 'ok',
-            'version' => CSPV_VERSION,
+            'version' => current_user_can( 'manage_options' ) ? CSPV_VERSION : null,
             'time'    => current_time( 'mysql' ),
         ),
         200

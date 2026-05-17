@@ -51,7 +51,7 @@ function cspv_maybe_create_404_table() {
 function cspv_create_table_404_v2() {
 	global $wpdb;
 
-	$table           = $wpdb->prefix . 'cs_analytics_404_v2';
+	$table           = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE IF NOT EXISTS {$table} (
@@ -92,7 +92,7 @@ function cspv_track_404() {
 		return;
 	}
 	global $wpdb;
-	$table = $wpdb->prefix . 'cs_analytics_404_v2';
+	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
 
 	if ( ! cspv_404_table_exists() ) {
 		return;
@@ -172,7 +172,7 @@ function cspv_ajax_purge_404_log() {
 	}
 
 	global $wpdb;
-	$table = $wpdb->prefix . 'cs_analytics_404_v2';
+	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
 	$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
 	wp_send_json_success( array( 'message' => '404 log cleared.' ) );
 }
@@ -193,7 +193,7 @@ function cspv_ajax_purge_404_log() {
  */
 function cspv_render_404_html() {
 	global $wpdb;
-	$table = $wpdb->prefix . 'cs_analytics_404_v2';
+	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
 
 	if ( ! cspv_404_table_exists() ) {
 		echo '<p style="color:#888;font-size:13px;">404 log table not found — deactivate and reactivate the plugin to create it.</p>';

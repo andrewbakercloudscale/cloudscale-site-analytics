@@ -40,7 +40,7 @@ function cspv_use_v2() {
  */
 function cspv_views_table() {
     global $wpdb;
-    return $wpdb->prefix . 'cs_analytics_views_v2';
+    return esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
 }
 
 /**
@@ -91,9 +91,26 @@ function cspv_earliest_view_date(): ?string {
 function cspv_referrer_source() {
     global $wpdb;
     return array(
-        'table' => $wpdb->prefix . 'cs_analytics_referrers_v2',
+        'table' => esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' ),
         'cnt'   => 'COALESCE(SUM(view_count),0)',
     );
+}
+
+/**
+ * Check whether a column exists in the referrer table — result cached per request.
+ *
+ * @param  string $col  Column name.
+ * @return bool
+ */
+function cspv_ref_table_has_col( $col ) {
+    static $cache = array();
+    if ( isset( $cache[ $col ] ) ) {
+        return $cache[ $col ];
+    }
+    global $wpdb;
+    $ref_table       = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
+    $cache[ $col ]   = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", $col ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
+    return $cache[ $col ];
 }
 
 /**
@@ -113,8 +130,7 @@ function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
     $ref_table = $src['table'];
     $cnt       = $src['cnt'];
 
-    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
-    if ( ! $has_referrer ) {
+    if ( ! cspv_ref_table_has_col( 'referrer' ) ) {
         return array();
     }
 
@@ -163,8 +179,7 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
     $ref_table = $src['table'];
     $cnt       = $src['cnt'];
 
-    $has_referrer = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'referrer' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
-    if ( ! $has_referrer ) {
+    if ( ! cspv_ref_table_has_col( 'referrer' ) ) {
         return array();
     }
 
@@ -301,7 +316,7 @@ function cspv_rolling_24h_views() {
  * Prior:    28 days before that (56 days ago 00:00:00 → 29 days ago 23:59:59).
  * Matches the gate logic in site-health: required_days = 28 * 2 = 56.
  *
- * @since 2.9.285
+ * @since 2.9.286
  * @return array { current: int, prior: int }
  */
 function cspv_rolling_28d_views() {
@@ -483,7 +498,7 @@ function cspv_top_pages( $from_str, $to_str, $limit = 3 ) {
  */
 function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_geo_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -524,7 +539,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
  */
 function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 10 ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_geo_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -630,7 +645,7 @@ function cspv_geo_lookup_dbip( $ip ) {
  */
 function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -664,7 +679,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
  */
 function cspv_session_depth_percentiles( $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_sessions_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_sessions_v2' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
@@ -1044,7 +1059,7 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
     if ( empty( $rows ) ) { return array(); }
 
     // Fetch new vs returning visitor data from the visitors table.
-    $visitor_table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+    $visitor_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
     $has_visitors  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $visitor_table ) );
     $audience_map  = array();
 
@@ -1121,7 +1136,7 @@ function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_po
     $ref_table = $src['table'];
 
     $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
-    $has_post_id = $has_ref ? $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'post_id' ) ) : null; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array( 'headers' => array(), 'rows' => array() ); }
 
     $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -1191,7 +1206,7 @@ function cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host, $m
     $ref_table = $src['table'];
 
     $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
-    $has_post_id = $has_ref ? $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", 'post_id' ) ) : null; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array(); }
 
     $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -1294,7 +1309,7 @@ function cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host, $li
  */
 function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_countries = 5 ) {
     global $wpdb;
-    $geo_table = $wpdb->prefix . 'cs_analytics_geo_v2';
+    $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
     $has_geo = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) );
     if ( ! $has_geo ) { return array( 'dates' => array(), 'series' => array() ); }
@@ -1464,7 +1479,7 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     $prev_to      = $prev_to_dt->format( 'Y-m-d H:i:s' );
 
     // 5. New countries this period
-    $geo_table = $wpdb->prefix . 'cs_analytics_geo_v2';
+    $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
     $has_geo   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) );
     if ( $has_geo ) {
         $curr_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -1527,7 +1542,7 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
 function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_visitors_v2';
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {

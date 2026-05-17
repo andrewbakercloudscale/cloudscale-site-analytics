@@ -260,7 +260,7 @@ function cspv_render_debug_panel() {
             fetch(cspvDebug.ajaxUrl,{
                 method:"POST",credentials:"same-origin",
                 headers:{"Content-Type":"application/x-www-form-urlencoded"},
-                body:"action=cspv_resync_meta&nonce="+encodeURIComponent(cspvDebug.nonce)+"&post_id="+cspvDebug.postId
+                body:"action=cspv_resync_meta_debug&nonce="+encodeURIComponent(cspvDebug.nonce)+"&post_id="+cspvDebug.postId
             }).then(function(r){return r.json();})
             .then(function(resp){
                 if(resp.success){
@@ -299,7 +299,7 @@ function cspv_render_debug_panel() {
 }
 
 // AJAX handler for resync (from front end debug panel)
-add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta' );
+add_action( 'wp_ajax_cspv_resync_meta_debug', 'cspv_ajax_resync_meta' );
 
 /**
  * AJAX handler: resync the post meta count from the log table.

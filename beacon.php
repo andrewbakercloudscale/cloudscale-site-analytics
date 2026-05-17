@@ -81,7 +81,6 @@ function cspv_enqueue_beacon() {
         'mode'       => $is_singular ? 'record' : 'fetch',
         'countsUrl'  => rest_url( 'cloudscale-wordpress-free-analytics/v1/counts' ),
         'nonce'      => wp_create_nonce( 'wp_rest' ),
-        'debug'      => defined( 'WP_DEBUG' ) && WP_DEBUG,
         'dedupOn'    => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
     );
 

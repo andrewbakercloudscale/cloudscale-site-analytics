@@ -9,27 +9,12 @@
  * Functions exposed:
  *   cspv_rolling_24h_views()   → array { current, prior }
  *   cspv_rolling_28d_views()   → array { current, prior }
- *   cspv_rolling_window_views( $seconds ) → int
  *
  * @package CloudScale_Free_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
-}
-
-/**
- * Whether the V2 hourly-bucket schema is active.
- *
- * V2 has been the only schema since v2.9.0. This function always returns
- * true and exists only to avoid breaking any third-party code that may call
- * it. The cspv_use_v2 option is no longer consulted.
- *
- * @since  1.0.0
- * @return bool Always true.
- */
-function cspv_use_v2() {
-    return true;
 }
 
 /**
@@ -316,7 +301,7 @@ function cspv_rolling_24h_views() {
  * Prior:    28 days before that (56 days ago 00:00:00 → 29 days ago 23:59:59).
  * Matches the gate logic in site-health: required_days = 28 * 2 = 56.
  *
- * @since 2.9.286
+ * @since 2.9.287
  * @return array { current: int, prior: int }
  */
 function cspv_rolling_28d_views() {
@@ -353,33 +338,6 @@ function cspv_rolling_28d_views() {
         'prior'   => $row ? (int) $row->prior_28d   : 0,
     );
     return $cache;
-}
-
-/**
- * Return the view count for any arbitrary rolling window in seconds.
- *
- * @since 1.0.0
- * @param  int $seconds  Window length in seconds (e.g. 7 * DAY_IN_SECONDS).
- * @return int
- */
-function cspv_rolling_window_views( $seconds ) {
-    global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-
-    if ( ! cspv_views_table_exists() ) {
-        return 0;
-    }
-
-    $now  = new DateTime( 'now', wp_timezone() );
-    $from = clone $now;
-    $from->modify( '-' . (int) $seconds . ' seconds' );
-
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
-        $from->format( 'Y-m-d H:i:s' ),
-        $now->format( 'Y-m-d H:i:s' )
-    ) );
 }
 
 /**

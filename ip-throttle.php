@@ -280,16 +280,6 @@ function cspv_clear_blocklist() {
     update_option( 'cspv_block_log',    array(), false );
 }
 
-/**
- * Check whether a hashed IP is currently in the tier-1 throttle block transient.
- *
- * @since 1.0.0
- * @param string $ip_hash SHA256 hash of the visitor IP.
- * @return bool True if actively blocked.
- */
-function cspv_ip_is_blocked( $ip_hash ) {
-    return false !== get_transient( 'cspv_block_' . substr( $ip_hash, 0, 32 ) );
-}
 
 // =========================================================================
 // 4. TIER 1 — BLOCKLIST (auto prune expired)

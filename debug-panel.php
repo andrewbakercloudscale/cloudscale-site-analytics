@@ -341,7 +341,6 @@ function cspv_ajax_resync_meta() {
         'old_count' => $old_count,
         'new_count' => $new_count,
         'log_rows'  => $log_count,
-        'jp_views'  => $jp_views,
     ) );
 }
 

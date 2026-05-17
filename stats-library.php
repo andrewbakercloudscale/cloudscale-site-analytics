@@ -301,7 +301,7 @@ function cspv_rolling_24h_views() {
  * Prior:    28 days before that (56 days ago 00:00:00 → 29 days ago 23:59:59).
  * Matches the gate logic in site-health: required_days = 28 * 2 = 56.
  *
- * @since 2.9.283
+ * @since 2.9.285
  * @return array { current: int, prior: int }
  */
 function cspv_rolling_28d_views() {
@@ -327,8 +327,8 @@ function cspv_rolling_28d_views() {
     // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
     $row = $wpdb->get_row( $wpdb->prepare(
         "SELECT
-            COALESCE(SUM(CASE WHEN viewed_at >= %s               THEN {$cnt} END), 0) AS current_28d,
-            COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s   THEN {$cnt} END), 0) AS prior_28d
+            COALESCE(SUM(CASE WHEN viewed_at >= %s               THEN view_count END), 0) AS current_28d,
+            COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s   THEN view_count END), 0) AS prior_28d
          FROM `{$table}` WHERE viewed_at >= %s",
         $curr_s, $prev_s, $prev_e, $prev_s
     ) );

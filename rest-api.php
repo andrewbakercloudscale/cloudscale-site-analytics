@@ -71,7 +71,7 @@ function cspv_register_endpoint() {
         array(
             'methods'             => 'POST',
             'callback'            => 'cspv_record_view',
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public: JS beacon fires from any visitor's browser.
             'args'                => array(
                 'id' => array(
                     'validate_callback' => function ( $param ) {
@@ -90,7 +90,7 @@ function cspv_register_endpoint() {
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_ping',
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public: diagnostic reachability check, no sensitive data.
         )
     );
 }
@@ -401,7 +401,7 @@ function cspv_register_counts_endpoint() {
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_get_counts',
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public: returns view counts displayed on the frontend.
             'args'                => array(
                 'ids' => array(
                     'required'          => true,
@@ -488,7 +488,7 @@ function cspv_register_cache_test_endpoint() {
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_cache_test_get',
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public: GET returns a cacheable probe response, no sensitive data.
         ),
         array(
             'methods'             => 'POST',

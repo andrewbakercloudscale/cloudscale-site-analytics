@@ -273,6 +273,36 @@ function cspv_dashboard_query_data() {
         $day1_values = array_values( $d1_map );
     }
 
+    // ── 1 Day (prior week): same 24h window from exactly 7 days ago ─────────
+    // Provides the second "last week" line on the 24h chart.
+    $day1_prev_values = array();
+    {
+        $d1p_map = array();
+        foreach ( $d1_buckets as $bucket ) {
+            $prior = wp_date( 'Y-m-d H:00:00', strtotime( '-7 days', strtotime( $bucket ) ) );
+            $d1p_map[ $prior ] = 0;
+        }
+        if ( $table_exists && ! empty( $d1p_map ) ) {
+            $d1p_s = min( array_keys( $d1p_map ) );
+            $d1p_e = substr( max( array_keys( $d1p_map ) ), 0, 13 ) . ':59:59';
+            $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views
+                 FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
+                 GROUP BY bucket",
+                $d1p_s, $d1p_e
+            ) );
+            foreach ( $rows as $row ) {
+                if ( isset( $d1p_map[ $row->bucket ] ) ) {
+                    $d1p_map[ $row->bucket ] = (int) $row->views;
+                }
+            }
+        }
+        foreach ( $d1_buckets as $bucket ) {
+            $prior              = wp_date( 'Y-m-d H:00:00', strtotime( '-7 days', strtotime( $bucket ) ) );
+            $day1_prev_values[] = $d1p_map[ $prior ] ?? 0;
+        }
+    }
+
     // Delta badge: today vs yesterday (initial render is 12 Hours tab)
     // Rolling 24h values available for JS when switching to 1 Day tab
     $rolling_24h = isset( $rolling_24h_views ) ? $rolling_24h_views : array_sum( $day1_values );
@@ -389,7 +419,7 @@ function cspv_dashboard_query_data() {
 
     $periods = array(
         'hours'  => array( 'label' => '12 Hours', 'labels' => $hour_labels,  'values' => $hour_values,  'total' => array_sum( $hour_values ),  'summary' => 'Last 12 hours' ),
-        'day'    => array( 'label' => '1 Day',    'labels' => $day1_labels,  'values' => $day1_values,  'total' => array_sum( $day1_values ),  'summary' => 'Last 24 hours' ),
+        'day'    => array( 'label' => '1 Day',    'labels' => $day1_labels,  'values' => $day1_values,  'prev_values' => $day1_prev_values, 'total' => array_sum( $day1_values ),  'summary' => 'Last 24 hours' ),
         'days'   => array( 'label' => '7 Days',   'labels' => $day7_labels,  'values' => $day7_values,  'total' => array_sum( $day7_values ),  'summary' => 'Last 7 days' ),
         'month'  => array( 'label' => '1 Month',  'labels' => $month_labels, 'values' => $month_values, 'total' => array_sum( $month_values ), 'summary' => 'Last 30 days' ),
         'months' => array( 'label' => '6 Months', 'labels' => $m6_labels,    'values' => $m6_values,    'total' => array_sum( $m6_values ),    'summary' => 'Last 6 months' ),
@@ -749,41 +779,87 @@ function cspv_render_dashboard_widget() {
         var canvas = document.getElementById(canvasId);
         if (!canvas || !window.Chart) { return; }
 
-        var data   = datasets[period];
-        var labels = data.labels;
-        var values = data.values;
+        var data       = datasets[period];
+        var labels     = data.labels;
+        var values     = data.values;
+        var prevValues = (period === 'day' && data.prev_values && data.prev_values.length === values.length)
+                         ? data.prev_values : null;
 
-        // Determine which x-axis labels to show based on dataset size
-        // Always show at least a few — never blank axis even if all values are 0
         var maxTicks = labels.length <= 7 ? labels.length : (labels.length <= 28 ? 7 : 8);
 
         if (chartInst) { chartInst.destroy(); }
 
+        var allValues = prevValues ? values.concat(prevValues) : values;
+        var yMax      = Math.max(1, Math.max.apply(null, allValues));
+
+        var chartDatasets, chartType;
+        if (prevValues) {
+            // Dual-line view: this week (solid) vs same day last week (dashed)
+            chartType = 'line';
+            chartDatasets = [
+                {
+                    label: 'This week',
+                    data: values,
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5,150,105,0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Last week',
+                    data: prevValues,
+                    borderColor: 'rgba(107,114,128,0.65)',
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
+                    borderDash: [5, 4],
+                }
+            ];
+        } else {
+            chartType = 'bar';
+            chartDatasets = [{
+                data: values,
+                backgroundColor: makeColors(values, period),
+                hoverBackgroundColor: makeHoverColors(values, period),
+                borderRadius: 2,
+                borderSkipped: false,
+            }];
+        }
+
         chartInst = new Chart(canvas.getContext('2d'), {
-            type: 'bar',
+            type: chartType,
             data: {
                 labels: labels,
-                datasets: [{
-                    data: values,
-                    backgroundColor: makeColors(values, period),
-                    hoverBackgroundColor: makeHoverColors(values, period),
-                    borderRadius: 2,
-                    borderSkipped: false,
-                }]
+                datasets: chartDatasets,
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
                 plugins: {
-                    legend: { display: false },
+                    legend: prevValues ? {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: '#7a5230',
+                            font: { size: 11, weight: '600' },
+                            boxWidth: 24,
+                            padding: 10,
+                        }
+                    } : { display: false },
                     tooltip: {
                         backgroundColor: '#2d1b69',
                         titleColor: 'rgba(255,255,255,.65)',
                         bodyColor: '#fff',
                         bodyFont: { size: 12, weight: '700' },
                         padding: 8,
-                        displayColors: false,
+                        displayColors: !!prevValues,
                         callbacks: {
                             title: function(items) {
                                 var lbl = items[0].label || '';
@@ -794,7 +870,10 @@ function cspv_render_dashboard_widget() {
                                 }
                                 return lbl;
                             },
-                            label: function(c) { return c.parsed.y.toLocaleString() + ' views'; }
+                            label: function(c) {
+                                var prefix = prevValues ? (c.dataset.label + ': ') : '';
+                                return prefix + c.parsed.y.toLocaleString() + ' views';
+                            }
                         }
                     }
                 },
@@ -814,7 +893,7 @@ function cspv_render_dashboard_widget() {
                         display: true,
                         position: 'left',
                         beginAtZero: true,
-                        suggestedMax: Math.max(1, Math.max.apply(null, values)),
+                        suggestedMax: yMax,
                         grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
                         border: { display: false },
                         ticks: {

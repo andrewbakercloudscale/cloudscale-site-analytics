@@ -336,6 +336,8 @@ function cspv_ajax_chart_data() {
         // Rolling 12h prior: same 12h window shifted back 24h (matches dashboard widget)
         $prev_12h_from = ( new DateTime( 'now', wp_timezone() ) )->modify( '-36 hours' )->format( 'Y-m-d H:i:s' );
         $prev_12h_to   = ( new DateTime( 'now', wp_timezone() ) )->modify( '-24 hours' )->format( 'Y-m-d H:i:s' );
+        $prev_from_str = $prev_12h_from;
+        $prev_to_str   = $prev_12h_to;
         $prev_total    = cspv_views_for_range( $prev_12h_from, $prev_12h_to );
         $prev_posts    = cspv_unique_posts_for_range( $prev_12h_from, $prev_12h_to );
     } elseif ( $rolling24h && $diff_days === 0 ) {
@@ -510,7 +512,7 @@ function cspv_ajax_post_history() {
 
     global $wpdb;
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
+    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
 
     $table = cspv_views_table();
     $cnt   = cspv_count_expr();
@@ -635,20 +637,20 @@ function cspv_ajax_resync_meta_from_stats() {
 
     global $wpdb;
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); }
+    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
 
     $table     = cspv_views_table();
     $cnt       = cspv_count_expr();
     $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-
-    update_post_meta( $post_id, CSPV_META_KEY, $log_count );
+    $new_count = max( $old_count, $log_count );
+    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
 
     wp_send_json_success( array(
         'post_id'   => $post_id,
         'old_count' => $old_count,
-        'new_count' => $log_count,
+        'new_count' => $new_count,
         'log_rows'  => $log_count,
     ) );
 }
@@ -675,11 +677,11 @@ function cspv_ajax_country_drill() {
     $to      = sanitize_text_field( wp_unslash( $_POST['to'] ?? '' ) );
 
     if ( strlen( $country ) !== 2 || ! $from || ! $to ) {
-        wp_send_json_error( 'Invalid parameters' );
+        wp_send_json_error( 'Invalid parameters' ); return;
     }
     if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ||
          ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
-        wp_send_json_error( 'Invalid date format.' );
+        wp_send_json_error( 'Invalid date format.' ); return;
     }
 
     $from_str = $from . ' 00:00:00';
@@ -713,7 +715,7 @@ function cspv_ajax_referrer_drill() {
     $rolling24h  = ! empty( $_POST['rolling24h'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['rolling24h'] ) );
 
     if ( ! $host ) {
-        wp_send_json_error( 'Invalid parameters' );
+        wp_send_json_error( 'Invalid parameters' ); return;
     }
 
     // Prefer the exact datetime window sent by the client (computed when chart loaded).
@@ -915,7 +917,7 @@ function cspv_ajax_purge_visitors() {
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
-        wp_send_json_error( 'Visitors table does not exist.' );
+        wp_send_json_error( 'Visitors table does not exist.' ); return;
     }
 
     if ( $days === 0 ) {
@@ -936,16 +938,14 @@ function cspv_ajax_purge_visitors() {
     ) );
 }
 
-function cspv_ajax_save_display_settings() {
-    if ( ! check_ajax_referer( 'cspv_display_save', 'nonce', false ) ) {
-        wp_send_json_error( 'Security check failed.', 403 );
-        return;
-    }
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Forbidden', 403 );
-        return;
-    }
-
+/**
+ * Persist display + geo settings from $_POST. Returns a geo-notice string (may be empty).
+ * Called by both the AJAX handler and the POST-based form handler.
+ *
+ * @since 2.9.285
+ * @return string  Admin notice suffix, e.g. ' DB-IP Lite (45 MB) downloaded automatically.'
+ */
+function cspv_save_display_settings() {
     $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
     $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
     update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );
@@ -972,6 +972,33 @@ function cspv_ajax_save_display_settings() {
     update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
     update_option( 'cspv_dbip_auto_update', isset( $_POST['cspv_dbip_auto_update'] ) ? 'yes' : 'no' );
 
+    $geo_notice = '';
+    if ( in_array( $geo, array( 'auto', 'dbip' ), true ) ) {
+        $mmdb_path = wp_upload_dir()['basedir'] . '/cspv-geo/dbip-city-lite.mmdb';
+        if ( ! file_exists( $mmdb_path ) ) {
+            $dl = cspv_download_dbip_file();
+            if ( is_wp_error( $dl ) ) {
+                $geo_notice = ' DB-IP download failed: ' . esc_html( $dl->get_error_message() );
+            } else {
+                $geo_notice = ' DB-IP Lite (' . esc_html( $dl['size'] ) . ') downloaded automatically.';
+            }
+        }
+    }
+
+    return $geo_notice;
+}
+
+function cspv_ajax_save_display_settings() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
+    if ( ! check_ajax_referer( 'cspv_display_save', 'nonce', false ) ) {
+        wp_send_json_error( 'Security check failed.', 403 );
+        return;
+    }
+
+    cspv_save_display_settings();
     wp_send_json_success( array( 'message' => 'Display settings saved.' ) );
 }
 
@@ -981,11 +1008,11 @@ function cspv_ajax_save_display_settings() {
  * @since 1.0.0
  */
 function cspv_ajax_insights() {
-    check_ajax_referer( 'cspv_insights', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Unauthorized', 403 );
         return;
     }
+    check_ajax_referer( 'cspv_insights', 'nonce' );
 
     $from_raw = isset( $_POST['from'] ) ? sanitize_text_field( wp_unslash( $_POST['from'] ) ) : '';
     $to_raw   = isset( $_POST['to']   ) ? sanitize_text_field( wp_unslash( $_POST['to']   ) ) : '';
@@ -1015,11 +1042,11 @@ function cspv_ajax_insights() {
  * @since 1.0.0
  */
 function cspv_ajax_insights_dashboard() {
-    check_ajax_referer( 'cspv_insights_dashboard', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Unauthorized', 403 );
         return;
     }
+    check_ajax_referer( 'cspv_insights_dashboard', 'nonce' );
 
     $period = min( 360, max( 7, (int) ( isset( $_POST['period'] ) ? absint( $_POST['period'] ) : 30 ) ) );
 
@@ -1065,47 +1092,7 @@ function cspv_render_stats_page() {
 
     // Handle display settings save
     if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( wp_unslash( $_POST['cspv_display_nonce'] ), 'cspv_display_save' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce value, not user content
-        $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
-        $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
-        update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );
-
-        $valid_styles = array( 'badge', 'pill', 'minimal' );
-        $sty = isset( $_POST['cspv_display_style'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_style'] ) ) : 'badge';
-        update_option( 'cspv_display_style', in_array( $sty, $valid_styles, true ) ? $sty : 'badge' );
-
-        update_option( 'cspv_display_icon', isset( $_POST['cspv_display_icon'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_icon'] ) ) : '👁' );
-        update_option( 'cspv_display_suffix', isset( $_POST['cspv_display_suffix'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_suffix'] ) ) : ' views' );
-
-        $pt = isset( $_POST['cspv_display_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_display_post_types'] ) : array( 'post' );
-        update_option( 'cspv_display_post_types', $pt );
-
-        $tpt = isset( $_POST['cspv_track_post_types'] ) ? array_map( 'sanitize_key', (array) $_POST['cspv_track_post_types'] ) : array( 'post', 'page' );
-        update_option( 'cspv_track_post_types', $tpt );
-
-        $valid_colors = array( 'blue', 'pink', 'red', 'purple', 'grey' );
-        $col = isset( $_POST['cspv_display_color'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_display_color'] ) ) : 'blue';
-        update_option( 'cspv_display_color', in_array( $col, $valid_colors, true ) ? $col : 'blue' );
-
-        // Geography source
-        $valid_geo = array( 'auto', 'cloudflare', 'dbip', 'disabled' );
-        $geo = isset( $_POST['cspv_geo_source'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_geo_source'] ) ) : 'auto';
-        update_option( 'cspv_geo_source', in_array( $geo, $valid_geo, true ) ? $geo : 'auto' );
-        update_option( 'cspv_dbip_auto_update', isset( $_POST['cspv_dbip_auto_update'] ) ? 'yes' : 'no' );
-
-        // Auto-download DB-IP when source requires it and the file is missing
-        $geo_notice = '';
-        if ( in_array( $geo, array( 'auto', 'dbip' ), true ) ) {
-            $mmdb_path = wp_upload_dir()['basedir'] . '/cspv-geo/dbip-city-lite.mmdb';
-            if ( ! file_exists( $mmdb_path ) ) {
-                $dl = cspv_download_dbip_file();
-                if ( is_wp_error( $dl ) ) {
-                    $geo_notice = ' DB-IP download failed: ' . esc_html( $dl->get_error_message() );
-                } else {
-                    $geo_notice = ' DB-IP Lite (' . esc_html( $dl['size'] ) . ') downloaded automatically.';
-                }
-            }
-        }
-
+        $geo_notice = cspv_save_display_settings();
         printf(
             '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
             esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' ) . $geo_notice

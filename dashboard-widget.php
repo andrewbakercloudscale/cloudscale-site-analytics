@@ -57,7 +57,7 @@ function cspv_dashboard_widget_enqueue( $hook ) {
         'before'
     );
     $css = '#cspv_dashboard_widget .inside{padding:0;margin:0;}'
-         . '.cspv-dw-banner{background:linear-gradient(135deg,#2d1b69 0%,#5b21b6 50%,#7c3aed 100%);padding:14px 16px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}'
+         . '.cspv-dw-banner{background:linear-gradient(135deg,#2d1b69 0%,#5b21b6 50%,#7c3aed 100%);padding:14px 16px 12px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:0 10px;}'
          . '.cspv-dw-today-count{font-size:38px;font-weight:800;color:#1db954;line-height:1;}'
          . '.cspv-dw-today-label{font-size:10px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;}'
          . '.cspv-dw-counts{margin-top:6px;line-height:1;}'
@@ -491,19 +491,24 @@ function cspv_render_dashboard_widget() {
         <div class="cspv-dw-today-label">
             <span id="cspv-dw-main-label">Last 12 hours</span>
         </div>
-        <div class="cspv-dw-counts" id="cspv-dw-counts"><?php
-            if ( $init_prev > 0 ) {
-                echo '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
-                   . number_format( $init_current ) . '</span>'
-                   . '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
-                   . '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
-                   . number_format( $init_prev ) . '</span>';
-            } else {
-                echo '<span style="color:rgba(255,255,255,.5);font-size:12px;">'
-                   . number_format( $init_current ) . ' views recorded</span>';
-            }
-        ?></div>
     </div>
+    <div id="cspv-dw-week-col" style="display:none;text-align:right;">
+        <div class="cspv-dw-today-count" id="cspv-dw-week-count"></div>
+        <div class="cspv-dw-today-label" style="justify-content:flex-end;">Last week</div>
+    </div>
+    <div class="cspv-dw-counts" id="cspv-dw-counts"><?php
+        if ( $init_prev > 0 ) {
+            echo '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
+               . number_format( $init_current ) . '</span>'
+               . '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
+               . '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
+               . number_format( $init_prev ) . '</span>';
+        } else {
+            echo '<span style="color:rgba(255,255,255,.5);font-size:12px;">'
+               . number_format( $init_current ) . ' views recorded</span>';
+        }
+    ?></div>
+    <div class="cspv-dw-counts" id="cspv-dw-week-stats" style="display:none;text-align:right;line-height:1;"></div>
 </div>
 
 <!-- Period selector -->
@@ -665,24 +670,27 @@ function cspv_render_dashboard_widget() {
             var arrow = pct >= 0 ? '↑' : '↓';
             var color = pct >= 0 ? '#1db954' : '#e53e3e';
             mainCount.innerHTML = '<span style="color:' + color + ';">' + arrow + ' ' + Math.abs(pct) + '%</span>';
-            var countsHtml = '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">'
-                + current.toLocaleString() + '</span>'
-                + '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
-                + '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">'
-                + previous.toLocaleString() + '</span>'
-                + '<span style="color:rgba(255,255,255,.4);font-size:11px;"> yday</span>';
+            function statBlock(a, b, lbl) {
+                return '<span style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;">' + a.toLocaleString() + '</span>'
+                    + '<span style="color:rgba(255,255,255,.5);font-size:12px;"> vs </span>'
+                    + '<span style="color:rgba(255,255,255,.65);font-size:14px;font-weight:600;">' + b.toLocaleString() + '</span>'
+                    + '<span style="color:rgba(255,255,255,.4);font-size:11px;"> ' + lbl + '</span>';
+            }
+            var weekCol      = document.getElementById('cspv-dw-week-col');
+            var weekCount    = document.getElementById('cspv-dw-week-count');
+            var weekStatsEl  = document.getElementById('cspv-dw-week-stats');
+            countsEl.innerHTML = statBlock(current, previous, 'yday');
             if (period === 'day' && prevWeek24h > 0) {
                 var wPct   = Math.round(((current - prevWeek24h) / prevWeek24h) * 100);
-                var wArrow = wPct >= 0 ? '↑' : '↓';
+                var wSign  = wPct >= 0 ? '+' : '−';
                 var wColor = wPct >= 0 ? '#1db954' : '#e53e3e';
-                countsHtml += '<br><span style="color:' + wColor + ';font-size:12px;font-weight:700;">'
-                    + wArrow + ' ' + Math.abs(wPct) + '%</span>'
-                    + '<span style="color:rgba(255,255,255,.5);font-size:11px;"> vs </span>'
-                    + '<span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:600;">'
-                    + prevWeek24h.toLocaleString() + '</span>'
-                    + '<span style="color:rgba(255,255,255,.4);font-size:11px;"> last week</span>';
+                if (weekCol)     { weekCol.style.display = ''; }
+                if (weekCount)   { weekCount.innerHTML = '<span style="color:' + wColor + ';">' + wSign + ' ' + Math.abs(wPct) + '%</span>'; }
+                if (weekStatsEl) { weekStatsEl.style.display = ''; weekStatsEl.innerHTML = statBlock(current, prevWeek24h, 'last week'); }
+            } else {
+                if (weekCol)     { weekCol.style.display = 'none'; }
+                if (weekStatsEl) { weekStatsEl.style.display = 'none'; }
             }
-            countsEl.innerHTML = countsHtml;
         } else {
             mainCount.innerHTML = '<span style="color:rgba(255,255,255,.6);font-size:24px;">Insufficient Data</span>';
             var needed = (requiredDays[period] || 2);
@@ -829,7 +837,7 @@ function cspv_render_dashboard_widget() {
                 {
                     label: 'Last week',
                     data: prevValues,
-                    borderColor: 'rgba(107,114,128,0.65)',
+                    borderColor: 'rgba(59,130,246,0.8)',
                     backgroundColor: 'transparent',
                     fill: false,
                     tension: 0.35,

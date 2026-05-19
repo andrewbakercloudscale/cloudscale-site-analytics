@@ -3,7 +3,7 @@
  * CloudScale Analytics - AJAX Handlers
  *
  * @package CloudScale_Free_Analytics
- * @since   2.9.293
+ * @since   2.9.307
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -835,7 +835,7 @@ function cspv_ajax_purge_visitors() {
  * Persist display + geo settings from $_POST. Returns a geo-notice string (may be empty).
  * Called by both the AJAX handler and the POST-based form handler.
  *
- * @since 2.9.293
+ * @since 2.9.307
  * @return string  Admin notice suffix, e.g. ' DB-IP Lite (45 MB) downloaded automatically.'
  */
 function cspv_save_display_settings() {

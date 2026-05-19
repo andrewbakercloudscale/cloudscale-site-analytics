@@ -3,7 +3,7 @@
  * CloudScale Analytics - Stats Page Render Functions
  *
  * @package CloudScale_Free_Analytics
- * @since   2.9.293
+ * @since   2.9.307
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -978,7 +978,7 @@ function cspv_render_throttle_tab( $vars ) {
             </div>
             <div class="cspv-modal-body" id="cspv-help-modal-body" style="padding:24px;"></div>
             <div style="padding:0 24px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <a href="<?php echo esc_url( home_url( '/wordpress-plugin-help/analytics-help/' ) ); ?>" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
+                <a href="https://help.cloudscale.consulting/plugin-help/analytics/" target="_blank" rel="noopener" style="font-size:13px;color:#4a9eff;text-decoration:none;">&#x1F4D6; Full documentation</a>
                 <button id="cspv-help-modal-ok" class="cspv-btn-primary" style="padding:8px 28px;">Got it</button>
             </div>
         </div>

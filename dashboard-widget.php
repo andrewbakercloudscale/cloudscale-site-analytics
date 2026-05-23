@@ -248,7 +248,7 @@ function cspv_dashboard_query_data() {
     $day1_values = array();
     {
         $d1_buckets = array();
-        for ( $h = 23; $h >= 0; $h-- ) {
+        for ( $h = 24; $h >= 1; $h-- ) {
             $ts    = strtotime( "-{$h} hours", strtotime( current_time( 'Y-m-d H:00:00' ) ) );
             $key   = wp_date( 'Y-m-d H', $ts ) . ':00:00';
             $d1_buckets[] = $key;

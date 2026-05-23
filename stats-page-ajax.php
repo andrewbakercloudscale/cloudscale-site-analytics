@@ -3,7 +3,7 @@
  * CloudScale Analytics - AJAX Handlers
  *
  * @package CloudScale_Free_Analytics
- * @since   2.9.307
+ * @since   2.9.308
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -419,8 +419,8 @@ function cspv_ajax_post_history() {
     $hourly     = array();
     // WordPress timezone timestamps for queries (viewed_at is stored in WP timezone)
     $wp_now    = current_time( 'mysql' );
-    $wp_180d   = wp_date( 'Y-m-d H:i:s', strtotime( $wp_now ) - ( 180 * 86400 ) );
-    $wp_48h    = wp_date( 'Y-m-d H:i:s', strtotime( $wp_now ) - 172800 );
+    $wp_180d   = wp_date( 'Y-m-d H:i:s', time() - ( 180 * 86400 ) );
+    $wp_48h    = wp_date( 'Y-m-d H:i:s', time() - 172800 );
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
@@ -835,7 +835,7 @@ function cspv_ajax_purge_visitors() {
  * Persist display + geo settings from $_POST. Returns a geo-notice string (may be empty).
  * Called by both the AJAX handler and the POST-based form handler.
  *
- * @since 2.9.307
+ * @since 2.9.308
  * @return string  Admin notice suffix, e.g. ' DB-IP Lite (45 MB) downloaded automatically.'
  */
 function cspv_save_display_settings() {

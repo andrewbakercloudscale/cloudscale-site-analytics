@@ -23,7 +23,7 @@ add_action( 'rest_api_init', 'cspv_register_endpoint' );
  * Uses the stored option (refreshed monthly by cron); falls back to
  * the hardcoded list published at cloudflare.com/ips-v4 and ips-v6.
  *
- * @since 2.9.307
+ * @since 2.9.311
  * @return string[]
  */
 function cspv_get_cf_ip_ranges() {
@@ -44,7 +44,7 @@ function cspv_get_cf_ip_ranges() {
 /**
  * Check whether an IP address falls within any Cloudflare egress CIDR range.
  *
- * @since 2.9.307
+ * @since 2.9.311
  * @param  string $ip  Raw IP address (IPv4 or IPv6).
  * @return bool
  */
@@ -96,7 +96,7 @@ add_action( 'cspv_refresh_cf_ips', 'cspv_refresh_cf_ip_ranges' );
 /**
  * Fetch the latest Cloudflare IPv4 and IPv6 egress ranges and cache in wp_options.
  *
- * @since 2.9.307
+ * @since 2.9.311
  * @return void
  */
 function cspv_refresh_cf_ip_ranges() {
@@ -154,6 +154,22 @@ function cspv_allow_beacon_without_auth( $result ) {
  */
 function cspv_public_view_count( $post_id ) {
     return (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+}
+
+/**
+ * Whether the beacon authenticity gate (valid wp_rest nonce) is enforced.
+ *
+ * Defaults to enabled. Doubles as an instant kill switch: if it ever rejects
+ * legitimate views, disable it WITHOUT a redeploy via:
+ *   wp option update cspv_beacon_auth 0
+ * or in code via the 'cspv_beacon_auth_required' filter.
+ *
+ * @since 2.9.311
+ * @return bool
+ */
+function cspv_beacon_auth_required() {
+    $enabled = '0' !== (string) get_option( 'cspv_beacon_auth', '1' );
+    return (bool) apply_filters( 'cspv_beacon_auth_required', $enabled );
 }
 
 /**
@@ -287,6 +303,31 @@ function cspv_record_view( WP_REST_Request $request ) {
     if ( ! empty( $body['session_id'] ) && is_string( $body['session_id'] ) ) {
         // Strip everything except alphanumeric — the token contains only [a-z0-9]
         $session_id = substr( preg_replace( '/[^a-z0-9]/i', '', $body['session_id'] ), 0, 64 );
+    }
+
+    // --- Beacon authenticity gate ----------------------------------
+    // A genuine view comes from beacon.js, which fires with an X-WP-Nonce
+    // ('wp_rest') minted into the page. Scrapers/crawlers that POST straight
+    // to this public endpoint don't carry a valid nonce, so we reject them
+    // silently (200, logged:false) — the caller gets no signal.
+    //
+    // Cache-safe: HTML is edge/nginx cached for 2h (max-age=7200), well inside
+    // the ~24h wp_rest nonce lifetime, so cached pages still carry a valid
+    // nonce. session_id is intentionally NOT a gate: getSessionId() returns ''
+    // when sessionStorage/crypto is unavailable (private mode, old browsers),
+    // so requiring it would drop real visitors. It is also client-generated and
+    // trivially forged, so it carries no authenticity value.
+    //
+    // Instant kill switch (no redeploy):  wp option update cspv_beacon_auth 0
+    if ( cspv_beacon_auth_required() ) {
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return new WP_REST_Response( array(
+                'post_id' => $post_id,
+                'views'   => cspv_public_view_count( $post_id ),
+                'logged'  => false,
+            ), 200 );
+        }
     }
 
     // --- IP throttle check -----------------------------------------

@@ -9,7 +9,7 @@
  *   - Top 3 posts and top 3 referrers for today (side by side)
  *
  * @package CloudScale_Free_Analytics
- * @note    12h window — mirrors stats page rolling12h logic exactly.
+ * @note    12h window, mirrors stats page rolling12h logic exactly.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -169,7 +169,7 @@ function cspv_dashboard_query_data() {
         $prev_start_dt  = wp_date( 'Y-m-d H:i:s', strtotime( '-48 hours', strtotime( $day1_end_dt ) ) );
         $prev7_start_dt = wp_date( 'Y-m-d', strtotime( '-13 days', strtotime( $today ) ) ) . ' 00:00:00';
         $prev7_end_dt   = wp_date( 'Y-m-d', strtotime( '-7 days', strtotime( $today ) ) ) . ' 23:59:59';
-        // Single CASE-WHEN batch query replaces 7–8 individual scalar queries.
+        // Single CASE-WHEN batch query replaces 7 to 8 individual scalar queries.
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
         $sc = $wpdb->get_row( $wpdb->prepare(
             "SELECT
@@ -243,7 +243,7 @@ function cspv_dashboard_query_data() {
         }
     }
 
-    // ── 1 Day: 24-hour window grouped by hour bucket — single query ───────────
+    // ── 1 Day: 24-hour window grouped by hour bucket, single query ───────────
     $day1_labels = array();
     $day1_values = array();
     {
@@ -348,7 +348,7 @@ function cspv_dashboard_query_data() {
         }
         $day7_values = array_values( $d7_map );
     }
-    // 1 Month (28 days) — query once, fill array
+    // 1 Month (28 days), query once, fill array
     $month_labels = array();
     $month_values = array();
     $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
@@ -367,7 +367,7 @@ function cspv_dashboard_query_data() {
         $month_values[] = $raw_month[ $d ] ?? 0;
     }
 
-    // 6 Months — group by week (26 weeks)
+    // 6 Months, group by week (26 weeks)
     $m6_labels = array();
     $m6_values = array();
     $m6_s      = wp_date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
@@ -389,7 +389,7 @@ function cspv_dashboard_query_data() {
         $m6_values[]    = isset( $raw_6m[ str_replace( '-', '-', $wk ) ] )
                             ? $raw_6m[ str_replace( '-', '-', $wk ) ]['views'] : 0;
     }
-    // Fill 6m from raw (simpler — just use ordered results directly)
+    // Fill 6m from raw (simpler, just use ordered results directly)
     if ( ! empty( $raw_6m ) ) {
         $m6_labels = array();
         $m6_values = array();
@@ -403,7 +403,7 @@ function cspv_dashboard_query_data() {
             array_unshift( $m6_values, 0 );
         }
     } else {
-        // No data — still generate 26 labeled slots
+        // No data, still generate 26 labeled slots
         $m6_labels = array();
         $m6_values = array();
         for ( $i = 25; $i >= 0; $i-- ) {
@@ -974,7 +974,7 @@ function cspv_render_dashboard_widget() {
 
     // Chart.js is enqueued locally via wp_enqueue_script (cspv-chartjs).
     // If a caching/optimisation plugin has deferred chart.umd.min.js, window.Chart
-    // may not be defined yet when this IIFE runs — window.load fires after all
+    // may not be defined yet when this IIFE runs, window.load fires after all
     // deferred scripts have executed, so it works in both cases.
     if (window.Chart) {
         init();

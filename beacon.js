@@ -5,7 +5,7 @@
  *   Single POST to record the view. The response contains the updated
  *   count which is stored in window.cspvViews and used to update any
  *   .cspv-views-count elements on the page.
- *   NO second API call is made — the record response IS the count.
+ *   NO second API call is made, the record response IS the count.
  *
  * MODE: 'fetch' (home / archive / search listing pages)
  *   Does NOT increment anything. Reads [data-cspv-id] attributes from
@@ -13,16 +13,16 @@
  *
  * THEME INTEGRATION
  * -----------------
- * Single post template — just call the PHP helper, nothing else needed:
+ * Single post template, just call the PHP helper, nothing else needed:
  *   <?php cspv_the_views(); ?>
  *
- * Archive/listing template — add data-cspv-id to your count element:
+ * Archive/listing template, add data-cspv-id to your count element:
  *   <span class="cspv-views-count" data-cspv-id="<?php the_ID(); ?>">
  *       <?php echo cspv_get_view_count(); ?>
  *   </span>
  *
  * The beacon handles both automatically. You never need both on the
- * same page — on singular pages data-cspv-id is ignored in favour of
+ * same page, on singular pages data-cspv-id is ignored in favour of
  * the record response.
  */
 
@@ -44,7 +44,7 @@
     var postId  = cspvData.postId ? String( cspvData.postId ) : null;
 
     // ------------------------------------------------------------------
-    // Session ID — persists for the lifetime of the browser tab via
+    // Session ID, persists for the lifetime of the browser tab via
     // sessionStorage. Scoped to the tab so a new session starts when
     // the tab is closed and reopened, exactly like a traditional session.
     // Contains no PII.
@@ -122,7 +122,7 @@
                 return false;
             }
             return true;
-        } catch(e) { return false; } // localStorage blocked — allow recording
+        } catch(e) { return false; } // localStorage blocked, allow recording
     }
 
     function markSeen( pid ) {
@@ -148,14 +148,14 @@
     pruneDedup();
 
     function recordView() {
-        log( 'record mode — post', postId );
+        log( 'record mode, post', postId );
 
         // Deduplicate: only record once per 24 hours per post per browser
-        // Respects the server-side dedup setting — when dedup is off, always record
+        // Respects the server-side dedup setting, when dedup is off, always record
         // wp_localize_script converts booleans: true -> "1", false -> ""
         var dedupOn = !!cspvData.dedupOn && cspvData.dedupOn !== '0' && cspvData.dedupOn !== '';
         if ( dedupOn && isDuplicate( postId ) ) {
-            log( 'already recorded within 24h — skipping beacon, fetching count' );
+            log( 'already recorded within 24h, skipping beacon, fetching count' );
             // Still fetch the current count so the display stays fresh
             fetch( cspvData.apiUrl.replace( '/record/' + postId, '/counts?ids=' + postId ), {
                 method: 'GET', credentials: 'same-origin'
@@ -203,11 +203,11 @@
         } );
 
         if ( ids.length === 0 ) {
-            log( 'fetch mode — no [data-cspv-id] elements found.' );
+            log( 'fetch mode, no [data-cspv-id] elements found.' );
             return;
         }
 
-        log( 'fetch mode — fetching counts for', ids.length, 'posts' );
+        log( 'fetch mode, fetching counts for', ids.length, 'posts' );
 
         fetch( cspvData.countsUrl + '?ids=' + ids.join( ',' ), {
             method: 'GET', credentials: 'same-origin',

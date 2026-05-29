@@ -100,15 +100,18 @@ function cspv_enqueue_admin_assets( $hook ) {
     wp_enqueue_script( 'cspv-leaflet-js',
         CSPV_PLUGIN_URL . 'assets/js/leaflet.min.js',
         array(), '1.9.4', true );
+    wp_enqueue_style( 'cs-design-system',
+        CSPV_PLUGIN_URL . 'assets/css/cloudscale-admin.css',
+        array(), CSPV_VERSION );
     $css_ver = filemtime( CSPV_PLUGIN_DIR . 'assets/css/stats-page.css' ) ?: CSPV_VERSION;
     wp_enqueue_style( 'cspv-stats-page',
         CSPV_PLUGIN_URL . 'assets/css/stats-page.css',
-        array(), $css_ver );
+        array( 'cs-design-system' ), $css_ver );
     wp_register_script( 'cspv-stats-page', false,
         array( 'cspv-chartjs', 'cspv-leaflet-js' ), CSPV_VERSION, true );
     wp_enqueue_script( 'cspv-stats-page' );
 
-    // Auto-reload when a new version is deployed — avoids stale CSS on open tabs
+    // Auto-reload when a new version is deployed, avoids stale CSS on open tabs
     // and iOS Safari bfcache restores without requiring manual cache clearing.
     $ver_js  = '(function(){';
     $ver_js .= 'var v=' . wp_json_encode( CSPV_VERSION ) . ',k="cspv_ver";';

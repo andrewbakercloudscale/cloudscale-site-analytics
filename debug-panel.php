@@ -146,7 +146,7 @@ function cspv_render_debug_panel() {
     ?>
 <div id="cspv-debug-panel">
     <div class="cspv-dbg-header">
-        <div>🐛 View Diagnostics — Post #<?php echo (int) $post_id; ?>
+        <div>🐛 View Diagnostics, Post #<?php echo (int) $post_id; ?>
         <small><?php echo esc_html( get_the_title( $post_id ) ); ?></small></div>
         <button class="cspv-dbg-close" id="cspv-dbg-close" title="Close">✕</button>
     </div>
@@ -158,7 +158,7 @@ function cspv_render_debug_panel() {
             <span class="cspv-dbg-value <?php echo esc_attr( $mismatch ? 'red' : 'green' ); ?>"><?php echo esc_html( number_format( $meta_count ) ); ?></span>
         </div>
         <div class="cspv-dbg-row">
-            <span class="cspv-dbg-label">Log table total — SUM(view_count) in wp_cs_analytics_views_v2</span>
+            <span class="cspv-dbg-label">Log table total, SUM(view_count) in wp_cs_analytics_views_v2</span>
             <span class="cspv-dbg-value blue"><?php echo esc_html( number_format( $log_count ) ); ?></span>
         </div>
         <?php if ( $unlogged_delta > 0 ) : ?>
@@ -332,7 +332,7 @@ function cspv_ajax_resync_meta() {
     $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-    // Never reduce the meta — a partial log restore shouldn't wipe out counts meta already knows about.
+    // Never reduce the meta, a partial log restore shouldn't wipe out counts meta already knows about.
     $new_count = max( $old_count, $log_count );
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
 

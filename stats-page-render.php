@@ -48,7 +48,7 @@ function cspv_render_stats_tab( $vars ) {
                             <div class="cspv-card-icon" style="margin:0;">👁</div>
                             <div class="cspv-card-label" style="margin:0;font-weight:700;">Views</div>
                         </div>
-                        <div class="cspv-card-value" id="stat-delta">—</div>
+                        <div class="cspv-card-value" id="stat-delta">&middot;</div>
                         <div class="cspv-card-sub" id="stat-views-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
                     </div>
                     <div class="cspv-card" id="cspv-card-posts">
@@ -56,7 +56,7 @@ function cspv_render_stats_tab( $vars ) {
                             <div class="cspv-card-icon" style="margin:0;">📄</div>
                             <div class="cspv-card-label" style="margin:0;font-weight:700;">Posts Viewed</div>
                         </div>
-                        <div class="cspv-card-value" id="stat-posts-delta">—</div>
+                        <div class="cspv-card-value" id="stat-posts-delta">&middot;</div>
                         <div class="cspv-card-sub" id="stat-posts-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
                     </div>
                     <div class="cspv-card" id="cspv-card-visitors">
@@ -64,7 +64,7 @@ function cspv_render_stats_tab( $vars ) {
                             <div class="cspv-card-icon" style="margin:0;">👤</div>
                             <div class="cspv-card-label" style="margin:0;font-weight:700;">Unique Visitors</div>
                         </div>
-                        <div class="cspv-card-value" id="stat-visitors-delta">—</div>
+                        <div class="cspv-card-value" id="stat-visitors-delta">&middot;</div>
                         <div class="cspv-card-sub" id="stat-visitors-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
                     </div>
                     <div class="cspv-card" id="cspv-card-hotpages">
@@ -72,7 +72,7 @@ function cspv_render_stats_tab( $vars ) {
                             <div class="cspv-card-icon" style="margin:0;">🔥</div>
                             <div class="cspv-card-label" style="margin:0;font-weight:700;">Hot Pages</div>
                         </div>
-                        <div class="cspv-card-value" id="stat-hotpages-delta">—</div>
+                        <div class="cspv-card-value" id="stat-hotpages-delta">&middot;</div>
                         <div class="cspv-card-sub" id="stat-hotpages-detail" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
                     </div>
                     <div class="cspv-card" id="cspv-card-depth">
@@ -92,11 +92,11 @@ function cspv_render_stats_tab( $vars ) {
         <div id="cspv-lifetime-bar">
             <div class="cspv-lifetime-stat">
                 <span class="cspv-lifetime-label">🏆 All Time Views</span>
-                <span class="cspv-lifetime-value" id="stat-lifetime-views">—</span>
+                <span class="cspv-lifetime-value" id="stat-lifetime-views">&middot;</span>
             </div>
             <div class="cspv-lifetime-stat">
                 <span class="cspv-lifetime-label">👤 All Time Unique Visitors</span>
-                <span class="cspv-lifetime-value" id="stat-lifetime-visitors">—</span>
+                <span class="cspv-lifetime-value" id="stat-lifetime-visitors">&middot;</span>
             </div>
         </div>
 
@@ -230,7 +230,7 @@ function cspv_render_insights_tab( $vars ) {
                 <div class="cspv-ins-kpi-grid">
                     <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-views">
                         <div class="cspv-ins-kpi-label">Total Views</div>
-                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-views">—</div>
+                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-views">&middot;</div>
                         <div class="cspv-ins-kpi-footer">
                             <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-views-sub">vs prev period</span>
                             <span id="cspv-ins-trend-views"></span>
@@ -238,7 +238,7 @@ function cspv_render_insights_tab( $vars ) {
                     </div>
                     <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-visitors">
                         <div class="cspv-ins-kpi-label">Unique Visitors</div>
-                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-visitors">—</div>
+                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-visitors">&middot;</div>
                         <div class="cspv-ins-kpi-footer">
                             <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-visitors-sub">vs prev period</span>
                             <span id="cspv-ins-trend-visitors"></span>
@@ -246,14 +246,14 @@ function cspv_render_insights_tab( $vars ) {
                     </div>
                     <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-country">
                         <div class="cspv-ins-kpi-label">Top Country</div>
-                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-country">—</div>
+                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-country">&middot;</div>
                         <div class="cspv-ins-kpi-footer">
                             <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-country-sub"></span>
                         </div>
                     </div>
                     <div class="cspv-ins-kpi-card" id="cspv-ins-kpi-card-referrer">
                         <div class="cspv-ins-kpi-label">Top Referrer</div>
-                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-referrer">—</div>
+                        <div class="cspv-ins-kpi-value" id="cspv-ins-kpi-referrer">&middot;</div>
                         <div class="cspv-ins-kpi-footer">
                             <span class="cspv-ins-kpi-sub" id="cspv-ins-kpi-referrer-sub"></span>
                         </div>
@@ -441,7 +441,7 @@ function cspv_render_display_tab( $vars ) {
                     <label><input type="radio" name="cspv_auto_display" value="before_content" <?php checked( $dsp_position, 'before_content' ); ?>> Before post content</label>
                     <label><input type="radio" name="cspv_auto_display" value="after_content" <?php checked( $dsp_position, 'after_content' ); ?>> After post content</label>
                     <label><input type="radio" name="cspv_auto_display" value="both" <?php checked( $dsp_position, 'both' ); ?>> Both (before and after)</label>
-                    <label><input type="radio" name="cspv_auto_display" value="off" <?php checked( $dsp_position, 'off' ); ?>> <strong>Off</strong> — hide view counter</label>
+                    <label><input type="radio" name="cspv_auto_display" value="off" <?php checked( $dsp_position, 'off' ); ?>> <strong>Off</strong>, hide view counter</label>
                 </div>
                 </div>
             </div>
@@ -609,7 +609,7 @@ function cspv_render_display_tab( $vars ) {
                                 $mmdb_size = size_format( filesize( $mmdb_path ) );
                                 echo '<span style="font-size:12px;color:#059669;">✅ Installed (' . esc_html( $mmdb_size ) . ')';
                                 if ( $mmdb_last ) {
-                                    echo ' &mdash; updated ' . esc_html( wp_date( 'j M Y', strtotime( $mmdb_last ) ) );
+                                    echo ', updated ' . esc_html( wp_date( 'j M Y', strtotime( $mmdb_last ) ) );
                                 }
                                 echo '</span>';
                             } else {
@@ -704,7 +704,7 @@ function cspv_render_throttle_tab( $vars ) {
                 <span>🛡 IP Throttle Protection <a class="cspv-info-btn" data-info="throttle" title="Info">i</a></span>
             </div>
             <div id="cspv-throttle-body">
-                <p class="cspv-throttle-desc">Automatically block IPs that exceed the request threshold within a rolling window. Blocks auto-expire after <strong>1 hour</strong> — no manual cleanup needed. Blocked IPs receive HTTP 200 (silent drop) so attackers have no signal to change behaviour.</p>
+                <p class="cspv-throttle-desc">Automatically block IPs that exceed the request threshold within a rolling window. Blocks auto-expire after <strong>1 hour</strong>, no manual cleanup needed. Blocked IPs receive HTTP 200 (silent drop) so attackers have no signal to change behaviour.</p>
 
                 <div class="cspv-throttle-row">
                     <span class="cspv-throttle-label">Enable protection</span>
@@ -799,9 +799,9 @@ function cspv_render_throttle_tab( $vars ) {
                 <?php if ( empty( $blocklist ) ) : ?>
                     <p class="cspv-empty">No IPs currently blocked.</p>
                 <?php else : ?>
-                    <p class="cspv-blocklist-note">Stored as one-way SHA-256 hashes — cannot be reversed to a real IP.</p>
+                    <p class="cspv-blocklist-note">Stored as one-way SHA-256 hashes, cannot be reversed to a real IP.</p>
                     <?php foreach ( $blocklist as $hash => $data ) :
-                        $at      = isset( $data['blocked_at'] ) ? $data['blocked_at'] : '—';
+                        $at      = isset( $data['blocked_at'] ) ? $data['blocked_at'] : '·';
                         $expires = isset( $data['expires'] ) ? $data['expires'] : 0;
                         $mins    = $expires > 0 ? max( 0, (int) round( ( $expires - time() ) / 60 ) ) : 0;
                         $exp_lbl = $mins > 0 ? 'expires in ' . $mins . 'm' : 'expired';
@@ -913,7 +913,7 @@ function cspv_render_throttle_tab( $vars ) {
                 <?php else : ?>
                     <p class="cspv-blocklist-note">Blocks auto clear after 2 hours. Remove individually or clear all to lift early.</p>
                     <?php foreach ( $ftb_blocklist as $hash => $data ) :
-                        $at      = isset( $data['blocked_at'] ) ? $data['blocked_at'] : '—';
+                        $at      = isset( $data['blocked_at'] ) ? $data['blocked_at'] : '·';
                         $expires = isset( $data['expires'] ) ? $data['expires'] : 0;
                         $mins    = $expires > 0 ? max( 0, (int) round( ( $expires - time() ) / 60 ) ) : 0;
                         $exp_lbl = $mins > 0 ? 'expires in ' . $mins . 'm' : 'expired';
@@ -1122,18 +1122,18 @@ ob_start();
         // Reset UI
         document.getElementById('cspv-chart-msg').classList.remove('hidden');
         document.getElementById('cspv-chart-msg').textContent = 'Loading…';
-        document.getElementById('stat-delta').textContent = '—';
+        document.getElementById('stat-delta').textContent = '·';
         document.getElementById('stat-views-detail').textContent = '';
-        document.getElementById('stat-posts-delta').textContent = '—';
+        document.getElementById('stat-posts-delta').textContent = '·';
         document.getElementById('stat-posts-detail').textContent = '';
-        document.getElementById('stat-visitors-delta').textContent = '—';
+        document.getElementById('stat-visitors-delta').textContent = '·';
         document.getElementById('stat-visitors-detail').textContent = '';
-        document.getElementById('stat-hotpages-delta').textContent = '—';
+        document.getElementById('stat-hotpages-delta').textContent = '·';
         document.getElementById('stat-hotpages-detail').textContent = '';
         document.getElementById('cspv-top-posts').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-referrers').innerHTML   = '<div class="cspv-loading">Loading…</div>';
         document.getElementById('cspv-lifetime-top').innerHTML = '<div class="cspv-loading">Loading…</div>';
-        document.getElementById('stat-lifetime-views').textContent = '—';
+        document.getElementById('stat-lifetime-views').textContent = '·';
         document.getElementById('cspv-chart-range-label').textContent = '';
 
         var fd = new FormData();
@@ -1187,7 +1187,7 @@ ob_start();
     // ── Render ─────────────────────────────────────────────────────
     function renderAll(data, from, to) {
         // Range label
-        var lbl = (from === to) ? fmtDate(from) : fmtDate(from) + ' – ' + fmtDate(to);
+        var lbl = (from === to) ? fmtDate(from) : fmtDate(from) + ', ' + fmtDate(to);
         document.getElementById('cspv-chart-range-label').textContent = lbl;
 
         // Cards
@@ -1197,7 +1197,7 @@ ob_start();
         var postsDetailEl = document.getElementById('stat-posts-detail');
         if (data.prev_posts > 0) {
             var postsPct   = Math.round(((data.unique_posts - data.prev_posts) / data.prev_posts) * 100);
-            var postsArrow = postsPct > 0 ? '↑' : (postsPct < 0 ? '↓' : '–');
+            var postsArrow = postsPct > 0 ? '↑' : (postsPct < 0 ? '↓' : '·');
             var postsCls   = postsPct > 0 ? 'cspv-delta-up' : (postsPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             var postsAbsPct = Math.abs(postsPct);
             var postsDisplay = postsAbsPct > 999 ? '>999' : postsAbsPct;
@@ -1215,7 +1215,7 @@ ob_start();
         var visDetailEl = document.getElementById('stat-visitors-detail');
         if (data.prev_visitors > 0) {
             var visPct   = Math.round(((data.unique_visitors - data.prev_visitors) / data.prev_visitors) * 100);
-            var visArrow = visPct > 0 ? '↑' : (visPct < 0 ? '↓' : '–');
+            var visArrow = visPct > 0 ? '↑' : (visPct < 0 ? '↓' : '·');
             var visCls   = visPct > 0 ? 'cspv-delta-up' : (visPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             var visAbsPct = Math.abs(visPct);
             var visDisplay = visAbsPct > 999 ? '>999' : visAbsPct;
@@ -1233,7 +1233,7 @@ ob_start();
         var hotDetailEl = document.getElementById('stat-hotpages-detail');
         if (data.prev_hot_pages > 0) {
             var hotPct   = Math.round(((data.hot_pages - data.prev_hot_pages) / data.prev_hot_pages) * 100);
-            var hotArrow = hotPct > 0 ? '↑' : (hotPct < 0 ? '↓' : '–');
+            var hotArrow = hotPct > 0 ? '↑' : (hotPct < 0 ? '↓' : '·');
             var hotCls   = hotPct > 0 ? 'cspv-delta-up' : (hotPct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             var hotAbsPct = Math.abs(hotPct);
             var hotDisplay = hotAbsPct > 999 ? '>999' : hotAbsPct;
@@ -1251,7 +1251,7 @@ ob_start();
         var detailEl = document.getElementById('stat-views-detail');
         if (data.prev_total > 0) {
             var pct   = Math.round(((data.total_views - data.prev_total) / data.prev_total) * 100);
-            var arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '–');
+            var arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '·');
             var cls   = pct > 0 ? 'cspv-delta-up' : (pct < 0 ? 'cspv-delta-down' : 'cspv-delta-same');
             var absPct = Math.abs(pct);
             var pctDisplay = absPct > 999 ? '>999' : absPct;
@@ -1288,7 +1288,7 @@ ob_start();
             (data.lifetime_visitors || 0).toLocaleString();
         renderList('cspv-lifetime-top', data.lifetime_top || [], true);
 
-        // Chart last — wrapped in try/catch so a Chart.js load failure
+        // Chart last, wrapped in try/catch so a Chart.js load failure
         // does not prevent the rest of the page from rendering
         try {
             renderChart(data.chart, data.label_fmt, data.total_views);
@@ -1311,7 +1311,7 @@ ob_start();
             if (chartInst) { chartInst.destroy(); chartInst = null; }
             return;
         }
-        // total===0 is fine — render empty bars so the x-axis dates always show
+        // total===0 is fine, render empty bars so the x-axis dates always show
 
         var labels = rows.map(function(r){ return String(r.period); });
         var values = rows.map(function(r){ return parseInt(r.views, 10) || 0; });
@@ -1474,7 +1474,7 @@ ob_start();
     function insTrendBadge(pct) {
         if (pct === null || pct === undefined) return '';
         var cls = pct > 0 ? 'cspv-ins-trend-up' : pct < 0 ? 'cspv-ins-trend-down' : 'cspv-ins-trend-flat';
-        var arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '—';
+        var arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '·';
         return '<span class="' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span>';
     }
 
@@ -1506,12 +1506,12 @@ ob_start();
 
         if (kpi.top_country) {
             var cc = kpi.top_country.country_code || '';
-            document.getElementById('cspv-ins-kpi-country').textContent = countryFlag(cc) + (cc || '—');
+            document.getElementById('cspv-ins-kpi-country').textContent = countryFlag(cc) + (cc || '·');
             document.getElementById('cspv-ins-kpi-country-sub').textContent = (kpi.top_country.views || 0).toLocaleString() + ' views';
         }
         var ref = insSelfOn ? kpi.top_referrer : (kpi.top_referrer_no_self || kpi.top_referrer);
         if (ref) {
-            document.getElementById('cspv-ins-kpi-referrer').textContent = ref.label || '—';
+            document.getElementById('cspv-ins-kpi-referrer').textContent = ref.label || '·';
             document.getElementById('cspv-ins-kpi-referrer-sub').textContent = (ref.views || 0).toLocaleString() + ' views';
         }
     }
@@ -1650,7 +1650,7 @@ ob_start();
 
         if (best) best.innerHTML = '<span class="cspv-ins-peak-best-text">⏰ Peak time: <strong>' + fullDays[peakDow] + ' at ' + fmt12(peakHour) + '</strong> · ' + matrix[peakDow][peakHour].toLocaleString() + ' views</span>';
 
-        // Heatmap grid — cells use flex:1 so they stretch to fill the panel width
+        // Heatmap grid, cells use flex:1 so they stretch to fill the panel width
         var html = '<div class="cspv-ins-heatmap-grid">';
         // Header row (hour labels)
         html += '<div class="cspv-ins-hm-row cspv-ins-hm-header"><div class="cspv-ins-hm-day-label"></div>';
@@ -1671,7 +1671,7 @@ ob_start();
         }
         html += '</div>'; // close heatmap-grid
 
-        // Legend — outside the grid so it doesn't inherit the row flex layout
+        // Legend, outside the grid so it doesn't inherit the row flex layout
         var mid1 = Math.round(maxVal * 0.33), mid2 = Math.round(maxVal * 0.67);
         html += '<div class="cspv-ins-hm-legend">';
         html += '<span class="cspv-ins-hm-legend-label">0</span>';
@@ -1703,12 +1703,12 @@ ob_start();
             html += '<td class="cspv-ins-pt-num-cell"><div class="cspv-ins-pt-bar-wrap"><div class="cspv-ins-pt-bar-fill" style="width:' + pct + '%;background:' + col + '"></div><span class="cspv-ins-pt-bar-label">' + p.views.toLocaleString() + '</span></div></td>';
             if (hasAud) {
                 var u = p.unique_visitors || 0;
-                html += '<td class="cspv-ins-pt-num-cell">' + (u > 0 ? u.toLocaleString() : '—') + '</td>';
+                html += '<td class="cspv-ins-pt-num-cell">' + (u > 0 ? u.toLocaleString() : '·') + '</td>';
                 html += '<td class="cspv-ins-pt-aud-cell">';
                 if (u > 0) {
                     html += '<div class="cspv-ins-aud-bar"><div class="cspv-ins-aud-new" style="width:' + (p.new_pct||0) + '%"></div><div class="cspv-ins-aud-ret" style="width:' + (p.returning_pct||0) + '%"></div></div>';
                     html += '<span class="cspv-ins-aud-label">' + (p.new_pct||0) + '% new · ' + (p.returning_pct||0) + '% returning</span>';
-                } else { html += '—'; }
+                } else { html += '·'; }
                 html += '</td>';
             }
             html += '</tr>';
@@ -1748,7 +1748,7 @@ ob_start();
             pbr.headers.forEach(function(h, hi) {
                 if (!insSelfOn && hi === selfIdx) return;
                 var v = row.counts[hi] || 0;
-                html += '<td>' + (v > 0 ? v.toLocaleString() : '<span style="color:#d1d5db">—</span>') + '</td>';
+                html += '<td>' + (v > 0 ? v.toLocaleString() : '<span style="color:#d1d5db">&middot;</span>') + '</td>';
             });
             html += '</tr>';
         });
@@ -1770,7 +1770,7 @@ ob_start();
         var h = Math.max(100, top.length * 30);
         ctx.height = h;
         if (wrap) wrap.style.height = h + 'px';
-        var labels = top.map(function(x){ return countryFlag(x.country_code) + (x.country_code || '—'); });
+        var labels = top.map(function(x){ return countryFlag(x.country_code) + (x.country_code || '·'); });
         var values = top.map(function(x){ return x.views; });
         var total  = values.reduce(function(a,b){ return a+b; }, 0) || 1;
         insCharts['cspv-ins-country-chart'] = new Chart(ctx, {
@@ -2223,7 +2223,7 @@ ob_start();
             geoMarkers.push(marker);
         });
 
-        // Fit map to show all markers — fixes mobile where center:[20,10] zoom:2
+        // Fit map to show all markers, fixes mobile where center:[20,10] zoom:2
         // clips the USA off the left edge of a narrow viewport.
         function fitToMarkers() {
             if (!geoMap || geoMarkers.length === 0) return;
@@ -2261,7 +2261,7 @@ ob_start();
         if ( ! depth || depth.sessions === 0 ) {
             if (statsEl)  statsEl.style.display  = 'none';
             if (noDataEl) noDataEl.style.display  = '';
-            if (p50El)      p50El.textContent      = '—';
+            if (p50El)      p50El.textContent      = '·';
             if (avgEl)      avgEl.textContent      = '';
             if (maxEl)      maxEl.textContent      = '';
             if (sessionsEl) sessionsEl.textContent = 'No data';
@@ -2373,7 +2373,7 @@ ob_start();
             return;
         }
         drillEl.dataset.openCountry = cc;
-        headerEl.textContent = countryFlag(cc) + countryName(cc) + ' — Top Pages';
+        headerEl.textContent = countryFlag(cc) + countryName(cc) + ', Top Pages';
         listEl.innerHTML = '<div class="cspv-loading">Loading…</div>';
         // Move drill panel to appear directly under the clicked country row
         if (rowEl && rowEl.parentNode) {
@@ -2786,7 +2786,7 @@ ob_start();
                     var color = r.pass ? '#065f46' : '#991b1b';
                     return '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">'
                          + '<span style="flex-shrink:0;">' + icon + '</span>'
-                         + '<span><strong>' + r.test + '</strong> — <span style="color:' + color + ';">' + r.detail + '</span></span>'
+                         + '<span><strong>' + r.test + '</strong>, <span style="color:' + color + ';">' + r.detail + '</span></span>'
                          + '</div>';
                 }).join('');
                 var summaryColor = d.all_pass ? '#065f46' : '#991b1b';
@@ -2816,7 +2816,7 @@ ob_start();
     // ── Help modal system (per-tab, card layout) ───────────────────
     var helpData = {
         'stats': {
-            title: 'Statistics Dashboard — How It Works',
+            title: 'Statistics Dashboard, How It Works',
             cards: [
                 { title: 'Summary Cards', badge: 'info', body: 'The summary cards show <strong>total views</strong>, <strong>posts viewed</strong>, <strong>unique visitors</strong>, and <strong>hot pages</strong> for the selected date range. Use the quick range buttons (12h, Last 24h, 1 Week, 1 Month, 3 Months, 6 Months) or the custom date picker to change the period.' },
                 { title: 'Chart', badge: 'info', body: 'The chart displays views over time. Short ranges show hourly breakdown, medium ranges show daily bars, and longer ranges show weekly aggregation. All data comes from the page views log table.' },
@@ -2828,22 +2828,22 @@ ob_start();
             ]
         },
         'display': {
-            title: 'Display Settings — How It Works',
+            title: 'Display Settings, How It Works',
             cards: [
-                { title: 'Display Position', badge: 'info', body: '<strong>Before post content</strong> places the badge above the post. <strong>After post content</strong> appends it below. <strong>Both</strong> shows it in both positions. <strong>Off</strong> hides it entirely — use the template function <code>&lt;?php cspv_the_views(); ?&gt;</code> for manual placement.' },
+                { title: 'Display Position', badge: 'info', body: '<strong>Before post content</strong> places the badge above the post. <strong>After post content</strong> appends it below. <strong>Both</strong> shows it in both positions. <strong>Off</strong> hides it entirely, use the template function <code>&lt;?php cspv_the_views(); ?&gt;</code> for manual placement.' },
                 { title: 'Counter Style', badge: 'info', body: '<strong>Badge</strong> uses a solid gradient background. <strong>Pill</strong> uses a light tinted background for a subtler look. <strong>Minimal</strong> is plain coloured text with no background.' },
                 { title: 'Badge Colour', badge: 'optional', body: 'Choose from five gradient colour schemes: Blue (default), Pink, Red, Purple, and Grey. The colour applies to all three styles.' },
                 { title: 'Customise Text', badge: 'optional', body: '<strong>Icon</strong> is the emoji shown before the count (default: 👁). <strong>Suffix</strong> is the text after the number (default: "views"). Leave either empty to hide it.' },
-                { title: 'Show Counter On', badge: 'info', body: 'Select which post types display the badge on the front end. This is independent of the Tracking Filter — you might display on Pages but only track Posts.' },
+                { title: 'Show Counter On', badge: 'info', body: 'Select which post types display the badge on the front end. This is independent of the Tracking Filter, you might display on Pages but only track Posts.' },
                 { title: 'Tracking Filter', badge: 'info', body: 'Controls which post types <strong>record views</strong> in the database. Untracked post types silently skip tracking. Separate from the display setting.' },
                 { title: 'Installation', badge: 'required', body: 'No additional setup needed. Styles are applied automatically. If you use a caching plugin, purge your page cache after changing display settings.' }
             ]
         },
         'throttle': {
-            title: 'IP Throttle & Fail2Ban — How It Works',
+            title: 'IP Throttle & Fail2Ban, How It Works',
             cards: [
                 { title: 'Emergency Tracking Pause', badge: 'tip', body: 'The <strong>Page Tracking</strong> kill switch at the top instantly stops all view recording across your entire site. When paused, the tracking script is not loaded and the API silently rejects requests. Use this during sustained attacks to protect your database from junk data. Historical data is preserved.' },
-                { title: 'Tier 1: Throttle (Soft Block)', badge: 'info', body: 'After an IP exceeds the <strong>request limit</strong> (default: 50) within the <strong>time window</strong> (default: 1 hour), it is silently blocked for 1 hour. The block auto expires — no manual cleanup needed. Attackers receive HTTP 200 so they have no signal to adapt.' },
+                { title: 'Tier 1: Throttle (Soft Block)', badge: 'info', body: 'After an IP exceeds the <strong>request limit</strong> (default: 50) within the <strong>time window</strong> (default: 1 hour), it is silently blocked for 1 hour. The block auto expires, no manual cleanup needed. Attackers receive HTTP 200 so they have no signal to adapt.' },
                 { title: 'Tier 2: Fail2Ban (Hard Block)', badge: 'info', body: 'When an IP exceeds the <strong>page limit</strong> (default: 1,000) within the same time window, it is blocked for <strong>2 hours</strong>. FTB blocks auto clear after 2 hours. This catches persistent abusers who keep returning after throttle blocks expire.' },
                 { title: 'How to Know if FTB is Running', badge: 'tip', body: 'Look for the <strong>● FTB ACTIVE</strong> or <strong>○ FTB OFF</strong> status pill in the Fail2Ban section header. The FTB Rules card also shows whether the rule is Active or Inactive, along with the current page limit and window. Use the <strong>🧪 Test Fail2Ban</strong> button to run a full diagnostic.' },
                 { title: 'Test Fail2Ban', badge: 'info', body: 'The <strong>🧪 Test Fail2Ban</strong> button runs a five point diagnostic: it writes and reads a test transient (the engine behind FTB blocks), checks options table access (blocklist storage), verifies FTB is enabled, and confirms the block duration. If all five tests pass, Fail2Ban is fully operational.' },
@@ -2852,11 +2852,11 @@ ob_start();
             ]
         },
         'history': {
-            title: 'Post View History — How It Works',
+            title: 'Post View History, How It Works',
             cards: [
                 { title: 'Browsing Posts', badge: 'info', body: 'The top list shows your 100 most-viewed posts ranked by total view count. Click any row to load that post\'s detail panel. Click the <strong>↗</strong> link next to a title to open the post on your site in a new tab. Use the search box to find posts by title if they are not in the top 100.' },
-                { title: 'Timeline Slider', badge: 'tip', body: 'Use the <strong>Window</strong> slider (7–180 days) to control how much history is shown in the daily chart and the Audit Trail below it. Drag left to zoom in on recent activity, or right to see the full 6 month picture. The slider is hidden in "Last 48 hours" mode.' },
-                { title: 'View Counts Explained', badge: 'info', body: '<strong>Total Views</strong> is the number stored in <code>_cspv_view_count</code> post meta — the count visitors see on the front end. <strong>Page Views</strong> is the number of rows in the tracking log table for this post.' },
+                { title: 'Timeline Slider', badge: 'tip', body: 'Use the <strong>Window</strong> slider (7 to 180 days) to control how much history is shown in the daily chart and the Audit Trail below it. Drag left to zoom in on recent activity, or right to see the full 6 month picture. The slider is hidden in "Last 48 hours" mode.' },
+                { title: 'View Counts Explained', badge: 'info', body: '<strong>Total Views</strong> is the number stored in <code>_cspv_view_count</code> post meta, the count visitors see on the front end. <strong>Page Views</strong> is the number of rows in the tracking log table for this post.' },
                 { title: 'Daily Chart vs Hourly', badge: 'info', body: 'The <strong>Daily Chart</strong> button shows views per day within the slider window (up to 180 days). The <strong>Last 48 hours</strong> button shows an hour-by-hour breakdown of the last 2 days. Both draw from the tracking log table.' },
                 { title: 'Audit Trail', badge: 'info', body: 'The Audit Trail below the chart shows every day in the slider window with a view count and the top referring domain for that day. Days with zero views are shown in grey. The row highlighted in blue marks the post\'s published date.' }
             ]
@@ -2982,7 +2982,7 @@ ob_start();
             var s2, s3, s4;
             var before;
 
-            // Step 1: GET — read current value
+            // Step 1: GET, read current value
             fetch(testUrl, {
                 method: 'GET',
                 headers: { 'X-WP-Nonce': wpNonce },
@@ -2990,14 +2990,14 @@ ob_start();
                 cache: 'no-store',
             })
             .then(function(r) {
-                if (!r.ok) { throw new Error('GET failed — HTTP ' + r.status); }
+                if (!r.ok) { throw new Error('GET failed, HTTP ' + r.status); }
                 return r.json();
             })
             .then(function(data) {
                 before = data.counter;
                 setStep(s1, 'ok', 'Read counter: ' + before);
 
-                // Step 2: POST — increment
+                // Step 2: POST, increment
                 s2 = addStep('Sending increment request to bypass endpoint…');
                 return fetch(testUrl, {
                     method: 'POST',
@@ -3008,14 +3008,14 @@ ob_start();
                 });
             })
             .then(function(r) {
-                if (!r.ok) { throw new Error('POST failed — HTTP ' + r.status + '. Check your Cloudflare Cache Rule.'); }
+                if (!r.ok) { throw new Error('POST failed, HTTP ' + r.status + '. Check your Cloudflare Cache Rule.'); }
                 return r.json();
             })
             .then(function(data) {
                 var after = data.counter;
-                setStep(s2, 'ok', 'Increment sent — server returned: ' + after);
+                setStep(s2, 'ok', 'Increment sent, server returned: ' + after);
 
-                // Step 3: GET again — verify value changed
+                // Step 3: GET again, verify value changed
                 s3 = addStep('Re-reading counter to verify bypass…');
                 return fetch(testUrl + '?t=' + Date.now(), {
                     method: 'GET',
@@ -3025,7 +3025,7 @@ ob_start();
                 });
             })
             .then(function(r) {
-                if (!r.ok) { throw new Error('Verification GET failed — HTTP ' + r.status); }
+                if (!r.ok) { throw new Error('Verification GET failed, HTTP ' + r.status); }
                 return r.json();
             })
             .then(function(data) {
@@ -3041,7 +3041,7 @@ ob_start();
                 } else {
                     setStep(s3, 'fail',
                         'Counter unchanged (' + verified + '). '
-                        + 'Cloudflare is caching the endpoint — add the Cache Rule.');
+                        + 'Cloudflare is caching the endpoint, add the Cache Rule.');
                     setStep(s4, 'fail', 'Cache bypass NOT working. See rule below.');
                     badge.className = 'fail';
                     badge.textContent = '✗ Bypass broken';
@@ -3112,7 +3112,7 @@ ob_start();
         },
         'geo-source': {
             title: '🌍 Geography Source',
-            body: '<p>Controls how visitor country is resolved for the geography map and country breakdown.</p><p><strong>Auto</strong> tries CloudFlare first (zero performance cost), then falls back to DB-IP if the CF-IPCountry header is absent. Recommended for most sites.</p><p><strong>CloudFlare Only</strong> uses only the <code>CF-IPCountry</code> header — fast and accurate but requires your site to be proxied through CloudFlare.</p><p><strong>DB-IP Only</strong> always uses the local database file — works without CloudFlare but adds a small lookup overhead per request.</p><p><strong>Disabled</strong> skips geography tracking entirely. The map and country stats will show no data.</p><p>The DB-IP Lite database (~30 MB) is stored in your uploads folder and auto-updates monthly.</p>'
+            body: '<p>Controls how visitor country is resolved for the geography map and country breakdown.</p><p><strong>Auto</strong> tries CloudFlare first (zero performance cost), then falls back to DB-IP if the CF-IPCountry header is absent. Recommended for most sites.</p><p><strong>CloudFlare Only</strong> uses only the <code>CF-IPCountry</code> header, fast and accurate but requires your site to be proxied through CloudFlare.</p><p><strong>DB-IP Only</strong> always uses the local database file, works without CloudFlare but adds a small lookup overhead per request.</p><p><strong>Disabled</strong> skips geography tracking entirely. The map and country stats will show no data.</p><p>The DB-IP Lite database (~30 MB) is stored in your uploads folder and auto-updates monthly.</p>'
         },
         'throttle': {
             title: '🛡 IP Throttle Protection',
@@ -3152,22 +3152,22 @@ ob_start();
         },
         'post-history': {
             title: '🔍 Post View History',
-            body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Tracked Views</strong> is the actual number of beacon view records in the log table for this post.</p><p>The <strong>timeline slider</strong> (7–80 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>↗</strong> link next to any post title to open it on your site.</p>'
+            body: '<p>Browse or search for any post to see a detailed breakdown of its view metrics.</p><p><strong>Displayed count</strong> is the number stored in <code>_cspv_view_count</code> post meta, which is what visitors see on the front end.</p><p><strong>Tracked Views</strong> is the actual number of beacon view records in the log table for this post.</p><p>The <strong>timeline slider</strong> (7 to 80 days) controls the window shown in the daily chart and the Audit Trail. The chart can also be switched to an hourly view for the last 48 hours. Click the <strong>↗</strong> link next to any post title to open it on your site.</p>'
         },
         'insights-dashboard': {
             title: '💡 Insights Dashboard',
-            body: '<p>The <strong>Insights</strong> tab gives you a rolling-window view of your site\'s performance — unlike the Statistics tab which uses a calendar date picker, Insights always shows the last N days relative to today.</p>'
+            body: '<p>The <strong>Insights</strong> tab gives you a rolling-window view of your site\'s performance, unlike the Statistics tab which uses a calendar date picker, Insights always shows the last N days relative to today.</p>'
                 + '<p><strong>Period buttons</strong> (7 / 30 / 90 / 180 / 360 days) change the window for every chart and metric simultaneously.</p>'
                 + '<p><strong>Self toggle</strong> filters out traffic from your own domain. <span style="color:#22c55e;font-weight:700;">Green = ON</span> (self-traffic excluded), <span style="color:#ef4444;font-weight:700;">Red = OFF</span> (self-traffic included). Filtering happens client-side instantly with no reload.</p>'
                 + '<p><strong>KPI cards</strong> show Total Views, Unique Visitors, Top Country, and Top Referrer for the period. The ▲/▼ badge compares to the previous equal-length period.</p>'
-                + '<p><strong>Traffic Sources</strong> — doughnut breakdown of Direct, Self, search engines, social, and other referrers.</p>'
-                + '<p><strong>Referrer Growth</strong> — top 8 referrer domains plotted over time. Each line uses a distinct dash pattern so they\'re distinguishable in print.</p>'
-                + '<p><strong>Top Posts by Views</strong> — horizontal bar chart of your 15 most-viewed posts for the period.</p>'
-                + '<p><strong>Countries Over Time</strong> — daily line chart for the top 5 countries, with flag emoji labels.</p>'
-                + '<p><strong>Views by Country</strong> — ranked horizontal bar of the top 10 countries.</p>'
-                + '<p><strong>Top Referrer Domains</strong> — bar chart of all referrer hostnames with view counts.</p>'
-                + '<p><strong>Your Content</strong> — Top / Trending Up / Trending Down tabs showing up to 20 posts each with thumbnail, view count, and trend badge. Posts with no prior-period data show a <span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:4px;font-size:11px;">New</span> badge.</p>'
-                + '<p><strong>Post Analytics</strong> — per-post 30-day timeline with self vs external referrer split. Use the search box to find any post.</p>'
+                + '<p><strong>Traffic Sources</strong>, doughnut breakdown of Direct, Self, search engines, social, and other referrers.</p>'
+                + '<p><strong>Referrer Growth</strong>, top 8 referrer domains plotted over time. Each line uses a distinct dash pattern so they\'re distinguishable in print.</p>'
+                + '<p><strong>Top Posts by Views</strong>, horizontal bar chart of your 15 most-viewed posts for the period.</p>'
+                + '<p><strong>Countries Over Time</strong>, daily line chart for the top 5 countries, with flag emoji labels.</p>'
+                + '<p><strong>Views by Country</strong>, ranked horizontal bar of the top 10 countries.</p>'
+                + '<p><strong>Top Referrer Domains</strong>, bar chart of all referrer hostnames with view counts.</p>'
+                + '<p><strong>Your Content</strong>, Top / Trending Up / Trending Down tabs showing up to 20 posts each with thumbnail, view count, and trend badge. Posts with no prior-period data show a <span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:4px;font-size:11px;">New</span> badge.</p>'
+                + '<p><strong>Post Analytics</strong>, per-post 30-day timeline with self vs external referrer split. Use the search box to find any post.</p>'
         }
     };
 

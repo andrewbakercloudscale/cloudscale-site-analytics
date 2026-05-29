@@ -82,7 +82,7 @@ function cspv_referrer_source() {
 }
 
 /**
- * Check whether a column exists in the referrer table — result cached per request.
+ * Check whether a column exists in the referrer table, result cached per request.
  *
  * @param  string $col  Column name.
  * @return bool
@@ -585,7 +585,7 @@ function cspv_geo_lookup_dbip( $ip ) {
             return strtoupper( substr( $record['country']['iso_code'], 0, 2 ) );
         }
     } catch ( \Exception $e ) {
-        // Invalid IP or DB error — silently return empty
+        // Invalid IP or DB error, silently return empty
     }
 
     return '';
@@ -641,7 +641,7 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
 
     $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
     if ( ! $table_exists ) {
-        return null; // Table not yet created — caller should hide the UI
+        return null; // Table not yet created, caller should hide the UI
     }
 
     $from_date = substr( $from_str, 0, 10 );

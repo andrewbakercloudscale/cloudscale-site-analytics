@@ -4,12 +4,12 @@
  *
  * Two tier IP protection:
  *
- * Tier 1 — Throttle (soft block)
+ * Tier 1, Throttle (soft block)
  *   After N requests (default 50) within the rolling window the IP is
  *   silently blocked for 1 hour. Counter and block are transient based
  *   and auto expire.
  *
- * Tier 2 — Fail2Ban (hard block)
+ * Tier 2, Fail2Ban (hard block)
  *   After M distinct pages (default 1000, configurable) within the
  *   rolling window the IP is added to the Fail2Ban list. FTB blocks
  *   last 2 hours and auto clear via transients. The admin UI also
@@ -221,7 +221,7 @@ function cspv_is_throttled( $ip_hash ) {
 }
 
 // =========================================================================
-// 3. TIER 1 — THROTTLE BLOCK / UNBLOCK (1 hr auto-expire)
+// 3. TIER 1, THROTTLE BLOCK / UNBLOCK (1 hr auto-expire)
 // =========================================================================
 
 /**
@@ -282,7 +282,7 @@ function cspv_clear_blocklist() {
 
 
 // =========================================================================
-// 4. TIER 1 — BLOCKLIST (auto prune expired)
+// 4. TIER 1, BLOCKLIST (auto prune expired)
 // =========================================================================
 
 /**
@@ -297,7 +297,7 @@ function cspv_get_blocklist() {
     if ( isset( $raw[0] ) && is_string( $raw[0] ) ) {
         $converted = array();
         foreach ( $raw as $hash ) {
-            $converted[ $hash ] = array( 'blocked_at' => '—', 'expires' => 0 ); // em dash display placeholder for migrated legacy entries
+            $converted[ $hash ] = array( 'blocked_at' => '·', 'expires' => 0 ); // em dash display placeholder for migrated legacy entries
         }
         $raw = $converted;
     }
@@ -319,7 +319,7 @@ function cspv_get_blocklist() {
 }
 
 // =========================================================================
-// 5. TIER 1 — BLOCK EVENT LOG
+// 5. TIER 1, BLOCK EVENT LOG
 // =========================================================================
 
 /**
@@ -350,7 +350,7 @@ function cspv_get_block_log() {
 }
 
 // =========================================================================
-// 6. TIER 2 — FAIL2BAN (2 hr auto-clear via transients)
+// 6. TIER 2, FAIL2BAN (2 hr auto-clear via transients)
 // =========================================================================
 
 /**
@@ -393,7 +393,7 @@ function cspv_ftb_block_ip( $ip_hash ) {
 
     $duration = cspv_ftb_block_duration();
 
-    // Transient is the authoritative block — auto clears after configured duration
+    // Transient is the authoritative block, auto clears after configured duration
     set_transient( $block_key, 1, $duration );
 
     // Persistent list for admin display (pruned on read)
@@ -753,7 +753,7 @@ function cspv_ajax_save_dedup_settings() {
     $allowed = array( 3600, 7200, 21600, 43200, 86400, 172800 );
     $window  = in_array( $raw_win, $allowed, true ) ? $raw_win : 86400;
 
-    // Use 'yes'/'no' strings — WordPress handles these unambiguously
+    // Use 'yes'/'no' strings, WordPress handles these unambiguously
     // unlike booleans or '0'/'1' which can be lost by update_option
     $result_e = update_option( 'cspv_dedup_enabled', $enabled ? 'yes' : 'no' );
     $result_w = update_option( 'cspv_dedup_window', $window );
@@ -797,7 +797,7 @@ function cspv_ajax_test_ftb() {
     $results[] = array(
         'test'   => 'Write transient',
         'pass'   => (bool) $write_ok,
-        'detail' => $write_ok ? 'Successfully wrote test transient' : 'Failed to write transient — check your object cache or database',
+        'detail' => $write_ok ? 'Successfully wrote test transient' : 'Failed to write transient, check your object cache or database',
     );
 
     // Test 2: Can we read it back?
@@ -806,7 +806,7 @@ function cspv_ajax_test_ftb() {
     $results[] = array(
         'test'   => 'Read transient',
         'pass'   => $read_ok,
-        'detail' => $read_ok ? 'Successfully read test transient' : 'Transient read returned unexpected value — object cache may be misconfigured',
+        'detail' => $read_ok ? 'Successfully read test transient' : 'Transient read returned unexpected value, object cache may be misconfigured',
     );
 
     // Cleanup
@@ -829,7 +829,7 @@ function cspv_ajax_test_ftb() {
     $results[] = array(
         'test'   => 'FTB enabled',
         'pass'   => $ftb_on,
-        'detail' => $ftb_on ? 'Fail2Ban is enabled and will block IPs exceeding ' . number_format( cspv_ftb_page_limit() ) . ' pages' : 'Fail2Ban is currently disabled — enable it above to activate protection',
+        'detail' => $ftb_on ? 'Fail2Ban is enabled and will block IPs exceeding ' . number_format( cspv_ftb_page_limit() ) . ' pages' : 'Fail2Ban is currently disabled, enable it above to activate protection',
     );
 
     // Test 5: FTB block duration
@@ -847,6 +847,6 @@ function cspv_ajax_test_ftb() {
     wp_send_json_success( array(
         'results'  => $results,
         'all_pass' => $all_pass,
-        'summary'  => $all_pass ? 'All tests passed — Fail2Ban is fully operational' : 'Some tests failed — review the results above',
+        'summary'  => $all_pass ? 'All tests passed, Fail2Ban is fully operational' : 'Some tests failed, review the results above',
     ) );
 }

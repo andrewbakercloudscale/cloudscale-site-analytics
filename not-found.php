@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Analytics — 404 Tracking
+ * CloudScale Analytics, 404 Tracking
  *
  * Logs every frontend 404 (destination URL + referrer source) to
  * wp_cs_analytics_404_v2. Repeated hits on the same URL+referrer pair increment
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // -------------------------------------------------------------------------
-// 1. Table creation — also runs lazily on admin_init if the table is missing
+// 1. Table creation, also runs lazily on admin_init if the table is missing
 //    (handles upgrades where the version number has not changed).
 // -------------------------------------------------------------------------
 add_action( 'admin_init', 'cspv_maybe_create_404_table', 5 );
@@ -73,7 +73,7 @@ function cspv_create_table_404_v2() {
 // -------------------------------------------------------------------------
 // 2. Frontend tracking hook
 // -------------------------------------------------------------------------
-// Priority 0 — must run before cloudscale-plugin-crash-recovery which hooks at
+// Priority 0, must run before cloudscale-plugin-crash-recovery which hooks at
 // priority 1 and calls exit(), which would prevent this tracker from firing.
 add_action( 'template_redirect', 'cspv_track_404', 0 );
 
@@ -120,7 +120,7 @@ function cspv_track_404() {
 }
 
 // -------------------------------------------------------------------------
-// 3. AJAX — purge log
+// 3. AJAX, purge log
 // -------------------------------------------------------------------------
 add_action( 'wp_ajax_cspv_purge_404_log', 'cspv_ajax_purge_404_log' );
 add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script', 20 );
@@ -178,7 +178,7 @@ function cspv_ajax_purge_404_log() {
 }
 
 // -------------------------------------------------------------------------
-// 4. Render — called from stats-page.php
+// 4. Render, called from stats-page.php
 // -------------------------------------------------------------------------
 
 /**
@@ -196,7 +196,7 @@ function cspv_render_404_html() {
 	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
 
 	if ( ! cspv_404_table_exists() ) {
-		echo '<p style="color:#888;font-size:13px;">404 log table not found — deactivate and reactivate the plugin to create it.</p>';
+		echo '<p style="color:#888;font-size:13px;">404 log table not found, deactivate and reactivate the plugin to create it.</p>';
 		return;
 	}
 

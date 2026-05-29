@@ -1,10 +1,10 @@
 === CloudScale Site Analytics ===
-Contributors: andrewbaker
+Contributors: cloudscale
 Tags: page views, analytics, statistics, view counter, free analytics
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.307
+Stable tag: 2.9.314
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -201,7 +201,7 @@ No data is transmitted to any external service during normal page view tracking.
 
 This plugin is free software released under the GPLv2 or later license.
 
-Copyright (C) 2026 Andrew Baker (https://andrewbaker.ninja)
+Copyright (C) 2026 CloudScale (https://cloudscale.consulting)
 
 You may copy, distribute and modify the software as long as you track changes/dates in source files. Any modifications to or software including (via compiler) GPL licensed code must also be made available under the GPL along with build and install instructions.
 

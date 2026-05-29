@@ -23,7 +23,7 @@ add_action( 'wp_ajax_cspv_insights',               'cspv_ajax_insights' );
 add_action( 'wp_ajax_cspv_insights_dashboard',    'cspv_ajax_insights_dashboard' );
 
 // ---------------------------------------------------------------------------
-// AJAX — chart data
+// AJAX, chart data
 // ---------------------------------------------------------------------------
 /**
  * AJAX handler: return chart data for the stats dashboard.
@@ -764,7 +764,7 @@ add_action( 'cspv_dbip_auto_update', function() {
  * Cron callback: download a fresh DB-IP Lite file when the installed copy
  * is from a previous calendar month.
  *
- * Only runs when geo source is 'auto' or 'dbip' — skipped for sites using
+ * Only runs when geo source is 'auto' or 'dbip', skipped for sites using
  * Cloudflare-only or with geo tracking disabled entirely.
  *
  * @since  2.9.187

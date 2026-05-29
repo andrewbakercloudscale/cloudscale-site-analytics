@@ -35,9 +35,9 @@ function cspv_activate() {
  * The beacon increments the bucket for the current hour on each view.
  *
  * Schema:
- *   post_id     — the post
- *   viewed_at   — hour bucket, always truncated to :00:00
- *   view_count  — number of views in this bucket
+ *   post_id, the post
+ *   viewed_at, hour bucket, always truncated to :00:00
+ *   view_count, number of views in this bucket
  */
 function cspv_create_table_v2() {
     global $wpdb;
@@ -145,8 +145,7 @@ function cspv_create_table_visitors_v2() {
  * Create the session depth tracking table.
  *
  * One row per session+post pair (INSERT IGNORE deduplication).
- * session_id is a browser-generated random token stored in sessionStorage —
- * it contains no PII and is scoped to a single browser tab session.
+ * session_id is a browser-generated random token stored in sessionStorage, * it contains no PII and is scoped to a single browser tab session.
  * Enables computing pages-per-session percentiles (P50 / P95 / P99).
  */
 function cspv_create_table_sessions_v2() {

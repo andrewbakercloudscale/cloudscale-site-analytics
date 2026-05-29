@@ -36,7 +36,7 @@ add_action( 'wp_enqueue_scripts', 'cspv_enqueue_beacon' );
  * @return void
  */
 function cspv_enqueue_beacon() {
-    // Emergency kill switch — stop all tracking
+    // Emergency kill switch, stop all tracking
     if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
         return;
     }
@@ -52,7 +52,7 @@ function cspv_enqueue_beacon() {
     if ( $is_singular ) {
         $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
         if ( ! empty( $track_types ) && ! in_array( get_post_type(), $track_types, true ) ) {
-            // Post type not tracked — still allow fetch mode for listings
+            // Post type not tracked, still allow fetch mode for listings
             if ( ! $is_listing ) {
                 return;
             }

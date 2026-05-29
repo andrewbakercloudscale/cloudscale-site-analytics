@@ -1,5 +1,5 @@
 /* ============================================================
-   CloudScale Page Views — Admin UI  v2.0.0
+   CloudScale Page Views, Admin UI  v2.0.0
    Colour palette mirrors CloudScale: electric blue, bright green,
    vivid orange, deep navy, white.
    ============================================================ */
@@ -754,7 +754,7 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ph-row:hover { background: #e8f4fd !important; }
 .cspv-ph-row.active { background: #d0ebff !important; border-left: 3px solid #2e86c1; }
 
-/* ── Insights Dashboard — world-class dark theme ───────── */
+/* ── Insights Dashboard, world-class dark theme ───────── */
 
 /* Header controls */
 .cspv-ins-period-btns { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -780,7 +780,7 @@ body.cspv-modal-open { overflow: hidden; }
 }
 .cspv-ins-explain-btn:hover { background: rgba(255,255,255,.32); }
 
-/* Dashboard body — dark navy canvas */
+/* Dashboard body, dark navy canvas */
 #cspv-ins-body { background: #0f172a; padding-bottom: 28px; }
 
 /* Section padding wrapper */
@@ -893,7 +893,7 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ins-hm-cell { flex: 1 1 0; min-width: 0; height: 20px; border-radius: 3px; cursor: default; transition: transform .1s; }
 .cspv-ins-hm-cell:hover { transform: scale(1.3); z-index: 2; position: relative; }
 .cspv-ins-hm-peak { outline: 2px solid #991b1b; outline-offset: 1px; }
-/* Legend — sits below the grid, aligned to grid start */
+/* Legend, sits below the grid, aligned to grid start */
 .cspv-ins-hm-legend { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-left: 36px; }
 .cspv-ins-hm-legend-label { font-size: 11px; color: #64748b; white-space: nowrap; font-weight: 600; }
 .cspv-ins-hm-legend-bar { flex: 1; height: 12px; border-radius: 6px; background: linear-gradient(to right, #fef2f2, #fca5a5, #dc2626); position: relative; }
@@ -920,13 +920,13 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ins-aud-ret { background: #f59e0b; }
 .cspv-ins-aud-label { font-size: 10px; color: #64748b; }
 
-/* Chart panel width classes (replaces inline styles — enables responsive overrides) */
+/* Chart panel width classes (replaces inline styles, enables responsive overrides) */
 .cspv-ins-panel-narrow { flex: 0 0 300px; max-width: 320px; }
 .cspv-ins-panel-wide   { flex: 1; min-width: 280px; }
 
 /* ── Insights mobile layout ───────────────────────────────── */
 @media (max-width: 782px) {
-    /* Hard-stop lateral spill — prevents iOS Safari layout-viewport expansion
+    /* Hard-stop lateral spill, prevents iOS Safari layout-viewport expansion
        and the whole-page zoom-out that follows */
     #cspv-tab-insights { overflow-x: hidden; }
     #cspv-app { padding-right: 0; }
@@ -978,7 +978,7 @@ body.cspv-modal-open { overflow: hidden; }
     /* Smart Summary: tighter text */
     .cspv-ins-sum-item { font-size: 12px; padding: 8px 10px; }
 
-    /* Heatmap: tighter on mobile — cells still flex but limit height */
+    /* Heatmap: tighter on mobile, cells still flex but limit height */
     .cspv-ins-hm-cell { height: 14px; }
     .cspv-ins-hm-day-label { width: 26px; min-width: 26px; font-size: 9px; }
 

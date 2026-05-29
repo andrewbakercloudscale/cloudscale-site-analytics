@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
 // ---------------------------------------------------------------------------
-// Cloudflare IP validation — prevents CF header spoofing on non-CF traffic
+// Cloudflare IP validation, prevents CF header spoofing on non-CF traffic
 // ---------------------------------------------------------------------------
 
 /**
@@ -23,7 +23,7 @@ add_action( 'rest_api_init', 'cspv_register_endpoint' );
  * Uses the stored option (refreshed monthly by cron); falls back to
  * the hardcoded list published at cloudflare.com/ips-v4 and ips-v6.
  *
- * @since 2.9.311
+ * @since 2.9.314
  * @return string[]
  */
 function cspv_get_cf_ip_ranges() {
@@ -44,7 +44,7 @@ function cspv_get_cf_ip_ranges() {
 /**
  * Check whether an IP address falls within any Cloudflare egress CIDR range.
  *
- * @since 2.9.311
+ * @since 2.9.314
  * @param  string $ip  Raw IP address (IPv4 or IPv6).
  * @return bool
  */
@@ -96,7 +96,7 @@ add_action( 'cspv_refresh_cf_ips', 'cspv_refresh_cf_ip_ranges' );
 /**
  * Fetch the latest Cloudflare IPv4 and IPv6 egress ranges and cache in wp_options.
  *
- * @since 2.9.311
+ * @since 2.9.314
  * @return void
  */
 function cspv_refresh_cf_ip_ranges() {
@@ -164,7 +164,7 @@ function cspv_public_view_count( $post_id ) {
  *   wp option update cspv_beacon_auth 0
  * or in code via the 'cspv_beacon_auth_required' filter.
  *
- * @since 2.9.311
+ * @since 2.9.314
  * @return bool
  */
 function cspv_beacon_auth_required() {
@@ -199,7 +199,7 @@ function cspv_register_endpoint() {
         )
     );
 
-    // Diagnostics endpoint — used by the stats page to confirm beacon is reachable
+    // Diagnostics endpoint, used by the stats page to confirm beacon is reachable
     register_rest_route(
         'cloudscale-wordpress-free-analytics/v1',
         '/ping',
@@ -225,7 +225,7 @@ function cspv_register_endpoint() {
 function cspv_record_view( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
 
-    // Emergency kill switch — reject all recording
+    // Emergency kill switch, reject all recording
     if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
         return new WP_REST_Response( array(
             'post_id' => absint( $request->get_param( 'id' ) ),
@@ -249,7 +249,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         return new WP_REST_Response( array( 'error' => 'Post is not published.' ), 404 );
     }
 
-    // Check post type filter — only record views for tracked types
+    // Check post type filter, only record views for tracked types
     $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
     if ( ! empty( $track_types ) && ! in_array( $post->post_type, $track_types, true ) ) {
         return new WP_REST_Response( array(
@@ -261,7 +261,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // --- Extract real IP (Cloudflare-aware) -------------------------
     // Only trust CF-Connecting-IP / CF-IPCountry when REMOTE_ADDR is a
-    // confirmed Cloudflare egress IP — forged headers are otherwise trivial.
+    // confirmed Cloudflare egress IP, forged headers are otherwise trivial.
     $remote_addr = $_SERVER['REMOTE_ADDR'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated via filter_var below
     $is_cf       = cspv_is_cloudflare_ip( $remote_addr );
     $raw_ip      = '';
@@ -301,7 +301,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         $referrer = esc_url_raw( substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ), 0, 2048 ) );
     }
     if ( ! empty( $body['session_id'] ) && is_string( $body['session_id'] ) ) {
-        // Strip everything except alphanumeric — the token contains only [a-z0-9]
+        // Strip everything except alphanumeric, the token contains only [a-z0-9]
         $session_id = substr( preg_replace( '/[^a-z0-9]/i', '', $body['session_id'] ), 0, 64 );
     }
 
@@ -309,7 +309,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     // A genuine view comes from beacon.js, which fires with an X-WP-Nonce
     // ('wp_rest') minted into the page. Scrapers/crawlers that POST straight
     // to this public endpoint don't carry a valid nonce, so we reject them
-    // silently (200, logged:false) — the caller gets no signal.
+    // silently (200, logged:false), the caller gets no signal.
     //
     // Cache-safe: HTML is edge/nginx cached for 2h (max-age=7200), well inside
     // the ~24h wp_rest nonce lifetime, so cached pages still carry a valid
@@ -332,7 +332,7 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // --- IP throttle check -----------------------------------------
     if ( cspv_is_throttled( $ip_hash ) ) {
-        // Silent accept — attacker gets no signal
+        // Silent accept, attacker gets no signal
         return new WP_REST_Response( array(
             'post_id' => $post_id,
             'views'   => cspv_public_view_count( $post_id ),
@@ -345,7 +345,7 @@ function cspv_record_view( WP_REST_Request $request ) {
     $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
-    // Confirm V2 table exists — result cached for 1 hour to avoid SHOW TABLES on every view.
+    // Confirm V2 table exists, result cached for 1 hour to avoid SHOW TABLES on every view.
     $table_exists = get_transient( 'cspv_v2_table_exists' );
     if ( $table_exists === false ) {
         $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0';
@@ -398,7 +398,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         if ( $is_cf && $geo_source !== 'dbip' && isset( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
             $country = strtoupper( substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ), 0, 2 ) );
         }
-        // Fall back to DB-IP mmdb lookup (unless cloudflare only) — reuse already-resolved $raw_ip
+        // Fall back to DB-IP mmdb lookup (unless cloudflare only), reuse already-resolved $raw_ip
         if ( $country === '' && $geo_source !== 'cloudflare' ) {
             $safe_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
             if ( $safe_ip !== '' ) {
@@ -409,7 +409,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         if ( $country === 'XX' || $country === 'T1' || $country === '' ) {
             $country = 'ZZ';
         }
-        // Write to geo table — every view is recorded, ZZ = unknown/unresolved.
+        // Write to geo table, every view is recorded, ZZ = unknown/unresolved.
         $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
         $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
             "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
@@ -419,7 +419,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         ) );
     }
 
-    // Track unique visitor (hashed IP, one row per visitor per post per day) — reuse already-resolved $raw_ip
+    // Track unique visitor (hashed IP, one row per visitor per post per day), reuse already-resolved $raw_ip
     $visitor_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
         $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
@@ -439,7 +439,7 @@ function cspv_record_view( WP_REST_Request $request ) {
         if ( $sess_exists !== '1' ) {
             $found       = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0';
             $sess_exists = $found;
-            // Only cache a positive result — a negative could be stale after table creation
+            // Only cache a positive result, a negative could be stale after table creation
             if ( $found === '1' ) {
                 set_transient( 'cspv_sessions_table_exists', '1', HOUR_IN_SECONDS );
             }
@@ -501,7 +501,7 @@ function cspv_send_nocache_headers() {
     if ( headers_sent() ) {
         return;
     }
-    // Standard HTTP cache-control — tells every intermediate cache to bypass
+    // Standard HTTP cache-control, tells every intermediate cache to bypass
     header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
     header( 'Pragma: no-cache' );
     // Cloudflare-specific override

@@ -59,7 +59,7 @@ class CSPV_Search_Widget extends WP_Widget {
 			'cspv_search_widget',
 			__( 'CloudScale Analytics: Search', 'cloudscale-wordpress-free-analytics' ),
 			array(
-				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt — short terms like "AI" work correctly. Results capped at 50.', 'cloudscale-wordpress-free-analytics' ),
+				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt, short terms like "AI" work correctly. Results capped at 50.', 'cloudscale-wordpress-free-analytics' ),
 				'show_instance_in_rest' => true,
 			)
 		);
@@ -193,7 +193,7 @@ function cspv_search_widget_css() {
 }
 
 // -------------------------------------------------------------------------
-// 4. Wildcard search — bypasses Relevanssi entirely via posts_pre_query
+// 4. Wildcard search, bypasses Relevanssi entirely via posts_pre_query
 // -------------------------------------------------------------------------
 
 /**
@@ -240,7 +240,7 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 	$t0_comma = '% ' . $esc . ',%';
 	$t0_exact = $esc;
 
-	// Standard WP pattern: get_results( prepare( ... ) ) — prepare() returns safe SQL string, get_results() executes it.
+	// Standard WP pattern: get_results( prepare( ... ) ), prepare() returns safe SQL string, get_results() executes it.
 	$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
 		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts is a trusted core table name
 			"SELECT {$wpdb->posts}.*

@@ -136,7 +136,7 @@ add_action( 'init', function () {
 // -------------------------------------------------------------------------
 // 3. Front end auto injection
 //    "before_content" = prepended to the_content (JS then moves the element
-//                       before article.firstChild — above the featured image).
+//                       before article.firstChild, above the featured image).
 //    "after_content"  = appended to the_content.
 //    "both"           = both positions.
 // -------------------------------------------------------------------------

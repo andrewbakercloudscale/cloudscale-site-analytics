@@ -8,7 +8,7 @@
  * ── WHERE TO ADD IT IN YOUR THEME ───────────────────────────────────────
  *
  * Open your theme's single.php (or single-post.php if it exists).
- * Look for the line that outputs the post title or post meta — something like:
+ * Look for the line that outputs the post title or post meta, something like:
  *
  *     <h1 class="entry-title"><?php the_title(); ?></h1>
  *
@@ -23,12 +23,12 @@
  * That outputs:  👁 1,234 views
  *
  * If your theme uses a parts file (e.g. template-parts/content-single.php)
- * add it there instead — it will be in the same folder as single.php.
+ * add it there instead, it will be in the same folder as single.php.
  *
  * No other changes needed. The plugin automatically:
  *   1. Shows the stored count immediately (no layout shift).
  *   2. Records the view via one background request after the page loads.
- *   3. Updates the count in place from that same response — no second call.
+ *   3. Updates the count in place from that same response, no second call.
  *
  * ── CUSTOMISE THE OUTPUT ────────────────────────────────────────────────
  *
@@ -91,7 +91,7 @@ function cspv_get_view_count( $post_id = null ) {
  *
  * Default output:   👁 1,234 views
  *
- * On single post templates this is all you need — the beacon updates
+ * On single post templates this is all you need, the beacon updates
  * the count automatically after recording the view, with no second API call.
  *
  * @since 1.0.0

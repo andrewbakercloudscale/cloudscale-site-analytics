@@ -3,6 +3,52 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.311] - 2026-05-29
+
+### Added
+- **Beacon authenticity gate** in `cspv_record_view()`: the record endpoint now
+  requires a valid `wp_rest` `X-WP-Nonce` (sent by `beacon.js`). Direct hits to
+  the public endpoint without a valid nonce are silently rejected (200,
+  `logged:false`). This replaces the reverted self-referrer heuristic.
+  - **Cache-safe by design:** HTML is cached for 2h (`max-age=7200`), inside the
+    ~24h nonce lifetime, so cached pages still carry a valid nonce.
+  - `session_id` is deliberately NOT a gate — `getSessionId()` can legitimately
+    return `''` (private mode / old browsers) and is client-forgeable.
+  - **Instant kill switch (no redeploy):** `wp option update cspv_beacon_auth 0`,
+    or the `cspv_beacon_auth_required` filter.
+  - **Known limit:** anonymous `wp_rest` nonces are per-tick and live in public
+    HTML, so a crawler that fetches a page can harvest and replay one for ~24h.
+    This stops naive direct-to-endpoint bots, not a determined distributed
+    crawler — that belongs at Cloudflare (Bot Fight Mode / WAF rate rules).
+
+## [2.9.310] - 2026-05-29
+
+### Reverted (deployed to production 2026-05-29)
+- Removed the self-referrer bot filter from `cspv_record_view()` in `rest-api.php`.
+- Also fixed a false positive in `build.sh`'s runtime-include check that flagged
+  `admin-columns.php` (it registers hooks at load time but contains no `wp_`
+  token, so the heuristic included it standalone and hit "undefined add_filter").
+  The check now also skips files containing `add_filter`/`add_action`.
+
+### Reverted / Investigation
+- **Self-referrer bot filter in `rest-api.php` removed legitimate direct traffic.**
+  Added 2026-05-27 (stamped `@since 2.9.308`) in response to a bot spike, this
+  filter dropped any view whose referrer path equalled the post's own path. It
+  silently discarded **all no-referrer legitimate traffic** (direct, bookmark,
+  typed URL, in-app browsers, social with stripped referrer) — typically a large
+  share of real visits — causing a sharp, ongoing drop in counted views.
+- **Root cause:** the beacon's own `fetch()` POST is a same-origin request from
+  the post page, so the browser sets `Referer: <current post URL>`. When
+  `document.referrer` is empty, `cspv_record_view()` falls back to
+  `$_SERVER['HTTP_REFERER']` (`rest-api.php:284`) = the current page. The filter
+  (`rest-api.php:297`) then treats that as a bot signature — contradicting the
+  capture comment two lines above it that already explains the fallback IS the
+  current page. The "98.8% self-referrer" seen during the 27-May spike was the
+  *same* fallback mechanism, so self-referrer does **not** distinguish bot from
+  human; it only looked clean because bot volume dwarfed real traffic that hour.
+- See `WORKING-NOTES.md` → "Bot-spike incident & self-referrer filter trap" for
+  full analysis and the do-not-repeat guidance.
+
 ## [2.9.122] - 2026-03-22
 
 ### Fixed

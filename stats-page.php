@@ -211,7 +211,7 @@ function cspv_render_stats_page() {
         </div>
         <div id="cspv-banner-right">
             <span class="cspv-badge cspv-badge-green">● Site Online</span>
-            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" target="_blank" class="cspv-badge cspv-badge-orange" style="text-decoration:none;"><?php echo esc_html( wp_parse_url( home_url(), PHP_URL_HOST ) ); ?></a>
+            <a href="https://cloudscale.consulting" target="_blank" rel="noopener noreferrer" class="cspv-badge cspv-badge-orange" style="text-decoration:none;">cloudscale.consulting</a>
             <button id="cspv-help-btn" title="Help" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;transition:background .15s;">?</button>
         </div>
     </div>

@@ -29,7 +29,7 @@ require_once plugin_dir_path( __FILE__ ) . 'stats-page-render.php';
  * @return void
  */
 function cspv_admin_menu_styles() {
-    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-wordpress-free-analytics' ) {
+    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-wordpress-free-analytics' ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page slug check
         echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
     }
 }
@@ -111,15 +111,24 @@ function cspv_enqueue_admin_assets( $hook ) {
         array( 'cspv-chartjs', 'cspv-leaflet-js' ), CSPV_VERSION, true );
     wp_enqueue_script( 'cspv-stats-page' );
 
-    // Auto-reload when a new version is deployed, avoids stale CSS on open tabs
-    // and iOS Safari bfcache restores without requiring manual cache clearing.
+    // Cache-bust on deploy: server check on bfcache restore / tab switch so
+    // stale bfcached pages (e.g. iOS Safari) always reload when a new version lands.
     $ver_js  = '(function(){';
     $ver_js .= 'var v=' . wp_json_encode( CSPV_VERSION ) . ',k="cspv_ver";';
     $ver_js .= 'var stored=localStorage.getItem(k);';
     $ver_js .= 'localStorage.setItem(k,v);';
     $ver_js .= 'if(stored&&stored!==v){window.location.reload();return;}';
-    $ver_js .= 'window.addEventListener("pageshow",function(e){if(e.persisted&&localStorage.getItem(k)!==v)window.location.reload();});';
-    $ver_js .= 'document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"&&localStorage.getItem(k)!==v)window.location.reload();});';
+    // Server-side check — bypasses localStorage staleness; fired on bfcache
+    // restore (pageshow persisted) and on tab re-focus (visibilitychange).
+    $ver_js .= 'function svCheck(){';
+    $ver_js .= 'var u=(window.ajaxurl||' . wp_json_encode( admin_url( 'admin-ajax.php' ) ) . ')+"?action=cspv_version&_="+Date.now();';
+    $ver_js .= 'fetch(u,{credentials:"same-origin"})';
+    $ver_js .= '.then(function(r){return r.json();})';
+    $ver_js .= '.then(function(d){if(d.v&&d.v!==v)window.location.reload();})';
+    $ver_js .= '.catch(function(){});';
+    $ver_js .= '}';
+    $ver_js .= 'window.addEventListener("pageshow",function(e){if(e.persisted)svCheck();});';
+    $ver_js .= 'document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")svCheck();});';
     $ver_js .= '})();';
     wp_add_inline_script( 'cspv-stats-page', $ver_js );
 }
@@ -138,11 +147,11 @@ function cspv_render_stats_page() {
     global $wpdb;
 
     // Handle display settings save
-    if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( wp_unslash( $_POST['cspv_display_nonce'] ), 'cspv_display_save' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce value, not user content
+    if ( isset( $_POST['cspv_display_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cspv_display_nonce'] ) ), 'cspv_display_save' ) ) {
         $geo_notice = cspv_save_display_settings();
         printf(
             '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' ) . $geo_notice
+            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' ) . wp_kses_post( $geo_notice )
         );
     }
 
@@ -175,7 +184,7 @@ function cspv_render_stats_page() {
         'post_type'      => 'any',
         'post_status'    => 'publish',
         'posts_per_page' => 100,
-        'meta_key'       => CSPV_META_KEY,
+        'meta_key'       => CSPV_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- intentional: sortable views admin column uses plugin-controlled meta key
         'orderby'        => 'meta_value_num',
         'order'          => 'DESC',
     ) );

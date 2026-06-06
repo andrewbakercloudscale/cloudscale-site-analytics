@@ -21,6 +21,9 @@ add_action( 'wp_ajax_cspv_purge_visitors',           'cspv_ajax_purge_visitors' 
 add_action( 'wp_ajax_cspv_save_display_settings',   'cspv_ajax_save_display_settings' );
 add_action( 'wp_ajax_cspv_insights',               'cspv_ajax_insights' );
 add_action( 'wp_ajax_cspv_insights_dashboard',    'cspv_ajax_insights_dashboard' );
+add_action( 'wp_ajax_cspv_post_geo_map',          'cspv_ajax_post_geo_map' );
+add_action( 'wp_ajax_cspv_version',              'cspv_ajax_version' );
+add_action( 'wp_ajax_nopriv_cspv_version',       'cspv_ajax_version' );
 
 // ---------------------------------------------------------------------------
 // AJAX, chart data
@@ -75,10 +78,10 @@ function cspv_ajax_chart_data() {
     }
 
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         wp_send_json_success( array(
             'chart' => array(), 'label_fmt' => 'day', 'total_views' => 0,
@@ -115,11 +118,7 @@ function cspv_ajax_chart_data() {
     if ( $rolling12h ) {
         // ── 12 Hours: build 12 hourly slots ──
         $label_fmt = 'hour';
-        $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
-              FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-              GROUP BY hr_key ORDER BY hr_key ASC",
-            $from_str, $to_str ) );
+        $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY hr_key ORDER BY hr_key ASC", $from_str, $to_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         $by_hour = array();
         foreach ( (array) $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
         $chart_rows = array();
@@ -138,11 +137,7 @@ function cspv_ajax_chart_data() {
 
         if ( $rolling24h ) {
             // Rolling: bucket by hour across the 24h window
-            $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views
-                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-                  GROUP BY hr_key ORDER BY hr_key ASC",
-                $from_str, $to_str ) );
+            $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY hr_key ORDER BY hr_key ASC", $from_str, $to_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
             $by_hour = array();
             foreach ( (array) $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
 
@@ -157,11 +152,7 @@ function cspv_ajax_chart_data() {
                 $cur->modify( '+1 hour' );
             }
         } else {
-            $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, {$cnt} AS views
-                  FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-                  GROUP BY hr",
-                $from_str, $to_str ) );
+            $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%H') AS hr, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY hr", $from_str, $to_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
             $by_hour = array();
             foreach ( (array) $raw as $r ) { $by_hour[ (int) $r->hr ] = (int) $r->views; }
             $chart_rows = array();
@@ -175,11 +166,7 @@ function cspv_ajax_chart_data() {
     } elseif ( $diff_days <= 90 ) {
         // ── Daily: build every date in range, fill from DB ────────────
         $label_fmt = 'day';
-        $raw = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE(viewed_at) AS ymd, {$cnt} AS views
-              FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-              GROUP BY ymd",
-            $from_str, $to_str ) );
+        $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS ymd, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY ymd", $from_str, $to_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         $by_date = array();
         foreach ( (array) $raw as $r ) { $by_date[ $r->ymd ] = (int) $r->views; }
         $chart_rows = array();
@@ -195,13 +182,7 @@ function cspv_ajax_chart_data() {
     } else {
         // ── Weekly: group by ISO week, fill gaps ──────────────────────
         $label_fmt = 'week';
-        $raw = $wpdb->get_results( $wpdb->prepare(
-            "SELECT DATE_FORMAT(viewed_at,'%%Y-%%u') AS wk,
-                     MIN(DATE(viewed_at)) AS wk_start,
-                     {$cnt} AS views
-              FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s
-              GROUP BY wk ORDER BY wk ASC",
-            $from_str, $to_str ) );
+        $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%u') AS wk, MIN(DATE(viewed_at)) AS wk_start, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY wk ORDER BY wk ASC", $from_str, $to_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         $by_week = array();
         foreach ( (array) $raw as $r ) { $by_week[ $r->wk ] = array( 'views' => (int) $r->views, 'start' => $r->wk_start ); }
         // Walk week-by-week across the range
@@ -285,8 +266,7 @@ function cspv_ajax_chart_data() {
     $lifetime_visitors = cspv_unique_visitors_for_range( '2000-01-01', '2099-12-31' );
 
     // ── Lifetime totals from beacon log ─────────────────────────────
-    $lifetime_total = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
-        "SELECT SUM(view_count) FROM `{$table}`"
+    $lifetime_total = (int) $wpdb->get_var( "SELECT SUM(view_count) FROM `{$table}`" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
     );
     $lifetime_top   = cspv_top_pages( '2000-01-01 00:00:00', '2099-12-31 23:59:59', 10 );
 
@@ -359,12 +339,11 @@ function cspv_ajax_post_search() {
     $search_log_counts = array();
     if ( ! empty( $posts ) ) {
         $s_ids_str = implode( ',', array_map( function( $p ) { return (int) $p->ID; }, $posts ) );
-        $s_table = cspv_views_table();
-        $s_cnt   = cspv_count_expr();
-        $s_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $s_table ) );
+        $s_table = esc_sql( cspv_views_table() );
+        $s_cnt   = esc_sql( cspv_count_expr() );
+        $s_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $s_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
         if ( $s_table_exists ) {
-            $s_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                "SELECT post_id, {$s_cnt} AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" );
+            $s_rows = $wpdb->get_results( "SELECT post_id, {$s_cnt} AS cnt FROM `{$s_table}` WHERE post_id IN ({$s_ids_str}) GROUP BY post_id" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
             foreach ( (array) $s_rows as $sr ) {
                 $search_log_counts[ (int) $sr->post_id ] = (int) $sr->cnt;
             }
@@ -407,9 +386,9 @@ function cspv_ajax_post_history() {
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
     if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
 
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
     $log_count  = 0;
@@ -423,49 +402,30 @@ function cspv_ajax_post_history() {
     $wp_48h    = wp_date( 'Y-m-d H:i:s', time() - 172800 );
 
     if ( $table_exists ) {
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
 
-        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $first_log = $wpdb->get_var( $wpdb->prepare( "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
 
-        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $last_log = $wpdb->get_var( $wpdb->prepare( "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
 
         // Daily views for last 180 days
-        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
-             FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= %s
-             GROUP BY day ORDER BY day ASC", $post_id, $wp_180d ) );
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, {$cnt} AS views FROM `{$table}` WHERE post_id = %d AND viewed_at >= %s GROUP BY day ORDER BY day ASC", $post_id, $wp_180d ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         foreach ( (array) $rows as $r ) {
             $daily[] = array( 'day' => $r->day, 'views' => (int) $r->views );
         }
 
         // Hourly views for last 48 hours
-        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, {$cnt} AS views
-             FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= %s
-             GROUP BY hour ORDER BY hour ASC", $post_id, $wp_48h ) );
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at, '%%Y-%%m-%%d %%H:00') AS hour, {$cnt} AS views FROM `{$table}` WHERE post_id = %d AND viewed_at >= %s GROUP BY hour ORDER BY hour ASC", $post_id, $wp_48h ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         foreach ( (array) $rows as $r ) {
             $hourly[] = array( 'hour' => $r->hour, 'views' => (int) $r->views );
         }
 
         // 180 day daily timeline with top referrer per day
-        $timeline_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
-             FROM `{$table}`
-             WHERE post_id = %d AND viewed_at >= %s
-             GROUP BY day ORDER BY day DESC", $post_id, $wp_180d ) );
+        $timeline_rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, {$cnt} AS views FROM `{$table}` WHERE post_id = %d AND viewed_at >= %s GROUP BY day ORDER BY day DESC", $post_id, $wp_180d ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
 
         // Top referrer per day (uses shared referrer source)
         $ref_src  = cspv_referrer_source();
-        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-            "SELECT DATE(viewed_at) AS day, referrer, {$ref_src['cnt']} AS cnt
-             FROM `{$ref_src['table']}`
-             WHERE post_id = %d AND viewed_at >= %s AND referrer != ''
-             GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) );
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, referrer, {$ref_src['cnt']} AS cnt FROM `{$ref_src['table']}` WHERE post_id = %d AND viewed_at >= %s AND referrer != '' GROUP BY day, referrer ORDER BY day DESC, cnt DESC", $post_id, $wp_180d ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
 
         // Split referrers into self (own domain) and top external per day
         $site_host   = preg_replace( '/^www\./', '', wp_parse_url( home_url(), PHP_URL_HOST ) );
@@ -532,10 +492,9 @@ function cspv_ajax_resync_meta_from_stats() {
     $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
     if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
 
-    $table     = cspv_views_table();
-    $cnt       = cspv_count_expr();
-    $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
+    $table     = esc_sql( cspv_views_table() );
+    $cnt       = esc_sql( cspv_count_expr() );
+    $log_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
     $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
     $new_count = max( $old_count, $log_count );
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
@@ -683,7 +642,7 @@ function cspv_download_dbip_file() {
         if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
         return new WP_Error( 'gz_open_failed', 'Failed to open gzipped file.' );
     }
-    $out = fopen( $mmdb_path, 'wb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- WP Filesystem has no gzopen; streaming gzip decompression requires native fopen/fwrite.
+    $out = fopen( $mmdb_path, 'wb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- WP Filesystem has no gzopen; streaming gzip decompression requires native fopen/fwrite/fclose.
     if ( ! $out ) {
         gzclose( $gz );
         if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
@@ -693,7 +652,7 @@ function cspv_download_dbip_file() {
         fwrite( $out, gzread( $gz, 8192 ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- paired with fopen above; no WP Filesystem equivalent for gzip streaming.
     }
     gzclose( $gz );
-    fclose( $out );
+    fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- paired with the fopen/gzopen above; no WP Filesystem equivalent for this gzip streaming pattern
     if ( file_exists( $gz_path ) ) { wp_delete_file( $gz_path ); }
 
     $size = filesize( $mmdb_path );
@@ -756,7 +715,14 @@ add_action( 'cspv_dbip_auto_update', function() {
     try {
         cspv_dbip_auto_update_run();
     } catch ( \Throwable $e ) {
-        // Prevent WP-Cron crash loops on PHP 8+ fatal errors.
+        error_log( sprintf( '[cloudscale-site-analytics] cron cspv_dbip_auto_update failed (%s): %s', get_class( $e ), $e->getMessage() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional cron error logging
+        if ( class_exists( 'CloudScale_Telegram' ) ) {
+            CloudScale_Telegram::send(
+                "DB-IP geolocation auto-update cron failed.\n\nError: " . $e->getMessage(),
+                'Site Analytics',
+                'error'
+            );
+        }
     }
 } );
 
@@ -781,6 +747,15 @@ function cspv_dbip_auto_update_run() {
     }
 
     $installed_ym = get_option( 'cspv_dbip_installed_ym', '' );
+
+    // Only ever auto-refresh a database the user has already downloaded once
+    // by hand. The first download is never performed automatically, so no
+    // external request to DB-IP occurs without an explicit user action.
+    // See the readme "External services" section.
+    if ( '' === $installed_ym ) {
+        return;
+    }
+
     if ( $installed_ym === gmdate( 'Y-m' ) ) {
         return; // Already on the current month's database
     }
@@ -808,21 +783,19 @@ function cspv_ajax_purge_visitors() {
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
     $days  = absint( wp_unslash( $_POST['days'] ?? 90 ) );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         wp_send_json_error( 'Visitors table does not exist.' ); return;
     }
 
     if ( $days === 0 ) {
-        $deleted = $wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $deleted = $wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         wp_send_json_success( array( 'deleted' => 'all', 'remaining' => 0 ) );
     }
 
     $cutoff = ( new DateTime( 'now', wp_timezone() ) )->modify( '-' . $days . ' days' )->format( 'Y-m-d' );
-    $deleted = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "DELETE FROM `{$table}` WHERE viewed_at < %s", $cutoff
-    ) );
-    $remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM `{$table}` WHERE viewed_at < %s", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+    $remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
 
     wp_send_json_success( array(
         'deleted'   => (int) $deleted,
@@ -839,6 +812,7 @@ function cspv_ajax_purge_visitors() {
  * @return string  Admin notice suffix, e.g. ' DB-IP Lite (45 MB) downloaded automatically.'
  */
 function cspv_save_display_settings() {
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce is always verified by every caller before invoking this function
     $valid_positions = array( 'before_content', 'after_content', 'both', 'off' );
     $pos = isset( $_POST['cspv_auto_display'] ) ? sanitize_text_field( wp_unslash( $_POST['cspv_auto_display'] ) ) : 'before_content';
     update_option( 'cspv_auto_display', in_array( $pos, $valid_positions, true ) ? $pos : 'before_content' );
@@ -878,6 +852,7 @@ function cspv_save_display_settings() {
         }
     }
 
+    // phpcs:enable WordPress.Security.NonceVerification.Missing
     return $geo_notice;
 }
 
@@ -968,4 +943,67 @@ function cspv_ajax_insights_dashboard() {
         'top_countries_over_time' => cspv_insights_countries_over_time( $from_str, $to_str, $period ),
         'top_referrer_domains'    => cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host ),
     ) );
+}
+
+/**
+ * AJAX: return country breakdown for a single post (all-time).
+ * Used by the Post Analytics geo map in the Insights tab.
+ *
+ * @since 2.9.318
+ * @return void
+ */
+function cspv_ajax_post_geo_map() {
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed. Please refresh the page.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 ); return; }
+
+    global $wpdb;
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
+
+    $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+    if ( ! $table_exists ) { wp_send_json_success( array() ); return; }
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+        "SELECT country_code AS cc, COALESCE(SUM(view_count),0) AS v
+         FROM `{$table}`
+         WHERE post_id = %d AND country_code <> ''
+         GROUP BY country_code ORDER BY v DESC",
+        $post_id
+    ) );
+
+    $geo = array();
+    if ( is_array( $rows ) ) {
+        foreach ( $rows as $r ) {
+            $geo[] = array( 'cc' => $r->cc, 'v' => (int) $r->v );
+        }
+    }
+
+    // Top 5 referrers for this post.
+    $ref_table = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
+    $ref_rows  = array();
+    if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+            "SELECT referrer AS r, SUM(view_count) AS v
+             FROM `{$ref_table}`
+             WHERE post_id = %d AND referrer <> ''
+             GROUP BY referrer ORDER BY v DESC LIMIT 5",
+            $post_id
+        ) );
+    }
+    $refs = array();
+    if ( is_array( $ref_rows ) ) {
+        foreach ( $ref_rows as $r ) {
+            $refs[] = array( 'r' => $r->r, 'v' => (int) $r->v );
+        }
+    }
+
+    wp_send_json_success( array( 'geo' => $geo, 'refs' => $refs ) );
+}
+
+function cspv_ajax_version() {
+    wp_send_json( array( 'v' => CSPV_VERSION ) );
 }

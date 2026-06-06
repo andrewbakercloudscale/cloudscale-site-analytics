@@ -14,6 +14,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 // -------------------------------------------------------------------------
 // 1. Table creation, also runs lazily on admin_init if the table is missing
@@ -105,8 +106,8 @@ function cspv_track_404() {
 		: '';
 	$now = current_time( 'mysql' );
 
-	$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+	$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
 			"INSERT INTO `{$table}` (url, referrer, hit_count, first_seen, last_seen)
 			 VALUES (%s, %s, 1, %s, %s)
 			 ON DUPLICATE KEY UPDATE hit_count = hit_count + 1, last_seen = %s",
@@ -173,7 +174,7 @@ function cspv_ajax_purge_404_log() {
 
 	global $wpdb;
 	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
-	$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+	$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
 	wp_send_json_success( array( 'message' => '404 log cleared.' ) );
 }
 
@@ -200,14 +201,14 @@ function cspv_render_404_html() {
 		return;
 	}
 
-	$total_unique = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
-	$total_hits   = (int) $wpdb->get_var( "SELECT SUM(hit_count) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+	$total_unique = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+	$total_hits   = (int) $wpdb->get_var( "SELECT SUM(hit_count) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
 
-	$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
 		"SELECT url, referrer, hit_count, first_seen, last_seen
 		 FROM `{$table}`
 		 ORDER BY hit_count DESC, last_seen DESC
-		 LIMIT 50" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		 LIMIT 50" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
 	);
 
 	$over_limit = $total_unique > 50;

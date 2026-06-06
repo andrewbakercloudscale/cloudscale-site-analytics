@@ -9,6 +9,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 function cspv_render_stats_tab( $vars ) {
     extract( $vars, EXTR_SKIP ); // phpcs:ignore WordPress.PHP.DontExtract.extract_extract -- admin-only, all keys are trusted internal names
@@ -186,7 +187,7 @@ function cspv_render_stats_tab( $vars ) {
             </div>
             <div id="cspv-cf-rule">
                 Required Cache Rule: URI Path <code>contains</code>
-                <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Cache Status: <strong>Bypass</strong>
+                <code>/wp-json/cloudscale-site-analytics/</code> → Cache Status: <strong>Bypass</strong>
             </div>
             <div id="cspv-cf-test-log"></div>
         </div>
@@ -396,6 +397,52 @@ function cspv_render_insights_tab( $vars ) {
                                 </div>
                                 <?php endforeach; ?>
                             <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geo Post View -->
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:0;">
+                    <div style="background:linear-gradient(135deg,#581c87,#7e22ce);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">&#x1F5FA; Geo Post View</div>
+                    <div style="padding:12px 16px 16px;">
+                        <p style="margin:0 0 10px;font-size:12px;color:#64748b;">Click a post to see its geographic traffic distribution.</p>
+                        <div id="cspv-geo-post-list" style="max-height:260px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;">
+                            <?php if ( empty( $ph_top_posts ) ) : ?>
+                                <div style="padding:20px;text-align:center;color:#888;font-size:12px;">No posts with views found.</div>
+                            <?php else : ?>
+                                <?php foreach ( $ph_top_posts as $i => $p ) :
+                                    $geo_views = (int) get_post_meta( $p->ID, CSPV_META_KEY, true );
+                                    $geo_bg    = $i % 2 === 0 ? '#ffffff' : '#f8fafc';
+                                ?>
+                                <div class="cspv-geo-post-item" data-id="<?php echo (int) $p->ID; ?>"
+                                     data-title="<?php echo esc_attr( $p->post_title ); ?>"
+                                     style="display:flex;align-items:center;padding:8px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;background:<?php echo esc_attr( $geo_bg ); ?>;transition:background .15s;">
+                                    <div style="min-width:0;flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                        <?php echo esc_html( $p->post_title ); ?>
+                                    </div>
+                                    <div style="width:80px;text-align:right;font-weight:800;font-size:13px;color:#7e22ce;font-variant-numeric:tabular-nums;flex-shrink:0;">
+                                        <?php echo esc_html( number_format( $geo_views ) ); ?>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                        <div id="cspv-geo-map-wrap" style="display:none;margin-top:14px;">
+                            <div id="cspv-geo-map-post-title" style="font-size:12px;font-weight:700;color:#581c87;margin-bottom:8px;padding:6px 10px;background:#f5f3ff;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+                            <div id="cspv-geo-map-el" style="height:300px;background:#0f172a;border-radius:6px;overflow:hidden;"></div>
+                            <div id="cspv-geo-map-legend" style="padding:8px 4px 4px;font-size:11px;color:#64748b;"></div>
+                            <div id="cspv-geo-ref-wrap" style="display:none;margin-top:12px;">
+                                <div style="font-size:11px;font-weight:700;color:#581c87;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Top Referrers</div>
+                                <table id="cspv-geo-ref-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0;">
+                                            <th style="text-align:left;padding:4px 8px;color:#64748b;font-weight:600;">Source</th>
+                                            <th style="text-align:right;padding:4px 8px;color:#64748b;font-weight:600;width:70px;">Views</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cspv-geo-ref-body"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -671,12 +718,12 @@ function cspv_render_display_tab( $vars ) {
                 <?php
                 global $wpdb;
                 $vis_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
-                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
                 if ( $vis_exists ) {
-                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
                     echo '<div style="font-size:11px;color:#888;margin-top:4px;">'
                        . 'Visitor table: ' . number_format( $vis_rows ) . ' rows, '
                        . number_format( $vis_unique ) . ' unique hashes';
@@ -1406,10 +1453,10 @@ ob_start();
 
     // ── Insights Dashboard ─────────────────────────────────────────
     var INS_PALETTE = [
-        '#ef4444','#f97316','#eab308','#22c55e','#14b8a6',
-        '#3b82f6','#8b5cf6','#ec4899','#f43f5e','#84cc16',
-        '#06b6d4','#a855f7','#10b981','#f59e0b','#6366f1',
-        '#e11d48','#0ea5e9','#d946ef','#65a30d','#0891b2'
+        '#ef4444','#3b82f6','#22c55e','#f97316','#8b5cf6',
+        '#06b6d4','#eab308','#10b981','#0ea5e9','#a855f7',
+        '#84cc16','#14b8a6','#6366f1','#f59e0b','#ec4899',
+        '#0891b2','#65a30d','#d946ef','#e11d48','#7c3aed'
     ];
     var INS_DASHES = [[],[6,3],[3,3],[8,3,2,3],[4,4],[10,3],[2,2],[6,2,2,2]];
 
@@ -2823,7 +2870,7 @@ ob_start();
                 { title: 'Most Viewed Posts', badge: 'info', body: 'Top 10 posts ranked by view count within the selected period. Only views recorded by the JavaScript beacon are counted here. Click any title to visit the post.' },
                 { title: 'All Time Statistics', badge: 'info', body: 'The All Time banner shows your lifetime total views tracked by the beacon. The All Time Top Posts list ranks by lifetime total tracked views.' },
                 { title: 'Top Referrers', badge: 'info', body: 'Shows the top referring domains for the selected period. Direct visits and your own domain are excluded. Common sources include Google, social media, and external links.' },
-                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Bypass Cache.' },
+                { title: 'Cloudflare Cache Bypass', badge: 'tip', body: 'The diagnostic test confirms your Cloudflare Cache Rule is correctly bypassing cache for the REST API. If the counter does not increment, add a Cache Rule: URI Path contains <code>/wp-json/cloudscale-site-analytics/</code> → Bypass Cache.' },
                 { title: 'Installation', badge: 'required', body: 'No additional installation required. The plugin creates its database table automatically on activation. Ensure your Cloudflare Cache Rule is set up (see Cache Bypass above) for accurate counting behind a CDN.' }
             ]
         },
@@ -2950,7 +2997,7 @@ ob_start();
 
     // ── Cache bypass test ──────────────────────────────────────────
     (function() {
-        var testUrl  = <?php echo wp_json_encode( rest_url( 'cloudscale-wordpress-free-analytics/v1/cache-test' ) ); ?>;
+        var testUrl  = <?php echo wp_json_encode( rest_url( 'cloudscale-site-analytics/v1/cache-test' ) ); ?>;
         var wpNonce  = <?php echo wp_json_encode( wp_create_nonce( 'wp_rest' ) ); ?>;
         var badge    = document.getElementById('cspv-cf-status-badge');
         var log      = document.getElementById('cspv-cf-test-log');
@@ -3080,7 +3127,7 @@ ob_start();
         },
         'cache-test': {
             title: '☁ Cloudflare Cache Test',
-            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Bypass Cache.</p>'
+            body: '<p>This diagnostic tests whether your Cloudflare Cache Rule is correctly bypassing the cache for the CloudScale REST API endpoint.</p><p>Click <strong>Run Test</strong> to send a POST followed by a GET to the cache test endpoint. If the counter increments, the endpoint is not cached and your Cache Rule is working. If the counter stays the same on repeated tests, Cloudflare is caching the API response and views will not be recorded.</p><p>To fix, add a Cache Rule in Cloudflare: URI Path contains <code>/wp-json/cloudscale-site-analytics/</code> → Bypass Cache.</p>'
         },
         'display-position': {
             title: '📍 Display Position',
@@ -3308,12 +3355,12 @@ ob_start();
             .then(function(r) { return r.json(); })
             .then(function(resp) {
                 if (!resp.success) { expandDiv.textContent = 'Failed to load.'; return; }
-                renderExpand(expandDiv, resp.data);
+                renderExpand(expandDiv, resp.data, postId, rowEl.dataset.title || '');
             })
             .catch(function() { expandDiv.textContent = 'Network error.'; });
         }
 
-        function renderExpand(expandDiv, data) {
+        function renderExpand(expandDiv, data, postId, postTitle) {
             var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             var tl = (data.timeline || []).filter(function(r) { return r.views > 0; }).slice(0, 30);
             var maxV = 0;
@@ -3364,7 +3411,134 @@ ob_start();
             expandDiv.innerHTML = html;
         }
 
+    })();
 
+    // ── Geo Post View section ──────────────────────────────────────────────────
+    (function() {
+        var geoMap = null, geoMarkers = [], geoLoadedId = 0;
+        var geoList = document.getElementById('cspv-geo-post-list');
+        if (!geoList) return;
+
+        function loadGeoSection(postId, title) {
+            var wrap    = document.getElementById('cspv-geo-map-wrap');
+            var titleEl = document.getElementById('cspv-geo-map-post-title');
+            var mapEl   = document.getElementById('cspv-geo-map-el');
+            var legend  = document.getElementById('cspv-geo-map-legend');
+            if (!wrap || !mapEl) return;
+
+            if (titleEl) titleEl.textContent = '🗺️ ' + title.substring(0, 70);
+            wrap.style.display = 'block';
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            if (geoLoadedId === postId && geoMap) {
+                setTimeout(function() { geoMap.invalidateSize(); }, 100);
+                return;
+            }
+            geoLoadedId = postId;
+
+            if (geoMap) {
+                geoMarkers.forEach(function(m) { geoMap.removeLayer(m); });
+                geoMarkers = [];
+                geoMap.remove();
+                geoMap = null;
+            }
+            mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;">Loading…</div>';
+            if (legend) legend.textContent = '';
+            var refWrap = document.getElementById('cspv-geo-ref-wrap');
+            var refBody = document.getElementById('cspv-geo-ref-body');
+            if (refWrap) refWrap.style.display = 'none';
+
+            fetch(ajaxUrl, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=cspv_post_geo_map&nonce=' + encodeURIComponent(nonce) + '&post_id=' + postId
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                mapEl.innerHTML = '';
+                // Support both legacy array response and new {geo, refs} shape.
+                var geoData = Array.isArray(resp.data) ? resp.data : (resp.data && resp.data.geo ? resp.data.geo : []);
+                var refsData = (resp.data && resp.data.refs) ? resp.data.refs : [];
+
+                if (!resp.success || !geoData.length) {
+                    mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;">No geo data for this post.</div>';
+                    return;
+                }
+                if (typeof L === 'undefined') {
+                    mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#c3372b;font-size:13px;">Map library not loaded.</div>';
+                    return;
+                }
+                geoMap = L.map(mapEl, {
+                    center: [20, 10], zoom: 2, minZoom: 1, maxZoom: 6,
+                    scrollWheelZoom: false, attributionControl: false,
+                    maxBounds: [[-90,-180],[90,180]], maxBoundsViscosity: 1.0
+                });
+                geoMap.on('click', function() { geoMap.scrollWheelZoom.enable(); });
+                mapEl.addEventListener('mouseleave', function() { if (geoMap) geoMap.scrollWheelZoom.disable(); });
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                    subdomains: 'abcd', maxZoom: 19, noWrap: true
+                }).addTo(geoMap);
+
+                var maxV = 1;
+                geoData.forEach(function(d) { if (d.v > maxV) maxV = d.v; });
+                geoData.forEach(function(item) {
+                    var coords = countryCentroids[item.cc];
+                    if (!coords) return;
+                    var ratio  = item.v / maxV;
+                    var radius = Math.max(6, Math.min(30, 6 + ratio * 24));
+                    var m = L.circleMarker(coords, {
+                        radius: radius, fillColor: '#a855f7', color: '#7e22ce',
+                        weight: 1.5, fillOpacity: 0.35 + ratio * 0.55, opacity: 0.9
+                    }).addTo(geoMap);
+                    m.bindTooltip(
+                        '<strong>' + countryFlag(item.cc) + ' ' + countryName(item.cc) + '</strong><br>' + item.v.toLocaleString() + ' views',
+                        { direction: 'top', offset: [0, -radius] }
+                    );
+                    geoMarkers.push(m);
+                });
+
+                if (legend) {
+                    legend.innerHTML = geoData.slice(0, 5).map(function(d) {
+                        return countryFlag(d.cc) + ' ' + countryName(d.cc) + ' <strong>' + d.v.toLocaleString() + '</strong>';
+                    }).join(' &nbsp;&middot;&nbsp; ');
+                }
+
+                if (refWrap && refBody && refsData.length) {
+                    refBody.innerHTML = refsData.map(function(ref, i) {
+                        var domain = ref.r;
+                        try { domain = new URL(ref.r.indexOf('://') === -1 ? 'https://' + ref.r : ref.r).hostname.replace(/^www\./, ''); } catch(e) {}
+                        var bg = i % 2 === 0 ? '#f8fafc' : '#fff';
+                        return '<tr style="background:' + bg + ';"><td style="padding:5px 8px;color:#334155;overflow:hidden;text-overflow:ellipsis;max-width:0;white-space:nowrap;" title="' + ref.r + '">' + domain + '</td><td style="padding:5px 8px;text-align:right;color:#7e22ce;font-weight:700;font-variant-numeric:tabular-nums;">' + ref.v.toLocaleString() + '</td></tr>';
+                    }).join('');
+                    refWrap.style.display = 'block';
+                }
+
+                setTimeout(function() {
+                    if (!geoMap) return;
+                    geoMap.invalidateSize();
+                    if (geoMarkers.length) {
+                        var grp = L.featureGroup(geoMarkers);
+                        var bnds = grp.getBounds();
+                        if (bnds.isValid()) geoMap.fitBounds(bnds.pad(0.25), { maxZoom: 4, animate: false });
+                    }
+                }, 200);
+            })
+            .catch(function() {
+                mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#c3372b;font-size:13px;">Failed to load geo data.</div>';
+            });
+        }
+
+        geoList.querySelectorAll('.cspv-geo-post-item').forEach(function(item) {
+            item.addEventListener('click', function() {
+                geoList.querySelectorAll('.cspv-geo-post-item').forEach(function(r) {
+                    r.style.background = '';
+                    r.style.outline = '';
+                });
+                item.style.background = '#ede9fe';
+                item.style.outline = '2px solid #7e22ce';
+                loadGeoSection(parseInt(item.dataset.id, 10), item.dataset.title || String(item.dataset.id));
+            });
+        });
     })();
 
 })();

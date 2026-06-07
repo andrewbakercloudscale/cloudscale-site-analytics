@@ -13,6 +13,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 // -------------------------------------------------------------------------
 // 1. Register widget
@@ -57,9 +58,9 @@ class CSPV_Search_Widget extends WP_Widget {
 	public function __construct() {
 		parent::__construct(
 			'cspv_search_widget',
-			__( 'CloudScale Analytics: Search', 'cloudscale-wordpress-free-analytics' ),
+			__( 'CloudScale Analytics: Search', 'cloudscale-site-analytics' ),
 			array(
-				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt, short terms like "AI" work correctly. Results capped at 50.', 'cloudscale-wordpress-free-analytics' ),
+				'description'           => __( 'Wildcard search form. Finds posts by LIKE match on title, content and excerpt, short terms like "AI" work correctly. Results capped at 50.', 'cloudscale-site-analytics' ),
 				'show_instance_in_rest' => true,
 			)
 		);
@@ -74,8 +75,8 @@ class CSPV_Search_Widget extends WP_Widget {
 	 * @return void
 	 */
 	public function widget( $args, $instance ) {
-		$title       = ! empty( $instance['title'] )       ? $instance['title']       : __( 'Search', 'cloudscale-wordpress-free-analytics' );
-		$placeholder = ! empty( $instance['placeholder'] ) ? $instance['placeholder'] : __( 'Search posts…', 'cloudscale-wordpress-free-analytics' );
+		$title       = ! empty( $instance['title'] )       ? $instance['title']       : __( 'Search', 'cloudscale-site-analytics' );
+		$placeholder = ! empty( $instance['placeholder'] ) ? $instance['placeholder'] : __( 'Search posts…', 'cloudscale-site-analytics' );
 		$btn_color   = ! empty( $instance['btn_color'] )   ? sanitize_hex_color( $instance['btn_color'] )   : '#e8491d';
 		$btn_hover   = ! empty( $instance['btn_hover'] )   ? sanitize_hex_color( $instance['btn_hover'] )   : '#f27c1a';
 
@@ -98,7 +99,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
 					<path fill-rule="evenodd" d="M9 3a6 6 0 1 0 3.72 10.72l3.28 3.28a1 1 0 0 0 1.42-1.42l-3.28-3.28A6 6 0 0 0 9 3Zm-4 6a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd"/>
 				</svg>
-				<span class="screen-reader-text"><?php esc_html_e( 'Search', 'cloudscale-wordpress-free-analytics' ); ?></span>
+				<span class="screen-reader-text"><?php esc_html_e( 'Search', 'cloudscale-site-analytics' ); ?></span>
 			</button>
 		</form>
 		<?php
@@ -113,13 +114,13 @@ class CSPV_Search_Widget extends WP_Widget {
 	 * @return void
 	 */
 	public function form( $instance ) {
-		$title       = $instance['title']       ?? __( 'Search', 'cloudscale-wordpress-free-analytics' );
-		$placeholder = $instance['placeholder'] ?? __( 'Search posts…', 'cloudscale-wordpress-free-analytics' );
+		$title       = $instance['title']       ?? __( 'Search', 'cloudscale-site-analytics' );
+		$placeholder = $instance['placeholder'] ?? __( 'Search posts…', 'cloudscale-site-analytics' );
 		$btn_color   = $instance['btn_color']   ?? '#e8491d';
 		$btn_hover   = $instance['btn_hover']   ?? '#f27c1a';
 		?>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"><?php esc_html_e( 'Title:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"><?php esc_html_e( 'Title:', 'cloudscale-site-analytics' ); ?></label>
 			<input class="widefat"
 				   id="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'title' ) ); ?>"
@@ -127,7 +128,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				   value="<?php echo esc_attr( $title ); ?>">
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"><?php esc_html_e( 'Input placeholder:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"><?php esc_html_e( 'Input placeholder:', 'cloudscale-site-analytics' ); ?></label>
 			<input class="widefat"
 				   id="<?php echo esc_attr( $this->get_field_id( 'placeholder' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'placeholder' ) ); ?>"
@@ -135,7 +136,7 @@ class CSPV_Search_Widget extends WP_Widget {
 				   value="<?php echo esc_attr( $placeholder ); ?>">
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"><?php esc_html_e( 'Button colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"><?php esc_html_e( 'Button colour:', 'cloudscale-site-analytics' ); ?></label><br>
 			<input id="<?php echo esc_attr( $this->get_field_id( 'btn_color' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'btn_color' ) ); ?>"
 				   type="color"
@@ -144,7 +145,7 @@ class CSPV_Search_Widget extends WP_Widget {
 			<code style="font-size:11px;color:#666;"><?php echo esc_html( $btn_color ); ?></code>
 		</p>
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"><?php esc_html_e( 'Button hover colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"><?php esc_html_e( 'Button hover colour:', 'cloudscale-site-analytics' ); ?></label><br>
 			<input id="<?php echo esc_attr( $this->get_field_id( 'btn_hover' ) ); ?>"
 				   name="<?php echo esc_attr( $this->get_field_name( 'btn_hover' ) ); ?>"
 				   type="color"
@@ -241,8 +242,8 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 	$t0_exact = $esc;
 
 	// Standard WP pattern: get_results( prepare( ... ) ), prepare() returns safe SQL string, get_results() executes it.
-	$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts is a trusted core table name
+	$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $wpdb->posts is a trusted core table name
 			"SELECT {$wpdb->posts}.*
 			 FROM {$wpdb->posts}
 			 WHERE {$wpdb->posts}.post_status = 'publish'

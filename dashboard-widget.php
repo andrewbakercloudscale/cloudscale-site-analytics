@@ -983,48 +983,52 @@ function cspv_ajax_widget_lists() {
     }
     check_ajax_referer( 'cspv_widget_lists', 'nonce' );
 
-    $period = sanitize_text_field( wp_unslash( $_POST['period'] ?? 'day' ) );
+    try {
+        $period = sanitize_text_field( wp_unslash( $_POST['period'] ?? 'day' ) );
 
-    // Compute date range based on period
-    $now = new DateTime( 'now', wp_timezone() );
-    switch ( $period ) {
-        case 'hours':
-            $from = clone $now;
-            $from->modify( '-12 hours' );
-            break;
-        case 'day':
-            $from = clone $now;
-            $from->modify( '-24 hours' );
-            break;
-        case 'days':
-            $from = clone $now;
-            $from->modify( '-7 days' );
-            break;
-        case 'month':
-            $from = clone $now;
-            $from->modify( '-30 days' );
-            break;
-        case 'months':
-            $from = clone $now;
-            $from->modify( '-6 months' );
-            break;
-        default:
-            $from = clone $now;
-            $from->modify( '-24 hours' );
+        // Compute date range based on period
+        $now = new DateTime( 'now', wp_timezone() );
+        switch ( $period ) {
+            case 'hours':
+                $from = clone $now;
+                $from->modify( '-12 hours' );
+                break;
+            case 'day':
+                $from = clone $now;
+                $from->modify( '-24 hours' );
+                break;
+            case 'days':
+                $from = clone $now;
+                $from->modify( '-7 days' );
+                break;
+            case 'month':
+                $from = clone $now;
+                $from->modify( '-30 days' );
+                break;
+            case 'months':
+                $from = clone $now;
+                $from->modify( '-6 months' );
+                break;
+            default:
+                $from = clone $now;
+                $from->modify( '-24 hours' );
+        }
+        $from_str = $from->format( 'Y-m-d H:i:s' );
+        $to_str   = $now->format( 'Y-m-d H:i:s' );
+
+        // Top pages (shared function)
+        $top_pages = cspv_top_pages( $from_str, $to_str, 3 );
+
+        // Referrers (domains + pages)
+        $ref_domains = cspv_top_referrer_domains( $from_str, $to_str, 3 );
+        $ref_pages   = cspv_top_referrer_pages( $from_str, $to_str, 3 );
+
+        wp_send_json_success( array(
+            'top_pages'    => $top_pages,
+            'ref_domains'  => $ref_domains,
+            'ref_pages'    => $ref_pages,
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
     }
-    $from_str = $from->format( 'Y-m-d H:i:s' );
-    $to_str   = $now->format( 'Y-m-d H:i:s' );
-
-    // Top pages (shared function)
-    $top_pages = cspv_top_pages( $from_str, $to_str, 3 );
-
-    // Referrers (domains + pages)
-    $ref_domains = cspv_top_referrer_domains( $from_str, $to_str, 3 );
-    $ref_pages   = cspv_top_referrer_pages( $from_str, $to_str, 3 );
-
-    wp_send_json_success( array(
-        'top_pages'    => $top_pages,
-        'ref_domains'  => $ref_domains,
-        'ref_pages'    => $ref_pages,
-    ) );
 }

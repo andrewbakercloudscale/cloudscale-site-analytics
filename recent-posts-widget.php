@@ -51,9 +51,9 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
     public function __construct() {
         parent::__construct(
             'cspv_recent_posts_widget',
-            __( 'CloudScale Analytics: Recent Posts', 'cloudscale-wordpress-free-analytics' ),
+            __( 'CloudScale Analytics: Recent Posts', 'cloudscale-site-analytics' ),
             array(
-                'description'            => __( 'Shows your latest posts with publication dates and view counts. Paginated with configurable post count.', 'cloudscale-wordpress-free-analytics' ),
+                'description'            => __( 'Shows your latest posts with publication dates and view counts. Paginated with configurable post count.', 'cloudscale-site-analytics' ),
                 'show_instance_in_rest'  => true,
             )
         );
@@ -89,17 +89,17 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
      * @return void
      */
     public function widget( $args, $instance ) {
-        $title          = apply_filters( 'widget_title', $instance['title'] ?? __( 'Most Recent Posts', 'cloudscale-wordpress-free-analytics' ) );
+        $title          = apply_filters( 'widget_title', $instance['title'] ?? __( 'Most Recent Posts', 'cloudscale-site-analytics' ) );
         $posts_per_page = intval( $instance['posts_per_page'] ?? 10 );
         $show_date      = ! empty( $instance['show_date'] );
         $show_views     = ! empty( $instance['show_views'] );
         $meta_color     = ! empty( $instance['meta_color'] )     ? sanitize_hex_color( $instance['meta_color'] )     : '#c2410c';
-        $meta_hover     = ! empty( $instance['meta_hover'] )     ? sanitize_hex_color( $instance['meta_hover'] )     : '#ea580c';
+        $meta_hover     = ! empty( $instance['meta_hover'] )     ? sanitize_hex_color( $instance['meta_hover'] )     : '#ea580c'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- WP widget API form, nonce not applicable
         $widget_id      = $args['widget_id'];
         $param_key      = 'cspv_rp_' . sanitize_key( $widget_id );
         $safe_id        = esc_attr( $widget_id );
 
-        $page = isset( $_GET[ $param_key ] ) ? max( 1, absint( wp_unslash( $_GET[ $param_key ] ) ) ) : 1;
+        $page = isset( $_GET[ $param_key ] ) ? max( 1, absint( wp_unslash( $_GET[ $param_key ] ) ) ) : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- widget save form, nonce not required per WP widget API
 
         $query = new WP_Query( array(
             'posts_per_page' => $posts_per_page,
@@ -194,7 +194,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
 
             wp_reset_postdata();
         } else {
-            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No posts found.', 'cloudscale-wordpress-free-analytics' ) . '</p>';
+            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No posts found.', 'cloudscale-site-analytics' ) . '</p>';
         }
 
         echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
@@ -208,7 +208,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
      * @return void
      */
     public function form( $instance ) {
-        $title          = $instance['title'] ?? __( 'Most Recent Posts', 'cloudscale-wordpress-free-analytics' );
+        $title          = $instance['title'] ?? __( 'Most Recent Posts', 'cloudscale-site-analytics' );
         $posts_per_page = $instance['posts_per_page'] ?? 10;
         $show_date      = ! empty( $instance['show_date'] );
         $show_views     = isset( $instance['show_views'] ) ? (bool) $instance['show_views'] : true;
@@ -216,7 +216,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
         $meta_hover     = $instance['meta_hover'] ?? '#ea580c';
         ?>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Title:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Title:', 'cloudscale-site-analytics' ); ?></label>
             <input class="widefat"
                    id="<?php echo esc_attr( $this->get_field_id('title') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('title') ); ?>"
@@ -224,7 +224,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
                    value="<?php echo esc_attr( $title ); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page:', 'cloudscale-site-analytics' ); ?></label>
             <input class="tiny-text"
                    id="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('posts_per_page') ); ?>"
@@ -236,17 +236,17 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
                    id="<?php echo esc_attr( $this->get_field_id('show_date') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('show_date') ); ?>"
                    <?php checked( $show_date ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id('show_date') ); ?>"><?php esc_html_e( 'Display post date', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('show_date') ); ?>"><?php esc_html_e( 'Display post date', 'cloudscale-site-analytics' ); ?></label>
         </p>
         <p>
             <input type="checkbox"
                    id="<?php echo esc_attr( $this->get_field_id('show_views') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('show_views') ); ?>"
                    <?php checked( $show_views ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id('show_views') ); ?>"><?php esc_html_e( 'Display view count', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('show_views') ); ?>"><?php esc_html_e( 'Display view count', 'cloudscale-site-analytics' ); ?></label>
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'cloudscale-site-analytics' ); ?></label><br>
             <input id="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('meta_color') ); ?>"
                    type="color"
@@ -255,7 +255,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
             <code style="font-size:11px;color:#666;"><?php echo esc_html( $meta_color ); ?></code>
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'cloudscale-site-analytics' ); ?></label><br>
             <input id="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('meta_hover') ); ?>"
                    type="color"

@@ -1,4 +1,5 @@
 <?php
+// phpcs:ignoreFile -- third-party vendor library (MaxMind DB Reader Apache-2.0); not subject to WP coding standards
 
 declare(strict_types=1);
 
@@ -94,7 +95,7 @@ class Decoder
             if ($type < 8) {
                 throw new InvalidDatabaseException(
                     'Something went horribly wrong in the decoder. An extended type '
-                    . 'resolved to a type number < 8 ('
+                    . 'resolved to a type number < 8 (' // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
                     . $type
                     . ')'
                 );
@@ -152,7 +153,7 @@ class Decoder
                 return [$this->decodeUint($bytes, $size), $newOffset];
 
             default:
-                throw new InvalidDatabaseException(
+                throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
                     'Unknown or unexpected type: ' . $type
                 );
         }
@@ -328,7 +329,7 @@ class Decoder
                 break;
 
             default:
-                throw new InvalidDatabaseException(
+                throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
                     'Unexpected pointer size ' . $pointerSize
                 );
         }

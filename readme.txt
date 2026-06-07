@@ -1,10 +1,10 @@
 === CloudScale Site Analytics ===
-Contributors: cloudscale
-Tags: page views, analytics, statistics, view counter, free analytics
+Contributors: cloudscale, andrewjbaker
+Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.316
+Stable tag: 2.9.362
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,7 +48,7 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 
 == Installation ==
 
-1. Upload the `cloudscale-wordpress-free-analytics` folder to `/wp-content/plugins/`
+1. Upload the `cloudscale-site-analytics` folder to `/wp-content/plugins/`
 2. Activate the plugin in Plugins > Installed Plugins
 3. The database table is created automatically on activation
 4. Add the Cloudflare Cache Rule (see FAQ)
@@ -62,7 +62,7 @@ In the Cloudflare dashboard go to Caching > Cache Rules > Create Rule:
 
 * Field: URI Path
 * Operator: contains
-* Value: /wp-json/cloudscale-wordpress-free-analytics/
+* Value: /wp-json/cloudscale-site-analytics/
 * Action: Cache Status: Bypass
 
 The plugin also sends no cache headers on every REST response, but the Cache Rule is the primary protection.
@@ -188,14 +188,31 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 This plugin optionally connects to the following external services:
 
 = DB-IP Lite (optional, geolocation only) =
-When you click "Download DB-IP Lite" in the plugin's statistics page, the plugin fetches the free DB-IP City Lite database directly from DB-IP's servers:
+IP geolocation is optional. To enable it you click "Download DB-IP Lite" on the plugin's statistics page, which fetches the free DB-IP City Lite database directly from DB-IP's servers:
 * Service URL: https://download.db-ip.com/
-* This request is only made when you explicitly trigger it from the admin panel.
-* DB-IP Privacy Policy: https://db-ip.com/db/privacy-policy.html
-* DB-IP Terms of Use: https://db-ip.com/db/terms.html
-* The database is stored locally on your server after download; no data is sent to DB-IP.
+* The first download happens only when you explicitly trigger it from the admin panel. After that, while the auto-update option is enabled (it can be turned off on the statistics page), the plugin checks once per month via WP-Cron and downloads a fresh monthly database to keep geolocation accurate. No automatic download ever occurs until you have performed the first download yourself.
+* What is sent: only the standard HTTP GET request required to fetch the database file. No site, post, or visitor data is transmitted to DB-IP.
+* DB-IP Privacy Policy: https://db-ip.com/privacy.php
+* DB-IP Terms of Use: https://db-ip.com/tos.php
+* The database file is stored locally in your site's uploads directory after download.
 
-No data is transmitted to any external service during normal page view tracking. The JavaScript beacon only communicates with your own site's REST API endpoint.
+= CartoCDN (optional, geography map tiles only) =
+When the optional DB-IP geolocation feature is enabled and you view the Statistics page, the geography heat-map (powered by Leaflet.js) loads map tile images from CartoCDN:
+* Service URL: https://basemaps.cartocdn.com/
+* When it fires: only when an admin user views the Geography section of the Statistics page and a DB-IP database has been downloaded. Never fires on the public-facing site.
+* What is sent: standard tile requests (HTTP GET for map image tiles). The request URL includes zoom level and tile coordinates; no site data, post data, or visitor data is transmitted.
+* CartoCDN Privacy Policy: https://carto.com/privacy/
+* CartoCDN Terms of Service: https://carto.com/legal/
+
+No visitor or site data is transmitted to any external service during page view tracking. The JavaScript beacon communicates only with your own site's REST API endpoint, and view counts never leave your server.
+
+== Third-party libraries ==
+
+The following open-source libraries are bundled with this plugin. The minified production builds are shipped; the full, unminified source for each is available at the linked upstream project, and each is under a GPL-compatible licence:
+
+* Chart.js 4.4.1 — MIT License — https://github.com/chartjs/Chart.js/releases/tag/v4.4.1
+* Leaflet 1.9.4 — BSD-2-Clause License — https://github.com/Leaflet/Leaflet/releases/tag/v1.9.4
+* MaxMind DB Reader (PHP) — Apache License 2.0 — https://github.com/maxmind/MaxMind-DB-Reader-php
 
 == License ==
 

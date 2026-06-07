@@ -61,7 +61,10 @@ function cspv_create_table_v2() {
 }
 
 /**
- * V2 referrer table: one row per post + hour + referrer.
+ * Create the V2 referrer table: one row per post per hour per referrer.
+ *
+ * @since 1.0.0
+ * @return void
  */
 function cspv_create_table_referrers_v2() {
     global $wpdb;
@@ -89,8 +92,10 @@ function cspv_create_table_referrers_v2() {
  * Create the geo tracking table.
  *
  * Stores country code per post per hour bucket. Country is resolved
- * from the CloudFlare CF-IPCountry header (no raw IP stored).
- * Later can be extended with city/lat/lng from DB-IP Lite.
+ * from the Cloudflare CF-IPCountry header or DB-IP; no raw IP stored.
+ *
+ * @since 1.0.0
+ * @return void
  */
 function cspv_create_table_geo_v2() {
     global $wpdb;
@@ -116,10 +121,12 @@ function cspv_create_table_geo_v2() {
 /**
  * Create the unique visitors tracking table.
  *
- * Stores a SHA256 hash of the visitor IP per post per calendar day.
- * The unique key ensures the same visitor viewing the same post
- * on the same day only creates one row (INSERT IGNORE).
+ * Stores a SHA-256 hash of visitor IP per post per calendar day.
+ * INSERT IGNORE deduplicates so each visitor counts once per post per day.
  * No raw IP is ever stored.
+ *
+ * @since 2.9.94
+ * @return void
  */
 function cspv_create_table_visitors_v2() {
     global $wpdb;
@@ -145,8 +152,12 @@ function cspv_create_table_visitors_v2() {
  * Create the session depth tracking table.
  *
  * One row per session+post pair (INSERT IGNORE deduplication).
- * session_id is a browser-generated random token stored in sessionStorage, * it contains no PII and is scoped to a single browser tab session.
- * Enables computing pages-per-session percentiles (P50 / P95 / P99).
+ * session_id is a browser-generated random token stored in sessionStorage;
+ * it contains no PII and is scoped to a single browser tab session.
+ * Enables computing pages-per-session percentiles (P50/P95/P99).
+ *
+ * @since 2.9.307
+ * @return void
  */
 function cspv_create_table_sessions_v2() {
     global $wpdb;

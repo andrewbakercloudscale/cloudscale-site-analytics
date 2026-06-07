@@ -61,7 +61,7 @@ function cspv_enqueue_beacon() {
     }
 
     wp_enqueue_script(
-        'cloudscale-wordpress-free-analytics-beacon',
+        'cloudscale-site-analytics-beacon',
         CSPV_PLUGIN_URL . 'beacon.js',
         array(),
         CSPV_VERSION,
@@ -71,7 +71,7 @@ function cspv_enqueue_beacon() {
     // Some optimisation plugins strip ?ver= from scripts.
     // Re-add the version as a cache buster that survives stripping.
     add_filter( 'script_loader_src', function( $src, $handle ) {
-        if ( $handle === 'cloudscale-wordpress-free-analytics-beacon' && strpos( $src, 'ver=' ) === false ) {
+        if ( $handle === 'cloudscale-site-analytics-beacon' && strpos( $src, 'ver=' ) === false ) {
             $src = add_query_arg( 'cspv', CSPV_VERSION, $src );
         }
         return $src;
@@ -79,16 +79,16 @@ function cspv_enqueue_beacon() {
 
     $data = array(
         'mode'       => $is_singular ? 'record' : 'fetch',
-        'countsUrl'  => rest_url( 'cloudscale-wordpress-free-analytics/v1/counts' ),
+        'countsUrl'  => rest_url( 'cloudscale-site-analytics/v1/counts' ),
         'nonce'      => wp_create_nonce( 'wp_rest' ),
         'dedupOn'    => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
     );
 
     if ( $is_singular ) {
         $post_id         = get_the_ID();
-        $data['apiUrl']  = rest_url( 'cloudscale-wordpress-free-analytics/v1/record/' . $post_id );
+        $data['apiUrl']  = rest_url( 'cloudscale-site-analytics/v1/record/' . $post_id );
         $data['postId']  = $post_id;
     }
 
-    wp_localize_script( 'cloudscale-wordpress-free-analytics-beacon', 'cspvData', $data );
+    wp_localize_script( 'cloudscale-site-analytics-beacon', 'cspvData', $data );
 }

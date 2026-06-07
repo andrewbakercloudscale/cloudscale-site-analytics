@@ -192,6 +192,21 @@ function cspv_render_stats_tab( $vars ) {
             <div id="cspv-cf-test-log"></div>
         </div>
 
+        <!-- ── CloudScale Backup & Restore promo ─────────────────────── -->
+        <div style="margin-top:24px;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12);">
+            <div style="background:linear-gradient(135deg,#9d174d,#ec4899);padding:20px 24px 16px;display:flex;align-items:center;gap:16px;">
+                <div style="font-size:44px;flex-shrink:0;line-height:1;">☁️</div>
+                <div>
+                    <div style="font-size:30px;font-weight:800;color:#fff;line-height:1.2;font-family:'Space Grotesk',sans-serif;">CloudScale Backup &amp; Restore</div>
+                    <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;">From the same team that built this analytics plugin</div>
+                </div>
+            </div>
+            <div style="background:#fff;padding:22px 24px 24px;">
+                <p style="font-size:20px;color:#1e293b;margin:0 0 14px;line-height:1.5;">The only WordPress backup plugin that is <strong>100% free</strong> — including one-click restore. Other plugins like UpdraftPlus and BackupBuddy charge $70–$200 per year just to recover your site.</p>
+                <p style="font-size:20px;color:#1e293b;margin:0 0 20px;line-height:1.5;">Includes automatic scheduled backups, Amazon S3, Google Drive, Dropbox, and EC2 AMI snapshots. <strong>No subscription. No upsells. Ever.</strong></p>
+                <a href="https://help.cloudscale.consulting/plugin-help/backup-restore/" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;font-size:18px;font-weight:700;padding:13px 30px;border-radius:8px;text-decoration:none;box-shadow:0 2px 10px rgba(157,23,77,.35);">Learn More &rarr;</a>
+            </div>
+        </div>
 
     </div><!-- /stats tab -->
     <?php
@@ -1510,7 +1525,7 @@ ob_start();
     }
 
     function countryFlag(cc) {
-        if (!cc || cc.length !== 2) return '';
+        if (!cc || cc.length !== 2 || cc === 'ZZ') return '🌐 ';
         try {
             return cc.toUpperCase().replace(/./g, function(c) {
                 return String.fromCodePoint(c.charCodeAt(0) + 127397);
@@ -1568,7 +1583,7 @@ ob_start();
         return (arr || []).filter(function(x) { return !x.is_self; });
     }
 
-    function insCustomLegend(elId, items, colorFn, dashFn) {
+    function insCustomLegend(elId, items, colorFn, dashFn, valuesFn, total) {
         var el = document.getElementById(elId);
         if (!el) return;
         el.innerHTML = items.map(function(label, i) {
@@ -1586,7 +1601,19 @@ ob_start();
             } else {
                 inner = '<span class="cspv-ins-legend-dot" style="background:' + col + '"></span>';
             }
-            return '<span class="cspv-ins-legend-item">' + inner + esc(label) + '</span>';
+            var stat = '';
+            if (valuesFn) {
+                var v = valuesFn(i);
+                stat = '<span style="margin-left:auto;padding-left:8px;font-variant-numeric:tabular-nums;font-size:11px;color:#64748b;white-space:nowrap">'
+                    + v.toLocaleString()
+                    + (total ? ' <span style="color:#94a3b8">(' + Math.round(v / total * 100) + '%)</span>' : '')
+                    + '</span>';
+            }
+            return '<span class="cspv-ins-legend-item" style="display:flex;align-items:center;width:100%;min-width:0">'
+                + inner
+                + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">' + esc(label) + '</span>'
+                + stat
+                + '</span>';
         }).join('');
     }
 
@@ -1613,7 +1640,7 @@ ob_start();
                 }
             }
         });
-        insCustomLegend('cspv-ins-traffic-legend', labels, function(i){ return colors[i]; });
+        insCustomLegend('cspv-ins-traffic-legend', labels, function(i){ return colors[i]; }, null, function(i){ return values[i]; }, total);
     }
 
     function renderInsGrowthChart(growth) {
@@ -2190,10 +2217,10 @@ ob_start();
     // ── Geography rendering ───────────────────────────────────────
     var countryNames = {AF:'Afghanistan',AL:'Albania',DZ:'Algeria',AO:'Angola',AR:'Argentina',AM:'Armenia',AT:'Austria',AU:'Australia',AZ:'Azerbaijan',BA:'Bosnia and Herzegovina',BD:'Bangladesh',BE:'Belgium',BF:'Burkina Faso',BG:'Bulgaria',BJ:'Benin',BO:'Bolivia',BR:'Brazil',BS:'Bahamas',BW:'Botswana',BY:'Belarus',BZ:'Belize',CA:'Canada',CD:'DR Congo',CI:'Côte d\'Ivoire',CM:'Cameroon',CH:'Switzerland',CL:'Chile',CN:'China',CO:'Colombia',CR:'Costa Rica',CZ:'Czechia',DE:'Germany',DK:'Denmark',DO:'Dominican Republic',EC:'Ecuador',EG:'Egypt',ET:'Ethiopia',ES:'Spain',FI:'Finland',FR:'France',GB:'United Kingdom',GH:'Ghana',GR:'Greece',GT:'Guatemala',HK:'Hong Kong',HN:'Honduras',HR:'Croatia',HU:'Hungary',ID:'Indonesia',IE:'Ireland',IL:'Israel',IN:'India',IQ:'Iraq',IR:'Iran',IT:'Italy',JP:'Japan',KE:'Kenya',KG:'Kyrgyzstan',KH:'Cambodia',KZ:'Kazakhstan',KR:'South Korea',LK:'Sri Lanka',MA:'Morocco',MD:'Moldova',MM:'Myanmar',MN:'Mongolia',MO:'Macao',MW:'Malawi',MX:'Mexico',MY:'Malaysia',MZ:'Mozambique',NA:'Namibia',NG:'Nigeria',NL:'Netherlands',NO:'Norway',NP:'Nepal',NZ:'New Zealand',OM:'Oman',PA:'Panama',PE:'Peru',PH:'Philippines',PK:'Pakistan',PL:'Poland',PT:'Portugal',PY:'Paraguay',QA:'Qatar',RO:'Romania',RS:'Serbia',RU:'Russia',RW:'Rwanda',SA:'Saudi Arabia',SD:'Sudan',SE:'Sweden',SG:'Singapore',SK:'Slovakia',SN:'Senegal',SV:'El Salvador',TH:'Thailand',TN:'Tunisia',TR:'Turkey',TW:'Taiwan',TZ:'Tanzania',UA:'Ukraine',UG:'Uganda',US:'United States',UY:'Uruguay',UZ:'Uzbekistan',VN:'Vietnam',YE:'Yemen',ZA:'South Africa',ZM:'Zambia',ZW:'Zimbabwe'};
     function countryFlag(cc) {
-        if (!cc || cc.length !== 2) return '';
+        if (!cc || cc.length !== 2 || cc === 'ZZ') return '🌐 ';
         return String.fromCodePoint(... Array.from(cc.toUpperCase()).map(function(c){ return 0x1F1E6 - 65 + c.charCodeAt(0); })) + ' ';
     }
-    function countryName(cc) { return countryNames[cc] || cc; }
+    function countryName(cc) { return cc === 'ZZ' ? 'Unknown' : (countryNames[cc] || cc); }
 
     // Country centroids for map markers
     var countryCentroids = {AF:[33,65],AL:[41,20],DZ:[28,3],AO:[-12.5,18.5],AR:[-34,-64],AT:[47.5,14],AU:[-25,134],BD:[24,90],BE:[50.8,4.5],BG:[43,25],BR:[-10,-55],CA:[56,-96],CH:[47,8],CL:[-35.5,-71],CN:[35,105],CO:[4,-72],CZ:[49.8,15.5],DE:[51,10],DK:[56,10],EG:[27,30],ES:[40,-4],FI:[64,26],FR:[46.5,2.5],GB:[54,-2],GH:[8,-1.5],GR:[39,22],HK:[22.3,114.2],HU:[47,19],ID:[-5,120],IE:[53.5,-8],IL:[31.5,34.8],IN:[22,79],IQ:[33,44],IR:[32,53],IT:[42.5,12.5],JP:[36,138],KE:[-1,38],KR:[36,128],MA:[32,-6],MX:[23,-102],MY:[4.2,101.9],NG:[10,8],NL:[52.5,5.7],NO:[64,12],NZ:[-42,174],PH:[12,122],PK:[30,70],PL:[52,20],PT:[39.5,-8],RO:[46,25],RU:[60,100],SA:[24,45],SE:[63,16],SG:[1.35,103.8],TH:[15.5,101],TR:[39,35],TW:[23.7,121],TZ:[-6.5,35],UA:[49,32],US:[39,-98],VN:[16,106],ZA:[-29,24],ZW:[-19.5,29.8]};
@@ -3504,11 +3531,22 @@ ob_start();
                 }
 
                 if (refWrap && refBody && refsData.length) {
+                    var siteHost = location.hostname.replace(/^www\./, '');
                     refBody.innerHTML = refsData.map(function(ref, i) {
-                        var domain = ref.r;
-                        try { domain = new URL(ref.r.indexOf('://') === -1 ? 'https://' + ref.r : ref.r).hostname.replace(/^www\./, ''); } catch(e) {}
+                        var label = ref.r;
+                        try {
+                            var u = new URL(ref.r.indexOf('://') === -1 ? 'https://' + ref.r : ref.r);
+                            var host = u.hostname.replace(/^www\./, '');
+                            if (host === siteHost && u.pathname && u.pathname !== '/') {
+                                // Same-site: show path so duplicate domains are distinguishable
+                                label = u.pathname.replace(/\/$/, '').split('/').pop() || u.pathname;
+                                label = decodeURIComponent(label).replace(/-/g, ' ');
+                            } else {
+                                label = host;
+                            }
+                        } catch(e) {}
                         var bg = i % 2 === 0 ? '#f8fafc' : '#fff';
-                        return '<tr style="background:' + bg + ';"><td style="padding:5px 8px;color:#334155;overflow:hidden;text-overflow:ellipsis;max-width:0;white-space:nowrap;" title="' + ref.r + '">' + domain + '</td><td style="padding:5px 8px;text-align:right;color:#7e22ce;font-weight:700;font-variant-numeric:tabular-nums;">' + ref.v.toLocaleString() + '</td></tr>';
+                        return '<tr style="background:' + bg + ';"><td style="padding:5px 8px;color:#334155;overflow:hidden;text-overflow:ellipsis;max-width:0;white-space:nowrap;" title="' + ref.r + '">' + label + '</td><td style="padding:5px 8px;text-align:right;color:#7e22ce;font-weight:700;font-variant-numeric:tabular-nums;">' + ref.v.toLocaleString() + '</td></tr>';
                     }).join('');
                     refWrap.style.display = 'block';
                 }

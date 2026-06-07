@@ -1,4 +1,5 @@
 <?php
+// phpcs:ignoreFile -- third-party vendor library (MaxMind DB Reader Apache-2.0); not subject to WP coding standards
 
 declare(strict_types=1);
 
@@ -75,14 +76,13 @@ class Reader
     public function __construct(string $database)
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError(
+            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
             );
         }
-
-        $fileHandle = @fopen($database, 'rb');
+        $fileHandle = @fopen($database, 'rb'); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- vendor library
         if ($fileHandle === false) {
-            throw new \InvalidArgumentException(
+            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 "The file \"$database\" does not exist or is not readable."
             );
         }
@@ -90,7 +90,7 @@ class Reader
 
         $fileSize = @filesize($database);
         if ($fileSize === false) {
-            throw new \UnexpectedValueException(
+            throw new \UnexpectedValueException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 "Error determining the size of \"$database\"."
             );
         }
@@ -124,7 +124,7 @@ class Reader
     public function get(string $ipAddress)
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError(
+            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
             );
         }
@@ -151,7 +151,7 @@ class Reader
     public function getWithPrefixLen(string $ipAddress): array
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError(
+            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
             );
         }
@@ -174,7 +174,7 @@ class Reader
     {
         $packedAddr = @inet_pton($ipAddress);
         if ($packedAddr === false) {
-            throw new \InvalidArgumentException(
+            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 "The value \"$ipAddress\" is not a valid IP address."
             );
         }
@@ -201,7 +201,7 @@ class Reader
                 $node = $this->ipV4Start;
             }
         } elseif ($metadata->ipVersion === 4 && $bitCount === 128) {
-            throw new \InvalidArgumentException(
+            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 "Error looking up $ipAddress. You attempted to look up an"
                 . ' IPv6 address in an IPv4-only database.'
             );
@@ -293,7 +293,7 @@ class Reader
 
             default:
                 throw new InvalidDatabaseException(
-                    'Unknown record size: '
+                    'Unknown record size: ' // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                     . $this->metadata->recordSize
                 );
         }
@@ -327,7 +327,7 @@ class Reader
         $handle = $this->fileHandle;
         $fstat = fstat($handle);
         if ($fstat === false) {
-            throw new InvalidDatabaseException(
+            throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 "Error getting file information ($filename)."
             );
         }
@@ -341,14 +341,13 @@ class Reader
             if (fseek($handle, $offset) !== 0) {
                 break;
             }
-
-            $value = fread($handle, $markerLength);
+            $value = fread($handle, $markerLength); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- vendor library
             if ($value === $marker) {
                 return $offset + $markerLength;
             }
         }
 
-        throw new InvalidDatabaseException(
+        throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
             "Error opening database file ($filename). " .
             'Is this a valid MaxMind DB file?'
         );
@@ -363,7 +362,7 @@ class Reader
     public function metadata(): Metadata
     {
         if (\func_num_args()) {
-            throw new \ArgumentCountError(
+            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args())
             );
         }
@@ -388,7 +387,7 @@ class Reader
     public function close(): void
     {
         if (\func_num_args()) {
-            throw new \ArgumentCountError(
+            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
                 sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args())
             );
         }
@@ -398,6 +397,6 @@ class Reader
                 'Attempt to close a closed MaxMind DB.'
             );
         }
-        fclose($this->fileHandle);
+        fclose($this->fileHandle); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- vendor library
     }
 }

@@ -16,6 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 /**
  * Return the active views table name (always the V2 hourly-bucket table).
@@ -41,6 +42,12 @@ function cspv_count_expr() {
     return 'COALESCE(SUM(view_count),0)';
 }
 
+/**
+ * Check whether the V2 views table exists, cached for the request lifetime.
+ *
+ * @since  1.0.0
+ * @return bool True when the table is present.
+ */
 function cspv_views_table_exists(): bool {
     static $exists = null;
     if ( $exists !== null ) return $exists;
@@ -49,6 +56,12 @@ function cspv_views_table_exists(): bool {
     return $exists;
 }
 
+/**
+ * Check whether the V2 404 tracking table exists, cached for the request lifetime.
+ *
+ * @since  2.9.94
+ * @return bool True when the table is present.
+ */
 function cspv_404_table_exists(): bool {
     static $exists = null;
     if ( $exists !== null ) return $exists;
@@ -63,7 +76,7 @@ function cspv_earliest_view_date(): ?string {
     if ( ! cspv_views_table_exists() ) { $earliest = null; return null; }
     global $wpdb;
     $table    = cspv_views_table();
-    $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+    $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.DirectDatabaseQuery
     return $earliest;
 }
 
@@ -94,7 +107,7 @@ function cspv_ref_table_has_col( $col ) {
     }
     global $wpdb;
     $ref_table       = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
-    $cache[ $col ]   = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", $col ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $ref_table is a trusted internal table name
+    $cache[ $col ]   = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$ref_table}` LIKE %s", $col ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $ref_table is a trusted internal table name
     return $cache[ $col ];
 }
 
@@ -112,14 +125,14 @@ function cspv_ref_table_has_col( $col ) {
 function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
     global $wpdb;
     $src = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
     $cnt       = $src['cnt'];
 
     if ( ! cspv_ref_table_has_col( 'referrer' ) ) {
         return array();
     }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
         "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
@@ -161,14 +174,14 @@ function cspv_top_referrer_domains( $from_str, $to_str, $limit = 10 ) {
 function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
     global $wpdb;
     $src = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
     $cnt       = $src['cnt'];
 
     if ( ! cspv_ref_table_has_col( 'referrer' ) ) {
         return array();
     }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $cnt is a trusted aggregate expression, $ref_table is an internal table name
         "SELECT referrer, {$cnt} AS view_count FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY view_count DESC LIMIT 200", $from_str, $to_str ) );
@@ -206,13 +219,13 @@ function cspv_top_referrer_pages( $from_str, $to_str, $limit = 20 ) {
 function cspv_top_pages_by_referrer_host( $host, $from_str, $to_str, $limit = 10 ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
     $cnt       = $src['cnt'];
 
     $http_like  = 'http://'  . $wpdb->esc_like( $host ) . '%';
     $https_like = 'https://' . $wpdb->esc_like( $host ) . '%';
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt and $ref_table are trusted internal values
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $cnt and $ref_table are trusted internal values
         "SELECT post_id, {$cnt} AS views
          FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s
@@ -258,8 +271,8 @@ function cspv_rolling_24h_views() {
     }
 
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
 
     if ( ! cspv_views_table_exists() ) {
         $cache = array( 'current' => 0, 'prior' => 0, 'from_str' => '', 'to_str' => '' );
@@ -274,12 +287,12 @@ function cspv_rolling_24h_views() {
     $from_str    = $ago24->format( 'Y-m-d H:i:s' );
     $prior_start = $ago48->format( 'Y-m-d H:i:s' );
 
-    $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str
     ) );
 
-    $prior = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $prior = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $prior_start, $from_str
     ) );
@@ -311,8 +324,8 @@ function cspv_rolling_28d_views() {
     }
 
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
 
     if ( ! cspv_views_table_exists() ) {
         $cache = array( 'current' => 0, 'prior' => 0 );
@@ -324,8 +337,8 @@ function cspv_rolling_28d_views() {
     $prev_s   = wp_date( 'Y-m-d', strtotime( '-56 days', $today_ts ) ) . ' 00:00:00';
     $prev_e   = wp_date( 'Y-m-d', strtotime( '-29 days', $today_ts ) ) . ' 23:59:59';
 
-    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
-    $row = $wpdb->get_row( $wpdb->prepare(
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.DirectDatabaseQuery
+    $row = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
         "SELECT
             COALESCE(SUM(CASE WHEN viewed_at >= %s               THEN view_count END), 0) AS current_28d,
             COALESCE(SUM(CASE WHEN viewed_at BETWEEN %s AND %s   THEN view_count END), 0) AS prior_28d
@@ -350,9 +363,9 @@ function cspv_rolling_28d_views() {
  */
 function cspv_views_for_range( $from_str, $to_str ) {
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT {$cnt} FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str ) );
 }
@@ -367,8 +380,8 @@ function cspv_views_for_range( $from_str, $to_str ) {
  */
 function cspv_unique_posts_for_range( $from_str, $to_str ) {
     global $wpdb;
-    $table = cspv_views_table();
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $table = esc_sql( cspv_views_table() );
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT post_id) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_str, $to_str ) );
 }
@@ -388,8 +401,8 @@ function cspv_unique_posts_for_range( $from_str, $to_str ) {
 function cspv_hot_pages_for_range( $from_str, $to_str, $min_views = 2 ) {
     global $wpdb;
     $table      = cspv_views_table();
-    $cnt        = cspv_count_expr();
-    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $cnt        = esc_sql( cspv_count_expr() );
+    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY views DESC",
@@ -424,9 +437,9 @@ function cspv_hot_pages_for_range( $from_str, $to_str, $min_views = 2 ) {
  */
 function cspv_top_pages( $from_str, $to_str, $limit = 3 ) {
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-    $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $cnt and $table are trusted internal values
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
+    $rows  = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $cnt and $table are trusted internal values
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY views DESC LIMIT %d",
@@ -458,13 +471,13 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         return array();
     }
 
     $limit_sql = $limit > 0 ? $wpdb->prepare( ' LIMIT %d', $limit ) : '';
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table and $limit_sql are trusted internal values
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table and $limit_sql are trusted internal values
         "SELECT country_code, COALESCE(SUM(view_count),0) AS views
          FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s AND country_code <> ''
@@ -499,12 +512,12 @@ function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         return array();
     }
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT post_id, COALESCE(SUM(view_count),0) AS views
          FROM `{$table}`
          WHERE country_code = %s AND viewed_at BETWEEN %s AND %s
@@ -605,7 +618,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         return 0;
     }
@@ -614,7 +627,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     $from_date = substr( $from_str, 0, 10 );
     $to_date   = substr( $to_str, 0, 10 );
 
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s",
         $from_date, $to_date
     ) );
@@ -639,7 +652,7 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_sessions_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         return null; // Table not yet created, caller should hide the UI
     }
@@ -648,7 +661,7 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
     $to_date   = substr( $to_str,   0, 10 );
 
     // One count per session: how many distinct pages did this session view?
-    $counts = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+    $counts = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
         "SELECT COUNT(post_id) AS pages FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY session_id",
@@ -690,10 +703,10 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
  */
 function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_str, $limit = 20 ) {
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY views DESC LIMIT %d",
@@ -706,7 +719,7 @@ function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_s
     $post_ids = array_map( function( $r ) { return (int) $r->post_id; }, $rows );
     $ids_str  = implode( ',', $post_ids );
 
-    $prev_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression, $ids_str contains only integers
+    $prev_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression, $ids_str contains only integers
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s AND post_id IN ({$ids_str})
          GROUP BY post_id",
@@ -835,7 +848,7 @@ function cspv_insights_label_refs( $ref_rows, $own_host, $include_self = true ) 
 function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
     $total_views     = (int) cspv_views_for_range( $from_str, $to_str );
     $unique_visitors = (int) cspv_unique_visitors_for_range( $from_str, $to_str );
@@ -858,11 +871,11 @@ function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
     $countries   = cspv_top_countries( $from_str, $to_str, 1 );
     $top_country = ! empty( $countries ) ? $countries[0] : null;
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     $top_ref = null;
     $top_ref_no_self = null;
     if ( $has_ref ) {
-        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
              WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
              GROUP BY referrer ORDER BY views DESC LIMIT 200",
@@ -904,15 +917,15 @@ function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
 function cspv_insights_traffic_sources( $from_str, $to_str, $own_host ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
     $total = (int) cspv_views_for_range( $from_str, $to_str );
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $has_ref ) {
         return array( array( 'label' => 'Direct', 'views' => $total, 'is_self' => false ) );
     }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY views DESC LIMIT 500",
@@ -946,16 +959,16 @@ function cspv_insights_traffic_sources( $from_str, $to_str, $own_host ) {
 function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $has_ref ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
         ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
         : "DATE(viewed_at)";
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT {$date_expr} AS bucket, referrer, COALESCE(SUM(view_count),0) AS views
          FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
@@ -1005,10 +1018,10 @@ function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period )
  */
 function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
     global $wpdb;
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
+    $table = esc_sql( cspv_views_table() );
+    $cnt   = esc_sql( cspv_count_expr() );
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT post_id, {$cnt} AS views FROM `{$table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY post_id ORDER BY views DESC LIMIT %d",
@@ -1018,7 +1031,7 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
 
     // Fetch new vs returning visitor data from the visitors table.
     $visitor_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
-    $has_visitors  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $visitor_table ) );
+    $has_visitors  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $visitor_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     $audience_map  = array();
 
     if ( $has_visitors ) {
@@ -1026,11 +1039,9 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
         foreach ( $rows as $r ) { $pids[] = (int) $r->post_id; }
         $from_date    = substr( $from_str, 0, 10 );
         $to_date      = substr( $to_str, 0, 10 );
-        $placeholders = implode( ', ', array_fill( 0, count( $pids ), '%d' ) );
-        $args         = array_merge( array( $from_date, $from_date, $to_date ), $pids );
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-        $audience = $wpdb->get_results( $wpdb->prepare(
+        // IN clause: pids are already cast to int above so direct interpolation is safe.
+        $in_clause = implode( ', ', array_map( 'absint', $pids ) );
+        $audience = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name; IN clause uses absint()-sanitised integers only
             "SELECT curr.post_id,
                     COUNT(DISTINCT curr.visitor_hash) AS total_uniq,
                     COUNT(DISTINCT CASE WHEN prev.visitor_hash IS NOT NULL THEN curr.visitor_hash END) AS returning_uniq
@@ -1038,9 +1049,9 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
              LEFT JOIN (
                  SELECT DISTINCT post_id, visitor_hash FROM `{$visitor_table}` WHERE viewed_at < %s
              ) prev ON prev.post_id = curr.post_id AND prev.visitor_hash = curr.visitor_hash
-             WHERE curr.viewed_at BETWEEN %s AND %s AND curr.post_id IN ({$placeholders})
+             WHERE curr.viewed_at BETWEEN %s AND %s AND curr.post_id IN ({$in_clause})
              GROUP BY curr.post_id",
-            $args
+            $from_date, $from_date, $to_date
         ) );
 
         foreach ( $audience as $a ) {
@@ -1091,13 +1102,13 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
 function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_posts = 15, $max_refs = 8 ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
-    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array( 'headers' => array(), 'rows' => array() ); }
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT post_id, referrer, COALESCE(SUM(view_count),0) AS views
          FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' AND post_id > 0
@@ -1161,13 +1172,13 @@ function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_po
 function cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host, $max_refs = 10, $max_pages = 5 ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
-    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array(); }
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT referrer, post_id, COALESCE(SUM(view_count),0) AS views
          FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' AND post_id > 0
@@ -1234,12 +1245,12 @@ function cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host, $m
 function cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host, $limit = 15 ) {
     global $wpdb;
     $src       = cspv_referrer_source();
-    $ref_table = $src['table'];
+    $ref_table = esc_sql( $src['table'] );
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $has_ref ) { return array(); }
 
-    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
          WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
          GROUP BY referrer ORDER BY views DESC LIMIT 300",
@@ -1269,14 +1280,14 @@ function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_co
     global $wpdb;
     $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $has_geo = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) );
+    $has_geo = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $has_geo ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
         ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
         : "DATE(viewed_at)";
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT {$date_expr} AS bucket, country_code, COALESCE(SUM(view_count),0) AS views
          FROM `{$geo_table}`
          WHERE viewed_at BETWEEN %s AND %s AND country_code IS NOT NULL AND country_code <> ''
@@ -1322,9 +1333,9 @@ function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_co
  */
 function cspv_insights_peak_hours( $from_str, $to_str ) {
     global $wpdb;
-    $table = cspv_views_table();
+    $table = esc_sql( cspv_views_table() );
 
-    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT (DAYOFWEEK(viewed_at) + 5) %% 7 AS dow,
                 HOUR(viewed_at) AS hour,
                 SUM(view_count) AS views
@@ -1377,7 +1388,7 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     }
 
     // 2. Best single day
-    $best_day = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $best_day = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT DATE(viewed_at) AS day, SUM(view_count) AS views FROM `{$views_table}`
          WHERE viewed_at BETWEEN %s AND %s
          GROUP BY DATE(viewed_at) ORDER BY views DESC LIMIT 1",
@@ -1390,7 +1401,7 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
     // 3. Top post share
     if ( $total_views > 0 ) {
-        $top_p = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $top_p = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT post_id, SUM(view_count) AS views FROM `{$views_table}`
              WHERE viewed_at BETWEEN %s AND %s GROUP BY post_id ORDER BY views DESC LIMIT 1",
             $from_str, $to_str
@@ -1409,9 +1420,9 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     // 4. Top external source concentration
     $src       = cspv_referrer_source();
     $ref_table = $src['table'];
-    $has_ref   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) );
+    $has_ref   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( $has_ref && $total_views > 0 ) {
-        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
              WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
              GROUP BY referrer ORDER BY views DESC LIMIT 200",
@@ -1438,13 +1449,13 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
     // 5. New countries this period
     $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
-    $has_geo   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) );
+    $has_geo   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( $has_geo ) {
-        $curr_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $curr_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT DISTINCT country_code FROM `{$geo_table}` WHERE viewed_at BETWEEN %s AND %s AND country_code NOT IN ('','--')",
             $from_str, $to_str
         ) );
-        $prev_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $prev_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT DISTINCT country_code FROM `{$geo_table}` WHERE viewed_at BETWEEN %s AND %s AND country_code NOT IN ('','--')",
             $prev_from, $prev_to
         ) );
@@ -1463,12 +1474,12 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
     // 6. Fastest-growing referrer vs prior period
     if ( $has_ref ) {
-        $curr_refs = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $curr_refs = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
              WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' GROUP BY referrer",
             $from_str, $to_str
         ) );
-        $prev_refs = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $prev_refs = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
              WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> '' GROUP BY referrer",
             $prev_from, $prev_to
@@ -1502,7 +1513,7 @@ function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( ! $table_exists ) {
         return 0;
     }
@@ -1510,7 +1521,7 @@ function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     $from_date = substr( $from_str, 0, 10 );
     $to_date   = substr( $to_str, 0, 10 );
 
-    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+    return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
         "SELECT COUNT(DISTINCT visitor_hash) FROM `{$table}` WHERE post_id = %d AND viewed_at BETWEEN %s AND %s",
         $post_id, $from_date, $to_date
     ) );

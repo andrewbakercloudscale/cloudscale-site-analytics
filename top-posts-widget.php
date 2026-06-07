@@ -12,6 +12,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 // Enqueue widget CSS/JS only on pages where the widget is active.
 add_action( 'wp_enqueue_scripts', 'cspv_top_posts_widget_enqueue' );
@@ -54,10 +55,10 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
     // --- Rank by views ---
     if ( $order_by === 'views' ) {
         global $wpdb;
-        $table = cspv_views_table();
-        $cnt   = cspv_count_expr();
+        $table = esc_sql( cspv_views_table() );
+        $cnt   = esc_sql( cspv_count_expr() );
 
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
 
         // Determine if we are in the transition period.
         // If the log table has fewer than view_window days of data,
@@ -65,7 +66,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         $in_transition = false;
 
         if ( $table_exists && $view_window > 0 ) {
-            $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+            $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
             if ( $earliest ) {
                 $log_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
             } else {
@@ -77,7 +78,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         // ── Transition period: blend meta + beacon, rank by combined total ──
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
                 "SELECT post_id, {$cnt} AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
                 $since
             ) ) : array();
@@ -145,7 +146,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         if ( $table_exists ) {
             if ( $view_window > 0 ) {
                 $since = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
                     "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      WHERE viewed_at >= %s
@@ -156,7 +157,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                     $total * 2
                 ) );
             } else {
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
                     "SELECT post_id, {$cnt} AS view_count
                      FROM `{$table}`
                      GROUP BY post_id
@@ -202,7 +203,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
 
         // Fallback: rank by meta if log table empty or missing
         $meta_fallback = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted core table names
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts/$wpdb->postmeta are trusted core table names
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $wpdb->posts/$wpdb->postmeta are trusted core table names
                 "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS total_views
                  FROM {$wpdb->posts} p
                  INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
@@ -281,9 +282,9 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
     public function __construct() {
         parent::__construct(
             'cspv_top_posts_widget',
-            __( 'CloudScale Analytics: Top Posts', 'cloudscale-wordpress-free-analytics' ),
+            __( 'CloudScale Analytics: Top Posts', 'cloudscale-site-analytics' ),
             array(
-                'description'            => __( 'Shows your most viewed posts with thumbnails, dates and view counts. Paginated with configurable post count and sort order.', 'cloudscale-wordpress-free-analytics' ),
+                'description'            => __( 'Shows your most viewed posts with thumbnails, dates and view counts. Paginated with configurable post count and sort order.', 'cloudscale-site-analytics' ),
                 'show_instance_in_rest'  => true,
             )
         );
@@ -298,7 +299,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
      * @return void
      */
     public function widget( $args, $instance ) {
-        $title        = ! empty( $instance['title'] )        ? $instance['title']               : __( 'Top Posts', 'cloudscale-wordpress-free-analytics' );
+        $title        = ! empty( $instance['title'] )        ? $instance['title']               : __( 'Top Posts', 'cloudscale-site-analytics' );
         $total_posts  = isset( $instance['total_posts'] )    ? (int) $instance['total_posts']    : 20;
         $posts_per_pg = isset( $instance['posts_per_page'] ) ? (int) $instance['posts_per_page'] : 5;
         $image_width  = isset( $instance['image_width'] )    ? (int) $instance['image_width']    : 150;
@@ -316,7 +317,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $posts_arr = cspv_get_top_posts( $total_posts, $order_by, $view_window );
 
         if ( empty( $posts_arr ) ) {
-            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No published posts found.', 'cloudscale-wordpress-free-analytics' ) . '</p>';
+            echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No published posts found.', 'cloudscale-site-analytics' ) . '</p>';
             echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
             return;
         }
@@ -462,7 +463,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
      * @return void
      */
     public function form( $instance ) {
-        $title        = isset( $instance['title'] )          ? $instance['title']                  : __( 'Top Posts', 'cloudscale-wordpress-free-analytics' );
+        $title        = isset( $instance['title'] )          ? $instance['title']                  : __( 'Top Posts', 'cloudscale-site-analytics' );
         $total_posts  = isset( $instance['total_posts'] )    ? (int) $instance['total_posts']       : 20;
         $per_page     = isset( $instance['posts_per_page'] ) ? (int) $instance['posts_per_page']    : 5;
         $image_width  = isset( $instance['image_width'] )    ? (int) $instance['image_width']       : 150;
@@ -472,46 +473,46 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $meta_hover   = isset( $instance['meta_hover'] )     ? $instance['meta_hover']               : '#ea580c';
         ?>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Widget Title:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('title') ); ?>"><?php esc_html_e( 'Widget Title:', 'cloudscale-site-analytics' ); ?></label>
             <input class="widefat" id="<?php echo esc_attr( $this->get_field_id('title') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('title') ); ?>"
                    type="text" value="<?php echo esc_attr( $title ); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('total_posts') ); ?>"><?php esc_html_e( 'Total posts to pool (n):', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('total_posts') ); ?>"><?php esc_html_e( 'Total posts to pool (n):', 'cloudscale-site-analytics' ); ?></label>
             <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('total_posts') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('total_posts') ); ?>"
                    type="number" min="1" max="200" value="<?php echo esc_attr( $total_posts ); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page (x):', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"><?php esc_html_e( 'Posts per page (x):', 'cloudscale-site-analytics' ); ?></label>
             <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('posts_per_page') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('posts_per_page') ); ?>"
                    type="number" min="1" max="50" value="<?php echo esc_attr( $per_page ); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('image_width') ); ?>"><?php esc_html_e( 'Thumbnail width px (0 = hide):', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('image_width') ); ?>"><?php esc_html_e( 'Thumbnail width px (0 = hide):', 'cloudscale-site-analytics' ); ?></label>
             <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('image_width') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('image_width') ); ?>"
                    type="number" min="0" max="500" value="<?php echo esc_attr( $image_width ); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('order_by') ); ?>"><?php esc_html_e( 'Order posts by:', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('order_by') ); ?>"><?php esc_html_e( 'Order posts by:', 'cloudscale-site-analytics' ); ?></label>
             <select class="widefat" id="<?php echo esc_attr( $this->get_field_id('order_by') ); ?>"
                     name="<?php echo esc_attr( $this->get_field_name('order_by') ); ?>">
-                <option value="views"  <?php selected( $order_by, 'views' ); ?>><?php esc_html_e( 'Most Viewed', 'cloudscale-wordpress-free-analytics' ); ?></option>
-                <option value="date"   <?php selected( $order_by, 'date' ); ?>><?php esc_html_e( 'Most Recent', 'cloudscale-wordpress-free-analytics' ); ?></option>
+                <option value="views"  <?php selected( $order_by, 'views' ); ?>><?php esc_html_e( 'Most Viewed', 'cloudscale-site-analytics' ); ?></option>
+                <option value="date"   <?php selected( $order_by, 'date' ); ?>><?php esc_html_e( 'Most Recent', 'cloudscale-site-analytics' ); ?></option>
             </select>
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('view_window') ); ?>"><?php esc_html_e( 'View window (days, -1 = all time):', 'cloudscale-wordpress-free-analytics' ); ?></label>
+            <label for="<?php echo esc_attr( $this->get_field_id('view_window') ); ?>"><?php esc_html_e( 'View window (days, -1 = all time):', 'cloudscale-site-analytics' ); ?></label>
             <input class="tiny-text" id="<?php echo esc_attr( $this->get_field_id('view_window') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('view_window') ); ?>"
                    type="number" min="-1" max="3650" value="<?php echo esc_attr( $view_window ); ?>">
-            <br><small><?php esc_html_e( 'Posts are ranked and counted by views within this window. Set to -1 for all time.', 'cloudscale-wordpress-free-analytics' ); ?></small>
+            <br><small><?php esc_html_e( 'Posts are ranked and counted by views within this window. Set to -1 for all time.', 'cloudscale-site-analytics' ); ?></small>
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"><?php esc_html_e( 'Date & views colour:', 'cloudscale-site-analytics' ); ?></label><br>
             <input id="<?php echo esc_attr( $this->get_field_id('meta_color') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('meta_color') ); ?>"
                    type="color"
@@ -520,7 +521,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
             <code style="font-size:11px;color:#666;"><?php echo esc_html( $meta_color ); ?></code>
         </p>
         <p>
-            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'cloudscale-wordpress-free-analytics' ); ?></label><br>
+            <label for="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"><?php esc_html_e( 'Date & views hover colour:', 'cloudscale-site-analytics' ); ?></label><br>
             <input id="<?php echo esc_attr( $this->get_field_id('meta_hover') ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name('meta_hover') ); ?>"
                    type="color"

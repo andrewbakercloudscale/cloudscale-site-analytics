@@ -19,17 +19,17 @@ helpLib.run({
         operatingSystem: 'WordPress',
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        softwareVersion: '2.9.316',
-        downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
+        softwareVersion: '2.9.318',
+        downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
     },
     pageTitle:  'CloudScale Site Analytics: Free Privacy-First WordPress Analytics That Works Behind Cloudflare and Any CDN',
     pluginSlug: 'analytics',
     pageSlug:   'cloudscale-wordpress-marketing-analytics',
-    downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
+    downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip',
     repoUrl:     'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
 
-    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
+    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-site-analytics`,
     logoFile:   `${__dirname}/../cloudscale-analytics-icon.jpg`,
 
     pluginFile: `${__dirname}/../stats-page.php`,
@@ -121,8 +121,8 @@ helpLib.run({
 </table>
 <p style="margin:0 0 16px;font-weight:700;color:#0f172a;">Setup checklist (5 minutes):</p>
 <ol style="margin:0 0 0 1.3em;padding:0;font-size:1em;color:#334155;line-height:2;">
-<li><strong>Download and install</strong> the plugin: grab the zip from <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip" style="color:#16a34a;font-weight:700;">S3 (direct download)</a> or clone from <a href="https://github.com/andrewbakercloudscale/wordpress-free-analytics" target="_blank" rel="noopener" style="color:#24292f;font-weight:700;">GitHub</a>, then upload via <em>Plugins → Add New → Upload Plugin</em>. The beacon starts counting immediately on activation.</li>
-<li><strong>Cloudflare Cache Rule</strong>: in your Cloudflare dashboard, create a Cache Rule: URI Path contains <code>/wp-json/cloudscale-wordpress-free-analytics/</code>, Cache Status: Bypass. This is the critical step for CDN-accurate counting.</li>
+<li><strong>Download and install</strong> the plugin: grab the zip from <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip" style="color:#16a34a;font-weight:700;">S3 (direct download)</a> or clone from <a href="https://github.com/andrewbakercloudscale/wordpress-free-analytics" target="_blank" rel="noopener" style="color:#24292f;font-weight:700;">GitHub</a>, then upload via <em>Plugins → Add New → Upload Plugin</em>. The beacon starts counting immediately on activation.</li>
+<li><strong>Cloudflare Cache Rule</strong>: in your Cloudflare dashboard, create a Cache Rule: URI Path contains <code>/wp-json/cloudscale-site-analytics/</code>, Cache Status: Bypass. This is the critical step for CDN-accurate counting.</li>
 <li><strong>Test Cache Bypass</strong>: click the button on the Statistics tab to confirm the Cloudflare rule is working. A green badge means every visit will be counted.</li>
 <li><strong>IP Throttle</strong>: enable bot protection and configure your deduplication window so repeat reloads don't inflate counts.</li>
 <li><strong>Top Posts widget</strong>: add it to your sidebar via Appearance > Widgets so readers can discover your most popular content.</li>
@@ -164,7 +164,7 @@ helpLib.run({
 <p style="margin:0;"><strong>It is completely free.</strong> No premium tier. No per-site fees. Install it, add one Cloudflare Cache Rule, and your stats are accurate from the first pageview.</p>
 </div>
 <p>The <strong>Statistics Dashboard</strong> shows page view data stored directly in your WordPress database across five custom tables (<code>wp_cspv_views_v2</code>, <code>wp_cspv_referrers_v2</code>, <code>wp_cspv_geo_v2</code>, <code>wp_cspv_visitors_v2</code>, <code>wp_cspv_404_v2</code>). No data is ever sent to Google, Facebook, or any external service.</p>
-<p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-wordpress-free-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request rather than a cached response, it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
+<p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-site-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request rather than a cached response, it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
 <h3>Views, Top Posts and Referrers</h3>
 <ul>
 <li><strong>Period selector</strong>: switch between Today, 7 days, 30 days, 90 days, and All time. Each period queries the <code>wp_cspv_views_v2</code> table directly; no aggregation tables are needed.</li>
@@ -177,14 +177,14 @@ helpLib.run({
 <p>A separate ranked table showing lifetime view counts across all time, independent of the period selector. Includes imported Jetpack view counts blended with live beacon data if you migrated from Jetpack Stats. Useful for identifying your most valuable evergreen content.</p>
 <h3>Cloudflare Cache Bypass</h3>
 <p>An interactive test panel that verifies your Cloudflare Cache Rule is correctly configured to bypass caching for the beacon REST endpoint. Without this rule, Cloudflare caches the REST responses and beacon POSTs fail silently; your view counts appear to record but nothing is actually written.</p>
-<p><strong>Required Cache Rule:</strong> In your Cloudflare dashboard, go to Caching, then Cache Rules, and create a rule: URI Path <em>contains</em> <code>/wp-json/cloudscale-wordpress-free-analytics/</code>, Cache Status: <em>Bypass</em>.</p>
+<p><strong>Required Cache Rule:</strong> In your Cloudflare dashboard, go to Caching, then Cache Rules, and create a rule: URI Path <em>contains</em> <code>/wp-json/cloudscale-site-analytics/</code>, Cache Status: <em>Bypass</em>.</p>
 <p>Click <strong>Test Cache Bypass</strong> to send a probe request through the beacon endpoint and check whether the response has the expected headers. A green status badge confirms Cloudflare is bypassing the cache correctly; a red badge means the rule is missing or misconfigured.</p>
 <h3>404 Error Log</h3>
 <p>Tracks every 404 (page not found) response served by your site and logs the requested URL, referrer, and timestamp. Stored in <code>wp_cspv_404_v2</code>. Useful for finding broken links from external sites, detecting content that has moved without a redirect, and identifying crawler probing paths.</p>
 <p>The log shows the most recent 404 events with the requested path and the source (referrer or direct). Use this to set up 301 redirects for your most-hit missing pages before they cost you rankings or visitor trust.</p>
 <p><strong>Privacy:</strong> visitor IP addresses are hashed with SHA-256 combined with your site's <code>wp_salt</code> before storage. The raw IP is never written to the database. The hash is used only for deduplication and throttle checks.</p>
 <h3>Download &amp; Source Code</h3>
-<p><strong>Direct download (S3):</strong> <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip">cloudscale-wordpress-free-analytics.zip</a> — always the latest stable release. Upload via <em>Plugins → Add New → Upload Plugin</em> in wp-admin.</p>
+<p><strong>Direct download (S3):</strong> <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip">cloudscale-site-analytics.zip</a> — always the latest stable release. Upload via <em>Plugins → Add New → Upload Plugin</em> in wp-admin.</p>
 <p><strong>Source code (GitHub):</strong> <a href="https://github.com/andrewbakercloudscale/wordpress-free-analytics" target="_blank" rel="noopener">github.com/andrewbakercloudscale/wordpress-free-analytics</a> — MIT licensed, issues and pull requests welcome.</p>`,
 
 'geography': `

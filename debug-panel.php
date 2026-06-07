@@ -17,6 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 // Enqueue styles for the debug panel (admin-only, singular only).
 add_action( 'wp_enqueue_scripts', 'cspv_debug_panel_enqueue' );
@@ -106,28 +107,28 @@ function cspv_render_debug_panel() {
 
     global $wpdb;
     $post_id = get_the_ID();
-    $table   = cspv_views_table();
-    $cnt     = cspv_count_expr();
+    $table   = esc_sql( cspv_views_table() );
+    $cnt     = esc_sql( cspv_count_expr() );
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     $log_count    = 0;
     $first_log    = null;
     $last_log     = null;
     $daily_data   = array();
 
     if ( $table_exists ) {
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
             "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
             "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
             "SELECT DATE(viewed_at) AS day, {$cnt} AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
@@ -320,28 +321,32 @@ function cspv_ajax_resync_meta() {
         return;
     }
 
-    global $wpdb;
-    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-    if ( ! $post_id ) {
-        wp_send_json_error( array( 'message' => 'Invalid post ID.' ) );
-        return;
+    try {
+        global $wpdb;
+        $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        if ( ! $post_id ) {
+            wp_send_json_error( array( 'message' => 'Invalid post ID.' ) );
+            return;
+        }
+
+        $table = esc_sql( cspv_views_table() );
+        $cnt   = esc_sql( cspv_count_expr() );
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+        // Never reduce the meta, a partial log restore shouldn't wipe out counts meta already knows about.
+        $new_count = max( $old_count, $log_count );
+        update_post_meta( $post_id, CSPV_META_KEY, $new_count );
+
+        wp_send_json_success( array(
+            'post_id'   => $post_id,
+            'old_count' => $old_count,
+            'new_count' => $new_count,
+            'log_rows'  => $log_count,
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
     }
-
-    $table = cspv_views_table();
-    $cnt   = cspv_count_expr();
-    $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name/expression
-        "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
-    $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-    // Never reduce the meta, a partial log restore shouldn't wipe out counts meta already knows about.
-    $new_count = max( $old_count, $log_count );
-    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
-
-    wp_send_json_success( array(
-        'post_id'   => $post_id,
-        'old_count' => $old_count,
-        'new_count' => $new_count,
-        'log_rows'  => $log_count,
-    ) );
 }
 
 // AJAX handler for manual count override (e.g. after a data restore).
@@ -366,19 +371,23 @@ function cspv_ajax_set_view_count() {
         return;
     }
 
-    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-    if ( ! $post_id ) {
-        wp_send_json_error( array( 'message' => 'Invalid post ID.' ) );
-        return;
+    try {
+        $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        if ( ! $post_id ) {
+            wp_send_json_error( array( 'message' => 'Invalid post ID.' ) );
+            return;
+        }
+
+        $new_count = isset( $_POST['count'] ) ? absint( $_POST['count'] ) : 0;
+        $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
+        update_post_meta( $post_id, CSPV_META_KEY, $new_count );
+
+        wp_send_json_success( array(
+            'post_id'   => $post_id,
+            'old_count' => $old_count,
+            'new_count' => $new_count,
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
     }
-
-    $new_count = isset( $_POST['count'] ) ? absint( $_POST['count'] ) : 0;
-    $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
-    update_post_meta( $post_id, CSPV_META_KEY, $new_count );
-
-    wp_send_json_success( array(
-        'post_id'   => $post_id,
-        'old_count' => $old_count,
-        'new_count' => $new_count,
-    ) );
 }

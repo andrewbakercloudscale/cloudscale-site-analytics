@@ -24,7 +24,7 @@ add_action( 'pre_get_posts',                     'cspv_sort_by_views' );
  * @return array Modified column headers.
  */
 function cspv_add_admin_column( $columns ) {
-    $columns['cspv_views'] = __( '👁 Views', 'cloudscale-wordpress-free-analytics' );
+    $columns['cspv_views'] = __( '👁 Views', 'cloudscale-site-analytics' );
     return $columns;
 }
 

@@ -1,6 +1,6 @@
 <?php
-
-declare(strict_types=1);
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+// phpcs:ignoreFile -- third-party vendor library (MaxMind DB Reader Apache-2.0); not subject to WP coding standards
 
 /**
  * PSR-4 autoloader implementation for the MaxMind\DB namespace.
@@ -16,6 +16,7 @@ declare(strict_types=1);
  * @param string $class
  *                      the name of the class to load
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- vendor library
 function mmdb_autoload($class): void
 {
     /*

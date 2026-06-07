@@ -2,13 +2,13 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.316
+ * Version:      2.9.362
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
  * License:      GPL-2.0-or-later
  * License URI:  https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:  cloudscale-wordpress-free-analytics
+ * Text Domain:  cloudscale-site-analytics
  * Requires PHP: 7.4
  * Requires at least: 6.0
  *
@@ -19,20 +19,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.316' );
+define( 'CSPV_VERSION',    '2.9.362' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
-// ── OPcache buster: invalidate all plugin files when version changes ──
-$cspv_cached_ver = get_option( 'cspv_opcache_version', '' );
-if ( $cspv_cached_ver !== CSPV_VERSION && function_exists( 'opcache_invalidate' ) ) {
-    foreach ( glob( CSPV_PLUGIN_DIR . '*.php' ) as $cspv_file ) {
-        opcache_invalidate( $cspv_file, true );
-    }
-    update_option( 'cspv_opcache_version', CSPV_VERSION, true );
-}
-
+require_once CSPV_PLUGIN_DIR . 'includes/class-cloudscale-telegram.php';
 require_once CSPV_PLUGIN_DIR . 'stats-library.php';
 require_once CSPV_PLUGIN_DIR . 'database.php';
 require_once CSPV_PLUGIN_DIR . 'ip-throttle.php';
@@ -54,21 +46,6 @@ register_activation_hook( __FILE__, 'cspv_activate' );
 
 register_deactivation_hook( __FILE__, function () {
     wp_clear_scheduled_hook( 'cspv_dbip_auto_update' );
-
-    $dir = plugin_dir_path( __FILE__ );
-    foreach ( glob( $dir . '*.{js,css}', GLOB_BRACE ) as $f ) {
-        if ( is_file( $f ) ) { wp_delete_file( $f ); }
-    }
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    WP_Filesystem();
-    global $wp_filesystem;
-    foreach ( array( $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
-        if ( ! is_dir( $subdir ) ) { continue; }
-        foreach ( glob( $subdir . '*' ) as $f ) {
-            if ( is_file( $f ) ) { wp_delete_file( $f ); }
-        }
-        if ( $wp_filesystem ) { $wp_filesystem->rmdir( $subdir ); }
-    }
 } );
 
 // Ensure the daily DB-IP auto-update cron is always scheduled while the plugin is active.
@@ -82,18 +59,6 @@ add_action( 'admin_init', function () {
     $stored = get_option( 'cspv_version', '0' );
     if ( $stored !== CSPV_VERSION ) {
         if ( function_exists( 'opcache_reset' ) ) { opcache_reset(); }
-
-        $dir = plugin_dir_path( __FILE__ );
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        WP_Filesystem();
-        global $wp_filesystem;
-        foreach ( array( $dir . 'admin/', $dir . 'includes/' ) as $subdir ) {
-            if ( ! is_dir( $subdir ) ) { continue; }
-            foreach ( glob( $subdir . '*' ) as $f ) {
-                if ( is_file( $f ) ) { wp_delete_file( $f ); }
-            }
-            if ( $wp_filesystem ) { $wp_filesystem->rmdir( $subdir ); }
-        }
 
         cspv_create_table_v2();
         cspv_create_table_referrers_v2();

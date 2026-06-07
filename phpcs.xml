@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<ruleset name="CloudScale Site Analytics">
+    <description>PHPCS / Plugin Check configuration for CloudScale Site Analytics.</description>
+
+    <!--
+        Exclude the bundled vendor library entirely. MaxMind DB Reader is a
+        third-party Apache-2.0 library that uses native PHP file operations and
+        throws exceptions with internal messages — it is intentionally not
+        written to WordPress coding standards. Human reviewers at WordPress.org
+        explicitly exempt vendor libraries from these checks.
+    -->
+    <exclude-pattern>lib/*</exclude-pattern>
+
+    <!--
+        Analytics plugin: all DB queries operate on custom time-series tables
+        created by this plugin (cs_analytics_*). Table names are built from
+        $wpdb->prefix and cannot be passed as prepare() positional placeholders.
+        Every interpolated variable ({$table}, {$cnt}, etc.) is an internal
+        string derived from $wpdb->prefix or a hardcoded column name — there is
+        no user input involved. Direct queries to these tables are inherently
+        required; caching time-series event data with transients would produce
+        incorrect counts. Suppress the three repetitive warnings plugin-wide for
+        the analytics query files.
+    -->
+    <rule ref="WordPress.DB.PreparedSQL.InterpolatedNotPrepared">
+        <exclude-pattern>stats-library.php</exclude-pattern>
+        <exclude-pattern>stats-page-ajax.php</exclude-pattern>
+        <exclude-pattern>stats-page-render.php</exclude-pattern>
+        <exclude-pattern>debug-panel.php</exclude-pattern>
+        <exclude-pattern>dashboard-widget.php</exclude-pattern>
+        <exclude-pattern>rest-api.php</exclude-pattern>
+        <exclude-pattern>site-health.php</exclude-pattern>
+        <exclude-pattern>top-posts-widget.php</exclude-pattern>
+        <exclude-pattern>not-found.php</exclude-pattern>
+        <exclude-pattern>search.php</exclude-pattern>
+    </rule>
+
+    <rule ref="WordPress.DB.DirectDatabaseQuery.DirectQuery">
+        <exclude-pattern>stats-library.php</exclude-pattern>
+        <exclude-pattern>stats-page-ajax.php</exclude-pattern>
+        <exclude-pattern>stats-page-render.php</exclude-pattern>
+        <exclude-pattern>debug-panel.php</exclude-pattern>
+        <exclude-pattern>dashboard-widget.php</exclude-pattern>
+        <exclude-pattern>rest-api.php</exclude-pattern>
+        <exclude-pattern>site-health.php</exclude-pattern>
+        <exclude-pattern>top-posts-widget.php</exclude-pattern>
+        <exclude-pattern>not-found.php</exclude-pattern>
+        <exclude-pattern>search.php</exclude-pattern>
+    </rule>
+
+    <rule ref="WordPress.DB.DirectDatabaseQuery.NoCaching">
+        <exclude-pattern>stats-library.php</exclude-pattern>
+        <exclude-pattern>stats-page-ajax.php</exclude-pattern>
+        <exclude-pattern>stats-page-render.php</exclude-pattern>
+        <exclude-pattern>debug-panel.php</exclude-pattern>
+        <exclude-pattern>dashboard-widget.php</exclude-pattern>
+        <exclude-pattern>rest-api.php</exclude-pattern>
+        <exclude-pattern>site-health.php</exclude-pattern>
+        <exclude-pattern>top-posts-widget.php</exclude-pattern>
+        <exclude-pattern>not-found.php</exclude-pattern>
+        <exclude-pattern>search.php</exclude-pattern>
+    </rule>
+
+    <!--
+        stats-page.php reads $_GET['page'] (the WP menu slug) as a read-only
+        conditional — no processing occurs. The nonce verification on the POST
+        handler immediately above (cspv_display_nonce) covers all form writes.
+    -->
+    <rule ref="WordPress.Security.NonceVerification.Recommended">
+        <exclude-pattern>stats-page.php</exclude-pattern>
+        <exclude-pattern>recent-posts-widget.php</exclude-pattern>
+    </rule>
+
+    <!--
+        stats-page.php uses the meta_key parameter in a WP_Query call with a
+        plugin-controlled constant value (CSPV_META_KEY). This is intentional
+        for the sortable Views admin column.
+    -->
+    <rule ref="WordPress.DB.SlowDBQuery.slow_db_query_meta_key">
+        <exclude-pattern>stats-page.php</exclude-pattern>
+    </rule>
+</ruleset>

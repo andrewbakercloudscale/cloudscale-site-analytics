@@ -3,6 +3,58 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.319] - 2026-06-01
+
+### Changed
+- **WordPress.org submission hardening (Critical + High review items).**
+- External services disclosure (`readme.txt`) corrected to accurately describe
+  the DB-IP Lite geolocation download: the first download is always explicit,
+  and the monthly WP-Cron auto-refresh only ever updates a database the user has
+  already downloaded by hand.
+- `cspv_dbip_auto_update_run()` now returns early when no DB-IP database has been
+  downloaded yet (`cspv_dbip_installed_ym` empty), so no external request to
+  DB-IP can occur without an explicit user action.
+
+### Removed
+- **Undocumented Cloudflare egress-IP fetch.** Removed the orphaned
+  `cspv_refresh_cf_ip_ranges()` function and its `cspv_refresh_cf_ips` action
+  (never scheduled), which fetched `cloudflare.com/ips-v4` and `/ips-v6`. The
+  plugin now relies solely on the bundled static Cloudflare range list — no
+  external request is made for CF detection.
+- **Destructive file deletion in the plugin directory.** The deactivation hook
+  no longer deletes `*.js`/`*.css` from the plugin root (which removed the
+  shipped `beacon.js` and broke tracking on reactivation); it now only clears
+  scheduled cron events. The version-upgrade routine on `admin_init` no longer
+  deletes/`rmdir`s `admin/` and `includes/` subdirectories — it only refreshes
+  the database tables.
+
+### Added
+- `== Third-party libraries ==` section in `readme.txt` listing Chart.js 4.4.1
+  (MIT), Leaflet 1.9.4 (BSD-2-Clause), and MaxMind DB Reader (Apache-2.0) with
+  upstream source links, satisfying the WordPress.org "no minified-only code
+  without source" guideline.
+- Reviewer-facing annotations in `rest-api.php`: a banner doc block explaining
+  why the four public (`__return_true`) tracking endpoints must be open to
+  anonymous visitors, and per-route inline justifications noting the validation,
+  nonce, throttle, and read-only/manage_options scoping for each.
+
+### Security / hardening
+- **Request-body size cap on `POST /v1/record/{id}`** — bodies larger than 4096
+  bytes (filter: `cspv_max_body_bytes`) are rejected with HTTP 413 before any
+  processing. The beacon only sends a tiny referrer + session_id payload.
+- **Per-IP rate limit on the public read endpoints** (`/v1/counts`, `/v1/ping`)
+  — generous default of 120 requests / 60s per IP (filters:
+  `cspv_read_rate_limit`, `cspv_read_rate_window`), returning HTTP 429 over the
+  limit. Backed by the object cache and gated on a persistent object cache, so
+  it adds no DB load; without Redis/Memcached it no-ops (edge/WAF is the right
+  layer for volumetric defense there).
+- **Short-lived response cache on `GET /v1/counts`** — the count map is cached
+  per requested ID set for 60s (filter: `cspv_counts_cache_ttl`), bounding
+  meta/DB lookups under repeated hits from Cloudflare-cached listing pages.
+- Refactored Cloudflare-aware client-IP resolution into a single
+  `cspv_get_client_ip()` helper reused by the record endpoint and the read
+  rate limiter (removes duplicated IP-extraction logic).
+
 ## [2.9.311] - 2026-05-29
 
 ### Added

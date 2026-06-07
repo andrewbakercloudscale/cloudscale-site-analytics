@@ -527,16 +527,20 @@ function cspv_ajax_save_throttle_settings() {
         return;
     }
 
-    $enabled = ! empty( $_POST['enabled'] );
-    $limit   = isset( $_POST['limit'] ) ? max( 1, min( 10000, (int) wp_unslash( $_POST['limit'] ) ) ) : 50;
-    $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600;
-    $window  = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
+    try {
+        $enabled = ! empty( $_POST['enabled'] );
+        $limit   = isset( $_POST['limit'] ) ? max( 1, min( 10000, (int) wp_unslash( $_POST['limit'] ) ) ) : 50; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast is the sanitization
+        $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist on the next line
+        $window  = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
 
-    update_option( 'cspv_throttle_enabled', $enabled, false );
-    update_option( 'cspv_throttle_limit',   $limit,   false );
-    update_option( 'cspv_throttle_window',  $window,  false );
+        update_option( 'cspv_throttle_enabled', $enabled, false );
+        update_option( 'cspv_throttle_limit',   $limit,   false );
+        update_option( 'cspv_throttle_window',  $window,  false );
 
-    wp_send_json_success( array( 'enabled' => $enabled, 'limit' => $limit, 'window' => $window ) );
+        wp_send_json_success( array( 'enabled' => $enabled, 'limit' => $limit, 'window' => $window ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -555,14 +559,18 @@ function cspv_ajax_unblock_ip() {
         return;
     }
 
-    $ip_hash = isset( $_POST['ip_hash'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_hash'] ) ) : '';
-    if ( empty( $ip_hash ) || ! preg_match( '/^[a-f0-9]{64}$/i', $ip_hash ) ) {
-        wp_send_json_error( array( 'message' => 'Invalid IP hash.' ), 400 );
-        return;
-    }
+    try {
+        $ip_hash = isset( $_POST['ip_hash'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_hash'] ) ) : '';
+        if ( empty( $ip_hash ) || ! preg_match( '/^[a-f0-9]{64}$/i', $ip_hash ) ) {
+            wp_send_json_error( array( 'message' => 'Invalid IP hash.' ), 400 );
+            return;
+        }
 
-    cspv_unblock_ip( $ip_hash );
-    wp_send_json_success();
+        cspv_unblock_ip( $ip_hash );
+        wp_send_json_success();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -581,8 +589,12 @@ function cspv_ajax_clear_blocklist() {
         return;
     }
 
-    cspv_clear_blocklist();
-    wp_send_json_success();
+    try {
+        cspv_clear_blocklist();
+        wp_send_json_success();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -601,25 +613,29 @@ function cspv_ajax_save_ftb_settings() {
         return;
     }
 
-    $enabled    = ! empty( $_POST['enabled'] );
-    $page_limit = isset( $_POST['page_limit'] ) ? max( 1, min( 100000, (int) wp_unslash( $_POST['page_limit'] ) ) ) : 1000;
-    $raw_win    = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600;
-    $window     = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
-    $raw_dur    = isset( $_POST['block_duration'] ) ? (int) wp_unslash( $_POST['block_duration'] ) : CSPV_FTB_BLOCK_DURATION_DEFAULT;
-    $block_dur  = in_array( $raw_dur, array( 1800, 3600, 7200, 14400, 28800, 43200, 86400 ), true ) ? $raw_dur : CSPV_FTB_BLOCK_DURATION_DEFAULT;
+    try {
+        $enabled    = ! empty( $_POST['enabled'] );
+        $page_limit = isset( $_POST['page_limit'] ) ? max( 1, min( 100000, (int) wp_unslash( $_POST['page_limit'] ) ) ) : 1000; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast is the sanitization
+        $raw_win    = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $window     = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
+        $raw_dur    = isset( $_POST['block_duration'] ) ? (int) wp_unslash( $_POST['block_duration'] ) : CSPV_FTB_BLOCK_DURATION_DEFAULT; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $block_dur  = in_array( $raw_dur, array( 1800, 3600, 7200, 14400, 28800, 43200, 86400 ), true ) ? $raw_dur : CSPV_FTB_BLOCK_DURATION_DEFAULT;
 
-    update_option( 'cspv_ftb_enabled',        $enabled,    false );
-    update_option( 'cspv_ftb_page_limit',     $page_limit, false );
-    update_option( 'cspv_ftb_window',         $window,     false );
-    update_option( 'cspv_ftb_block_duration', $block_dur,  false );
+        update_option( 'cspv_ftb_enabled',        $enabled,    false );
+        update_option( 'cspv_ftb_page_limit',     $page_limit, false );
+        update_option( 'cspv_ftb_window',         $window,     false );
+        update_option( 'cspv_ftb_block_duration', $block_dur,  false );
 
-    wp_send_json_success( array(
-        'enabled'        => $enabled,
-        'page_limit'     => $page_limit,
-        'window'         => $window,
-        'block_duration' => $block_dur,
-        'rules'          => cspv_ftb_get_rules(),
-    ) );
+        wp_send_json_success( array(
+            'enabled'        => $enabled,
+            'page_limit'     => $page_limit,
+            'window'         => $window,
+            'block_duration' => $block_dur,
+            'rules'          => cspv_ftb_get_rules(),
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -638,14 +654,18 @@ function cspv_ajax_ftb_unblock_ip() {
         return;
     }
 
-    $ip_hash = isset( $_POST['ip_hash'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_hash'] ) ) : '';
-    if ( empty( $ip_hash ) || ! preg_match( '/^[a-f0-9]{64}$/i', $ip_hash ) ) {
-        wp_send_json_error( array( 'message' => 'Invalid IP hash.' ), 400 );
-        return;
-    }
+    try {
+        $ip_hash = isset( $_POST['ip_hash'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_hash'] ) ) : '';
+        if ( empty( $ip_hash ) || ! preg_match( '/^[a-f0-9]{64}$/i', $ip_hash ) ) {
+            wp_send_json_error( array( 'message' => 'Invalid IP hash.' ), 400 );
+            return;
+        }
 
-    cspv_ftb_unblock_ip( $ip_hash );
-    wp_send_json_success();
+        cspv_ftb_unblock_ip( $ip_hash );
+        wp_send_json_success();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -664,8 +684,12 @@ function cspv_ajax_ftb_clear_blocklist() {
         return;
     }
 
-    cspv_ftb_clear_blocklist();
-    wp_send_json_success();
+    try {
+        cspv_ftb_clear_blocklist();
+        wp_send_json_success();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 /**
@@ -684,8 +708,12 @@ function cspv_ajax_clear_all_ip_data() {
         return;
     }
 
-    cspv_clear_all_ip_data();
-    wp_send_json_success();
+    try {
+        cspv_clear_all_ip_data();
+        wp_send_json_success();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 // =========================================================================
@@ -720,10 +748,14 @@ function cspv_ajax_set_tracking_pause() {
         return;
     }
 
-    $paused = ! empty( $_POST['paused'] );
-    update_option( 'cspv_tracking_paused', $paused, false );
+    try {
+        $paused = ! empty( $_POST['paused'] );
+        update_option( 'cspv_tracking_paused', $paused, false );
 
-    wp_send_json_success( array( 'paused' => $paused ) );
+        wp_send_json_success( array( 'paused' => $paused ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 // =========================================================================
@@ -748,23 +780,27 @@ function cspv_ajax_save_dedup_settings() {
         return;
     }
 
-    $enabled = ! empty( $_POST['enabled'] );
-    $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 86400;
-    $allowed = array( 3600, 7200, 21600, 43200, 86400, 172800 );
-    $window  = in_array( $raw_win, $allowed, true ) ? $raw_win : 86400;
+    try {
+        $enabled = ! empty( $_POST['enabled'] );
+        $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 86400; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $allowed = array( 3600, 7200, 21600, 43200, 86400, 172800 );
+        $window  = in_array( $raw_win, $allowed, true ) ? $raw_win : 86400;
 
-    // Use 'yes'/'no' strings, WordPress handles these unambiguously
-    // unlike booleans or '0'/'1' which can be lost by update_option
-    $result_e = update_option( 'cspv_dedup_enabled', $enabled ? 'yes' : 'no' );
-    $result_w = update_option( 'cspv_dedup_window', $window );
+        // Use 'yes'/'no' strings, WordPress handles these unambiguously
+        // unlike booleans or '0'/'1' which can be lost by update_option
+        $result_e = update_option( 'cspv_dedup_enabled', $enabled ? 'yes' : 'no' );
+        $result_w = update_option( 'cspv_dedup_window', $window );
 
-    wp_send_json_success( array(
-        'enabled'   => $enabled,
-        'window'    => $window,
-        'saved_e'   => $result_e,
-        'saved_w'   => $result_w,
-        'stored'    => get_option( 'cspv_dedup_enabled' ),
-    ) );
+        wp_send_json_success( array(
+            'enabled'   => $enabled,
+            'window'    => $window,
+            'saved_e'   => $result_e,
+            'saved_w'   => $result_w,
+            'stored'    => get_option( 'cspv_dedup_enabled' ),
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
+    }
 }
 
 // =========================================================================
@@ -789,64 +825,68 @@ function cspv_ajax_test_ftb() {
         return;
     }
 
-    $results = array();
+    try {
+        $results = array();
 
-    // Test 1: Can we write a transient?
-    $test_key = 'cspv_ftb_selftest_' . substr( md5( uniqid( '', true ) ), 0, 8 );
-    $write_ok = set_transient( $test_key, 'ftb_test_value', 60 );
-    $results[] = array(
-        'test'   => 'Write transient',
-        'pass'   => (bool) $write_ok,
-        'detail' => $write_ok ? 'Successfully wrote test transient' : 'Failed to write transient, check your object cache or database',
-    );
+        // Test 1: Can we write a transient?
+        $test_key = 'cspv_ftb_selftest_' . substr( md5( uniqid( '', true ) ), 0, 8 );
+        $write_ok = set_transient( $test_key, 'ftb_test_value', 60 );
+        $results[] = array(
+            'test'   => 'Write transient',
+            'pass'   => (bool) $write_ok,
+            'detail' => $write_ok ? 'Successfully wrote test transient' : 'Failed to write transient, check your object cache or database',
+        );
 
-    // Test 2: Can we read it back?
-    $read_val = get_transient( $test_key );
-    $read_ok  = ( $read_val === 'ftb_test_value' );
-    $results[] = array(
-        'test'   => 'Read transient',
-        'pass'   => $read_ok,
-        'detail' => $read_ok ? 'Successfully read test transient' : 'Transient read returned unexpected value, object cache may be misconfigured',
-    );
+        // Test 2: Can we read it back?
+        $read_val = get_transient( $test_key );
+        $read_ok  = ( $read_val === 'ftb_test_value' );
+        $results[] = array(
+            'test'   => 'Read transient',
+            'pass'   => $read_ok,
+            'detail' => $read_ok ? 'Successfully read test transient' : 'Transient read returned unexpected value, object cache may be misconfigured',
+        );
 
-    // Cleanup
-    delete_transient( $test_key );
+        // Cleanup
+        delete_transient( $test_key );
 
-    // Test 3: Can we write to options (FTB blocklist storage)?
-    $opt_key  = 'cspv_ftb_selftest_opt';
-    $opt_ok   = update_option( $opt_key, array( 'test' => true ), false );
-    $opt_read = get_option( $opt_key, null );
-    $opt_pass = is_array( $opt_read ) && ! empty( $opt_read['test'] );
-    delete_option( $opt_key );
-    $results[] = array(
-        'test'   => 'Write options (blocklist storage)',
-        'pass'   => $opt_pass,
-        'detail' => $opt_pass ? 'Options table read/write working' : 'Failed to write to options table',
-    );
+        // Test 3: Can we write to options (FTB blocklist storage)?
+        $opt_key  = 'cspv_ftb_selftest_opt';
+        $opt_ok   = update_option( $opt_key, array( 'test' => true ), false );
+        $opt_read = get_option( $opt_key, null );
+        $opt_pass = is_array( $opt_read ) && ! empty( $opt_read['test'] );
+        delete_option( $opt_key );
+        $results[] = array(
+            'test'   => 'Write options (blocklist storage)',
+            'pass'   => $opt_pass,
+            'detail' => $opt_pass ? 'Options table read/write working' : 'Failed to write to options table',
+        );
 
-    // Test 4: Is FTB enabled?
-    $ftb_on = cspv_ftb_enabled();
-    $results[] = array(
-        'test'   => 'FTB enabled',
-        'pass'   => $ftb_on,
-        'detail' => $ftb_on ? 'Fail2Ban is enabled and will block IPs exceeding ' . number_format( cspv_ftb_page_limit() ) . ' pages' : 'Fail2Ban is currently disabled, enable it above to activate protection',
-    );
+        // Test 4: Is FTB enabled?
+        $ftb_on = cspv_ftb_enabled();
+        $results[] = array(
+            'test'   => 'FTB enabled',
+            'pass'   => $ftb_on,
+            'detail' => $ftb_on ? 'Fail2Ban is enabled and will block IPs exceeding ' . number_format( cspv_ftb_page_limit() ) . ' pages' : 'Fail2Ban is currently disabled, enable it above to activate protection',
+        );
 
-    // Test 5: FTB block duration
-    $results[] = array(
-        'test'   => 'Block duration',
-        'pass'   => true,
-        'detail' => 'FTB blocks last ' . cspv_ftb_duration_label( cspv_ftb_block_duration() ) . ' and auto clear via transient expiry',
-    );
+        // Test 5: FTB block duration
+        $results[] = array(
+            'test'   => 'Block duration',
+            'pass'   => true,
+            'detail' => 'FTB blocks last ' . cspv_ftb_duration_label( cspv_ftb_block_duration() ) . ' and auto clear via transient expiry',
+        );
 
-    $all_pass = true;
-    foreach ( $results as $r ) {
-        if ( ! $r['pass'] ) { $all_pass = false; break; }
+        $all_pass = true;
+        foreach ( $results as $r ) {
+            if ( ! $r['pass'] ) { $all_pass = false; break; }
+        }
+
+        wp_send_json_success( array(
+            'results'  => $results,
+            'all_pass' => $all_pass,
+            'summary'  => $all_pass ? 'All tests passed, Fail2Ban is fully operational' : 'Some tests failed, review the results above',
+        ) );
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( $e->getMessage(), 500 );
     }
-
-    wp_send_json_success( array(
-        'results'  => $results,
-        'all_pass' => $all_pass,
-        'summary'  => $all_pass ? 'All tests passed, Fail2Ban is fully operational' : 'Some tests failed, review the results above',
-    ) );
 }

@@ -20,15 +20,15 @@ helpLib.run({
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
         softwareVersion: '2.9.186',
-        downloadUrl: 'https://your-s3-bucket.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
+        downloadUrl: 'https://your-s3-bucket.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
     },
     pageTitle:  'CloudScale Site Analytics — Free Privacy-First WordPress Analytics That Works Behind Cloudflare & CDN',
     pageSlug:   'cloudscale-wordpress-marketing-analytics',
-    downloadUrl: 'https://your-s3-bucket.s3.af-south-1.amazonaws.com/cloudscale-wordpress-free-analytics.zip',
+    downloadUrl: 'https://your-s3-bucket.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip',
     repoUrl:     'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
 
-    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics`,
+    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-site-analytics`,
 
     pluginFile: `${__dirname}/../stats-page.php`,
     logoFile:   `${__dirname}/../cloudscale-analytics-icon.jpg`,
@@ -53,7 +53,7 @@ helpLib.run({
 <p style="margin:0;"><strong>It is completely free.</strong> No premium tier. No per-site fees. Install it, add one Cloudflare Cache Rule, and your stats are accurate from the first pageview.</p>
 </div>
 <p>The <strong>Statistics Dashboard</strong> shows page view data stored directly in your WordPress database across five custom tables (<code>wp_cspv_views_v2</code>, <code>wp_cspv_referrers_v2</code>, <code>wp_cspv_geo_v2</code>, <code>wp_cspv_visitors_v2</code>, <code>wp_cspv_404_v2</code>). No data is ever sent to Google, Facebook, or any external service.</p>
-<p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-wordpress-free-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request — not served from cache — it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
+<p><strong>How tracking works:</strong> A lightweight <code>beacon.js</code> script fires a POST request to the WordPress REST API endpoint <code>/wp-json/cloudscale-site-analytics/v1/record/{post_id}</code> after the page has fully loaded. Because this is a fresh HTTP request — not served from cache — it reaches WordPress even when Cloudflare or another CDN is serving the cached HTML page. This is why beacon-based tracking counts every real visit, whereas server-side counters miss 80–95% of views on cached sites.</p>
 <h3>Views, Top Posts &amp; Referrers</h3>
 <ul>
 <li><strong>Period selector</strong> — switch between Today, 7 days, 30 days, 90 days, and All time. Each period queries the <code>wp_cspv_views_v2</code> table directly; no aggregation tables are needed.</li>
@@ -66,7 +66,7 @@ helpLib.run({
 <p>A separate ranked table showing lifetime view counts across all time — independent of the period selector. Includes imported Jetpack view counts blended with live beacon data if you migrated from Jetpack Stats. Useful for identifying your most valuable evergreen content.</p>
 <h3>Cloudflare Cache Bypass</h3>
 <p>An interactive test panel that verifies your Cloudflare Cache Rule is correctly configured to bypass caching for the beacon REST endpoint. Without this rule, Cloudflare caches the REST responses and beacon POSTs fail silently — your view counts appear to record but nothing is actually written.</p>
-<p><strong>Required Cache Rule:</strong> In your Cloudflare dashboard → Caching → Cache Rules → create a rule: URI Path <em>contains</em> <code>/wp-json/cloudscale-wordpress-free-analytics/</code> → Cache Status: <em>Bypass</em>.</p>
+<p><strong>Required Cache Rule:</strong> In your Cloudflare dashboard → Caching → Cache Rules → create a rule: URI Path <em>contains</em> <code>/wp-json/cloudscale-site-analytics/</code> → Cache Status: <em>Bypass</em>.</p>
 <p>Click <strong>Test Cache Bypass</strong> to send a probe request through the beacon endpoint and check whether the response has the expected headers. A green status badge confirms Cloudflare is bypassing the cache correctly; a red badge means the rule is missing or misconfigured.</p>
 <h3>404 Error Log</h3>
 <p>Tracks every 404 (page not found) response served by your site and logs the requested URL, referrer, and timestamp. Stored in <code>wp_cspv_404_v2</code>. Useful for finding broken links from external sites, detecting content that has moved without a redirect, and identifying crawler probing paths.</p>

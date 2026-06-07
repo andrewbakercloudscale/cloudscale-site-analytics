@@ -172,10 +172,14 @@ function cspv_ajax_purge_404_log() {
 		return;
 	}
 
-	global $wpdb;
-	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
-	$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
-	wp_send_json_success( array( 'message' => '404 log cleared.' ) );
+	try {
+		global $wpdb;
+		$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
+		$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+		wp_send_json_success( array( 'message' => '404 log cleared.' ) );
+	} catch ( \Throwable $e ) {
+		wp_send_json_error( $e->getMessage(), 500 );
+	}
 }
 
 // -------------------------------------------------------------------------

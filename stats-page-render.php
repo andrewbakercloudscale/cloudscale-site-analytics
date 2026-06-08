@@ -2458,6 +2458,11 @@ ob_start();
         fd.append('action', 'cspv_country_drill');
         fd.append('nonce', nonce);
         fd.append('country', cc);
+        // Send the exact query window the chart was rendered with so the drill
+        // matches the country bars (esp. rolling-24h mode); fall back to the
+        // raw date inputs for calendar-day ranges.
+        fd.append('exact_from', lastQueryFrom || '');
+        fd.append('exact_to', lastQueryTo || '');
         fd.append('from', fromVal);
         fd.append('to', toVal);
         fetch(ajaxurl, { method: 'POST', body: fd })

@@ -541,20 +541,33 @@ function cspv_ajax_country_drill() {
     }
 
     try {
-        $country = strtoupper( sanitize_text_field( wp_unslash( $_POST['country'] ?? '' ) ) );
-        $from    = sanitize_text_field( wp_unslash( $_POST['from'] ?? '' ) );
-        $to      = sanitize_text_field( wp_unslash( $_POST['to'] ?? '' ) );
+        $country    = strtoupper( sanitize_text_field( wp_unslash( $_POST['country'] ?? '' ) ) );
+        $exact_from = sanitize_text_field( wp_unslash( $_POST['exact_from'] ?? '' ) );
+        $exact_to   = sanitize_text_field( wp_unslash( $_POST['exact_to']   ?? '' ) );
+        $from       = sanitize_text_field( wp_unslash( $_POST['from'] ?? '' ) );
+        $to         = sanitize_text_field( wp_unslash( $_POST['to'] ?? '' ) );
 
-        if ( strlen( $country ) !== 2 || ! $from || ! $to ) {
+        if ( strlen( $country ) !== 2 ) {
             wp_send_json_error( 'Invalid parameters' ); return;
         }
-        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ||
-             ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
+
+        // Prefer the exact datetime window the chart was rendered with. This
+        // keeps the drill aligned with the country bars in rolling-24h mode,
+        // where the bars span NOW-24h..NOW rather than a calendar day. Mirrors
+        // cspv_ajax_referrer_drill().
+        $dt_re = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/';
+        if ( $exact_from && $exact_to &&
+             preg_match( $dt_re, $exact_from ) && preg_match( $dt_re, $exact_to ) ) {
+            $from_str = $exact_from;
+            $to_str   = $exact_to;
+        } elseif ( $from && $to &&
+                   preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) &&
+                   preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) ) {
+            $from_str = $from . ' 00:00:00';
+            $to_str   = $to . ' 23:59:59';
+        } else {
             wp_send_json_error( 'Invalid date format.' ); return;
         }
-
-        $from_str = $from . ' 00:00:00';
-        $to_str   = $to . ' 23:59:59';
 
         $pages = cspv_top_pages_by_country( $country, $from_str, $to_str, 10 );
         wp_send_json_success( array( 'pages' => $pages ) );

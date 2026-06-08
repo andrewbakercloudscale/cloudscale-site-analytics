@@ -1025,13 +1025,15 @@ function cspv_ajax_post_geo_map() {
         $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         if ( ! $table_exists ) { wp_send_json_success( array() ); return; }
 
-        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- {$table} is esc_sql()'d $wpdb->prefix; values are bound via prepare()
+        $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT country_code AS cc, COALESCE(SUM(view_count),0) AS v
              FROM `{$table}`
              WHERE post_id = %d AND country_code <> ''
              GROUP BY country_code ORDER BY v DESC",
             $post_id
         ) );
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         $geo = array();
         if ( is_array( $rows ) ) {
@@ -1044,13 +1046,15 @@ function cspv_ajax_post_geo_map() {
         $ref_table = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
         $ref_rows  = array();
         if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- {$ref_table} is esc_sql()'d $wpdb->prefix; values are bound via prepare()
+            $ref_rows = $wpdb->get_results( $wpdb->prepare(
                 "SELECT SUBSTRING_INDEX(referrer, '?', 1) AS r, SUM(view_count) AS v
                  FROM `{$ref_table}`
                  WHERE post_id = %d AND referrer <> ''
                  GROUP BY SUBSTRING_INDEX(referrer, '?', 1) ORDER BY v DESC LIMIT 10",
                 $post_id
             ) );
+            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         }
         $refs = array();
         if ( is_array( $ref_rows ) ) {

@@ -17,6 +17,7 @@ if ( class_exists( 'CloudScale_Telegram' ) ) {
 	return;
 }
 
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- "CloudScale" is the shared brand prefix; this class is bundled across CloudScale plugins and guarded by class_exists() above, so it must keep a stable name.
 class CloudScale_Telegram {
 
 	const OPTION_TOKEN   = 'cloudscale_telegram_bot_token'; // pragma:allow-secret
@@ -33,7 +34,7 @@ class CloudScale_Telegram {
 	 * @param string $level   One of: info, warning, error, critical.
 	 */
 	private static function alert_prefix( string $source, string $level ): string {
-		$host   = (string) ( parse_url( home_url(), PHP_URL_HOST ) ?: '' );
+		$host   = (string) ( wp_parse_url( home_url(), PHP_URL_HOST ) ?: '' );
 		$domain = implode( '.', array_map( 'ucfirst', explode( '.', strtolower( $host ) ) ) );
 
 		$emojis = [
@@ -215,8 +216,8 @@ class CloudScale_Telegram {
 	public static function render_settings_fields( string $source = '' ): void {
 		static $js_output = false;
 
-		$token       = esc_attr( (string) get_option( self::OPTION_TOKEN, '' ) );
-		$chat_id     = esc_attr( (string) get_option( self::OPTION_CHAT_ID, '' ) );
+		$token       = (string) get_option( self::OPTION_TOKEN, '' );
+		$chat_id     = (string) get_option( self::OPTION_CHAT_ID, '' );
 		$test_nonce  = wp_create_nonce( 'cloudscale_telegram_test' );
 		$fetch_nonce = wp_create_nonce( 'cloudscale_telegram_fetch' );
 		?>
@@ -231,7 +232,7 @@ class CloudScale_Telegram {
 					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Bot Token', 'cloudscale-site-analytics' ); ?></label>
 					<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 						<input type="password" id="cs-telegram-token"
-						       value="<?php echo $token; ?>"
+						       value="<?php echo esc_attr( $token ); ?>"
 						       placeholder="123456789:ABCdefGhI..."
 						       autocomplete="off" style="width:100%;max-width:300px;padding:4px 8px;height:32px;">
 						<button type="button" id="cs-telegram-token-toggle" class="button" style="height:32px;padding:0 10px;font-size:0.82rem;">
@@ -243,7 +244,7 @@ class CloudScale_Telegram {
 					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Chat ID', 'cloudscale-site-analytics' ); ?></label>
 					<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 						<input type="password" id="cs-telegram-chat-id"
-						       value="<?php echo $chat_id; ?>"
+						       value="<?php echo esc_attr( $chat_id ); ?>"
 						       placeholder="-1001234567890"
 						       autocomplete="off" style="width:150px;padding:4px 8px;height:32px;">
 						<button type="button" id="cs-telegram-chat-toggle" class="button" style="height:32px;padding:0 10px;font-size:0.82rem;">

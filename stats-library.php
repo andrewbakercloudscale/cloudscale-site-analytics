@@ -10,7 +10,7 @@
  *   cspv_rolling_24h_views()   → array { current, prior }
  *   cspv_rolling_28d_views()   → array { current, prior }
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

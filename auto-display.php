@@ -11,7 +11,7 @@
  *   both            - Above and below
  *   off             - Disabled (use template functions manually)
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

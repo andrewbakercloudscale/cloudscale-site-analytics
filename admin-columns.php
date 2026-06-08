@@ -4,7 +4,7 @@
  *
  * Adds a sortable Views column to the Posts list table in wp-admin.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

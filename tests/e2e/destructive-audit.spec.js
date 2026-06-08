@@ -21,7 +21,7 @@ const PAGE_TABS = {
 };
 
 const PAGES = [
-    { name: 'Analytics',  url: '/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics', tabs: [] },
+    { name: 'Analytics',  url: '/wp-admin/tools.php?page=cloudscale-site-analytics', tabs: [] },
     { name: 'Backup',     url: '/wp-admin/admin.php?page=cloudscale-backup',                   tabs: ['local', 'cloud', 'autorecovery'] },
     { name: 'Cleanup',    url: '/wp-admin/tools.php?page=cloudscale-cleanup',                  tabs: [] },
     { name: 'DevTools',   url: '/wp-admin/tools.php?page=cloudscale-devtools',                 tabs: [] },

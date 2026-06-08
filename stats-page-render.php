@@ -2,7 +2,7 @@
 /**
  * CloudScale Analytics - Stats Page Render Functions
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  * @since   2.9.307
  */
 

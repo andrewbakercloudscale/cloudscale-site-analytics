@@ -11,7 +11,7 @@
  * Only visible to users with manage_options capability.
  * Button renders INLINE next to the view counter (pink, 🐛 icon).
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

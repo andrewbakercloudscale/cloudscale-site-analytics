@@ -8,7 +8,7 @@
  *   - Time-period chart: 12 Hours / 1 Day / 7 Days / 1 Month / 6 Months
  *   - Top 3 posts and top 3 referrers for today (side by side)
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  * @note    12h window, mirrors stats page rolling12h logic exactly.
  */
 
@@ -364,7 +364,7 @@ function cspv_dashboard_query_data() {
         }
     }
 
-    $stats_url   = admin_url( 'tools.php?page=cloudscale-wordpress-free-analytics' );
+    $stats_url   = admin_url( 'tools.php?page=cloudscale-site-analytics' );
     $throttle_on = cspv_throttle_enabled();
     $blocked     = count( cspv_get_blocklist() );
     $widget_id   = 'cspv-dw-' . substr( md5( uniqid() ), 0, 6 );

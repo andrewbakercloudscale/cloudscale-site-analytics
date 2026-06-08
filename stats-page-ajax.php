@@ -2,7 +2,7 @@
 /**
  * CloudScale Analytics - AJAX Handlers
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  * @since   2.9.308
  */
 

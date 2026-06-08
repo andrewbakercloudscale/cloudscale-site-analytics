@@ -5,7 +5,7 @@
  * Creates the wp_cs_analytics_views_v2 and wp_cs_analytics_referrers_v2 tables.
  * Plugin uses V2 hourly bucket schema exclusively.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

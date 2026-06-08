@@ -2,7 +2,7 @@
 /**
  * CloudScale Analytics - Statistics Dashboard
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  * @since   1.0.0
  */
 
@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'admin_menu',            'cspv_add_tools_page' );
+add_action( 'admin_init',            'cspv_redirect_legacy_slug' );
 add_action( 'admin_enqueue_scripts', 'cspv_enqueue_admin_assets' );
 add_action( 'admin_head',            'cspv_admin_menu_styles' );
 add_action( 'admin_enqueue_scripts', 'cspv_admin_menu_enqueue' );
@@ -29,7 +30,7 @@ require_once plugin_dir_path( __FILE__ ) . 'stats-page-render.php';
  * @return void
  */
 function cspv_admin_menu_styles() {
-    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-wordpress-free-analytics' ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page slug check
+    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-site-analytics' ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page slug check
         echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
     }
 }
@@ -77,9 +78,27 @@ function cspv_add_tools_page() {
         'CloudScale Site Analytics',
         '📊 Site Analytics',
         'manage_options',
-        'cloudscale-wordpress-free-analytics',
+        'cloudscale-site-analytics',
         'cspv_render_stats_page'
     );
+}
+
+/**
+ * Redirect the legacy dashboard slug to the current one.
+ *
+ * The page slug was renamed from "cloudscale-wordpress-free-analytics" to
+ * "cloudscale-site-analytics"; this keeps old bookmarks and help-doc links
+ * working with a 301 to the new Tools page.
+ *
+ * @since 2.9.368
+ * @return void
+ */
+function cspv_redirect_legacy_slug() {
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only slug check on a GET navigation redirect
+    if ( isset( $_GET['page'] ) && 'cloudscale-wordpress-free-analytics' === $_GET['page'] ) {
+        wp_safe_redirect( admin_url( 'tools.php?page=cloudscale-site-analytics' ), 301 );
+        exit;
+    }
 }
 
 /**
@@ -90,7 +109,7 @@ function cspv_add_tools_page() {
  * @return void
  */
 function cspv_enqueue_admin_assets( $hook ) {
-    if ( 'tools_page_cloudscale-wordpress-free-analytics' !== $hook ) { return; }
+    if ( 'tools_page_cloudscale-site-analytics' !== $hook ) { return; }
     wp_enqueue_script( 'cspv-chartjs',
         CSPV_PLUGIN_URL . 'assets/js/chart.umd.min.js',
         array(), '4.4.1', true );
@@ -151,7 +170,7 @@ function cspv_render_stats_page() {
         $geo_notice = cspv_save_display_settings();
         printf(
             '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-            esc_html__( 'Display settings saved.', 'cloudscale-wordpress-free-analytics' ) . wp_kses_post( $geo_notice )
+            esc_html__( 'Display settings saved.', 'cloudscale-site-analytics' ) . wp_kses_post( $geo_notice )
         );
     }
 

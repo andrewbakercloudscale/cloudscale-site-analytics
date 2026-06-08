@@ -5,7 +5,7 @@
 
 const { test, expect } = require('@playwright/test');
 
-const ADMIN_PAGE = '/wp-admin/tools.php?page=cloudscale-wordpress-free-analytics';
+const ADMIN_PAGE = '/wp-admin/tools.php?page=cloudscale-site-analytics';
 
 test('analytics page loads data without JS errors', async ({ page }) => {
     const jsErrors = [];

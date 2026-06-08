@@ -8,7 +8,7 @@
  *
  * Results displayed in the stats page above Site Health.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -137,7 +137,7 @@ add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script', 20 );
  * @return void
  */
 function cspv_404_enqueue_purge_script( $hook ) {
-	if ( 'tools_page_cloudscale-wordpress-free-analytics' !== $hook ) {
+	if ( 'tools_page_cloudscale-site-analytics' !== $hook ) {
 		return;
 	}
 	$nonce = wp_json_encode( wp_create_nonce( 'cspv_404_data' ) );

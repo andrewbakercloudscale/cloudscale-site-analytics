@@ -4,7 +4,7 @@
  *
  * Paginated recent posts widget with CloudScale view counts.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

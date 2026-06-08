@@ -14,7 +14,7 @@
  *    This means view counts on listing pages are always fresh even when
  *    Cloudflare has cached the HTML.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

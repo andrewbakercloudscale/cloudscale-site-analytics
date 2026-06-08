@@ -5,7 +5,7 @@
  * Registers the POST endpoint that the beacon calls.
  * Multiple cache-bypass headers ensure Cloudflare never caches this route.
  *
- * @package CloudScale_Free_Analytics
+ * @package CloudScale_Site_Analytics
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -154,7 +154,7 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.367
+ * @since 2.9.368
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
@@ -185,7 +185,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.367
+ * @since 2.9.368
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {

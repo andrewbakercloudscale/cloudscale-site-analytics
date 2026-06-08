@@ -28,3 +28,6 @@ docs/screenshots/
 .env.test
 tests/auth.json
 tests/.env
+
+# Playwright test artifacts
+tests/test-results/

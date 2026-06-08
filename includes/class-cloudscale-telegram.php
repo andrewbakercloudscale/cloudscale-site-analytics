@@ -210,9 +210,9 @@ class CloudScale_Telegram {
 	/**
 	 * Render the Telegram settings card.
 	 *
-	 * @param string $text_domain  Plugin text domain for i18n.
+	 * @param string $source  Optional context label passed to the test button.
 	 */
-	public static function render_settings_fields( string $text_domain, string $source = '' ): void {
+	public static function render_settings_fields( string $source = '' ): void {
 		static $js_output = false;
 
 		$token       = esc_attr( (string) get_option( self::OPTION_TOKEN, '' ) );
@@ -223,45 +223,45 @@ class CloudScale_Telegram {
 		<div style="border-radius:8px;overflow:hidden;border:1px solid #b3e5fc;">
 			<div style="background:linear-gradient(135deg,#0277bd 0%,#039be5 100%);padding:8px 14px;display:flex;align-items:center;gap:8px;">
 				<span style="font-size:1rem;">&#9992;</span>
-				<span style="color:#fff;font-weight:700;font-size:0.9rem;"><?php echo esc_html__( 'Telegram', $text_domain ); ?></span>
+				<span style="color:#fff;font-weight:700;font-size:0.9rem;"><?php echo esc_html__( 'Telegram', 'cloudscale-site-analytics' ); ?></span>
 			</div>
 			<div style="padding:14px;background:#f0f9ff;">
-				<p class="cs-help"><?php echo esc_html__( 'Instant push to your phone. Create a bot via @BotFather on Telegram, then paste the token and your chat ID below.', $text_domain ); ?></p>
+				<p class="cs-help"><?php echo esc_html__( 'Instant push to your phone. Create a bot via @BotFather on Telegram, then paste the token and your chat ID below.', 'cloudscale-site-analytics' ); ?></p>
 				<div style="margin-bottom:6px;">
-					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Bot Token', $text_domain ); ?></label>
+					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Bot Token', 'cloudscale-site-analytics' ); ?></label>
 					<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 						<input type="password" id="cs-telegram-token"
 						       value="<?php echo $token; ?>"
 						       placeholder="123456789:ABCdefGhI..."
 						       autocomplete="off" style="width:100%;max-width:300px;padding:4px 8px;height:32px;">
 						<button type="button" id="cs-telegram-token-toggle" class="button" style="height:32px;padding:0 10px;font-size:0.82rem;">
-							<?php echo esc_html__( 'Show', $text_domain ); ?>
+							<?php echo esc_html__( 'Show', 'cloudscale-site-analytics' ); ?>
 						</button>
 					</div>
 				</div>
 				<div style="margin-bottom:10px;">
-					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Chat ID', $text_domain ); ?></label>
+					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html__( 'Chat ID', 'cloudscale-site-analytics' ); ?></label>
 					<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 						<input type="password" id="cs-telegram-chat-id"
 						       value="<?php echo $chat_id; ?>"
 						       placeholder="-1001234567890"
 						       autocomplete="off" style="width:150px;padding:4px 8px;height:32px;">
 						<button type="button" id="cs-telegram-chat-toggle" class="button" style="height:32px;padding:0 10px;font-size:0.82rem;">
-							<?php echo esc_html__( 'Show', $text_domain ); ?>
+							<?php echo esc_html__( 'Show', 'cloudscale-site-analytics' ); ?>
 						</button>
 						<button type="button" id="cs-telegram-fetch-btn" class="button"
 						        data-nonce="<?php echo esc_attr( $fetch_nonce ); ?>">
-							<?php echo esc_html__( 'Fetch Chat ID', $text_domain ); ?>
+							<?php echo esc_html__( 'Fetch Chat ID', 'cloudscale-site-analytics' ); ?>
 						</button>
 					</div>
 					<span id="cs-telegram-fetch-msg" style="font-size:0.88rem;display:block;margin-top:4px;"></span>
-					<p class="cs-help" style="margin-top:4px;"><?php echo esc_html__( 'Send any message to your bot on Telegram, then click Fetch Chat ID to auto-fill this field.', $text_domain ); ?></p>
+					<p class="cs-help" style="margin-top:4px;"><?php echo esc_html__( 'Send any message to your bot on Telegram, then click Fetch Chat ID to auto-fill this field.', 'cloudscale-site-analytics' ); ?></p>
 				</div>
 				<div style="display:flex;align-items:center;gap:8px;">
 					<button type="button" id="cs-telegram-test-btn" class="button"
 					        data-nonce="<?php echo esc_attr( $test_nonce ); ?>"
 					        data-source="<?php echo esc_attr( $source ); ?>">
-						<?php echo esc_html__( 'Send Test', $text_domain ); ?>
+						<?php echo esc_html__( 'Send Test', 'cloudscale-site-analytics' ); ?>
 					</button>
 					<span id="cs-telegram-test-msg" style="font-size:0.88rem;"></span>
 				</div>

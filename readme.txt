@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.369
+Stable tag: 2.9.371
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -186,6 +186,14 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 == External services ==
 
 This plugin optionally connects to the following external services:
+
+= Telegram Bot API (optional, alert notifications only) =
+When you configure Telegram alerts in the plugin settings, the plugin communicates with the Telegram Bot API:
+* Service URL: https://api.telegram.org/
+* What is sent and when: (1) When an admin clicks "Fetch Chat ID", the plugin calls the getUpdates endpoint with your bot token to discover your chat ID. (2) When an admin clicks "Send Test" or when a plugin event triggers a notification, the plugin calls sendMessage to deliver the alert text to your configured chat ID. No visitor data, page view analytics, or site content is transmitted — only the admin-authored alert text and your Telegram bot credentials.
+* This service is only used when an admin has entered a bot token and chat ID in the plugin settings.
+* Telegram Privacy Policy: https://telegram.org/privacy
+* Telegram Terms of Service: https://telegram.org/tos
 
 = DB-IP Lite (optional, geolocation only) =
 IP geolocation is optional. To enable it you click "Download DB-IP Lite" on the plugin's statistics page, which fetches the free DB-IP City Lite database directly from DB-IP's servers:

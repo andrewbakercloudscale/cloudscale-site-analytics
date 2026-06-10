@@ -56,9 +56,8 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
     if ( $order_by === 'views' ) {
         global $wpdb;
         $table = esc_sql( cspv_views_table() );
-        $cnt   = esc_sql( cspv_count_expr() );
 
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
 
         // Determine if we are in the transition period.
         // If the log table has fewer than view_window days of data,
@@ -78,8 +77,8 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         // ── Transition period: blend meta + beacon, rank by combined total ──
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                "SELECT post_id, {$cnt} AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
+            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+                "SELECT post_id, COALESCE(SUM(view_count),0) AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
                 $since
             ) ) : array();
 
@@ -146,8 +145,8 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         if ( $table_exists ) {
             if ( $view_window > 0 ) {
                 $since = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                    "SELECT post_id, {$cnt} AS view_count
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+                    "SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
                      FROM `{$table}`
                      WHERE viewed_at >= %s
                      GROUP BY post_id
@@ -157,8 +156,8 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
                     $total * 2
                 ) );
             } else {
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                    "SELECT post_id, {$cnt} AS view_count
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+                    "SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
                      FROM `{$table}`
                      GROUP BY post_id
                      ORDER BY view_count DESC

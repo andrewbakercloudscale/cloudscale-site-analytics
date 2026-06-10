@@ -108,28 +108,27 @@ function cspv_render_debug_panel() {
     global $wpdb;
     $post_id = get_the_ID();
     $table   = esc_sql( cspv_views_table() );
-    $cnt     = esc_sql( cspv_count_expr() );
 
     $meta_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
     $log_count    = 0;
     $first_log    = null;
     $last_log     = null;
     $daily_data   = array();
 
     if ( $table_exists ) {
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+            "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+        $first_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+        $last_log = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d", $post_id ) );
 
-        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "SELECT DATE(viewed_at) AS day, {$cnt} AS views
+        $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+            "SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views
              FROM `{$table}`
              WHERE post_id = %d AND viewed_at >= %s
              GROUP BY day ORDER BY day ASC", $post_id, wp_date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 30 * 86400 ) ) ) );
@@ -330,9 +329,8 @@ function cspv_ajax_resync_meta() {
         }
 
         $table = esc_sql( cspv_views_table() );
-        $cnt   = esc_sql( cspv_count_expr() );
-        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "SELECT {$cnt} FROM `{$table}` WHERE post_id = %d", $post_id ) );
+        $log_count = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
+            "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d", $post_id ) );
         $old_count = (int) get_post_meta( $post_id, CSPV_META_KEY, true );
         // Never reduce the meta, a partial log restore shouldn't wipe out counts meta already knows about.
         $new_count = max( $old_count, $log_count );

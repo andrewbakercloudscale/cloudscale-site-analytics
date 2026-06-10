@@ -128,7 +128,6 @@ function cspv_register_dashboard_widget() {
 function cspv_dashboard_query_data() {
     global $wpdb;
     $table = esc_sql( cspv_views_table() );
-    $cnt   = esc_sql( cspv_count_expr() );
 
     $table_exists = cspv_views_table_exists();
 
@@ -206,7 +205,7 @@ function cspv_dashboard_query_data() {
 
         $by_hour = array();
         if ( $table_exists ) {
-            $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY hr_key ORDER BY hr_key ASC", $from_12h_str, $to_12h_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+            $raw = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H') AS hr_key, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY hr_key ORDER BY hr_key ASC", $from_12h_str, $to_12h_str ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             foreach ( $raw as $r ) { $by_hour[ $r->hr_key ] = (int) $r->views; }
         }
         $cur = clone $from_12;
@@ -232,7 +231,7 @@ function cspv_dashboard_query_data() {
         if ( $table_exists ) {
             $d1_s = min( $d1_buckets );
             $d1_e = substr( max( $d1_buckets ), 0, 13 ) . ':59:59';
-            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY bucket", $d1_s, $d1_e ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY bucket", $d1_s, $d1_e ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             foreach ( $rows as $row ) {
                 if ( isset( $d1_map[ $row->bucket ] ) ) {
                     $d1_map[ $row->bucket ] = (int) $row->views;
@@ -254,7 +253,7 @@ function cspv_dashboard_query_data() {
         if ( $table_exists && ! empty( $d1p_map ) ) {
             $d1p_s = min( array_keys( $d1p_map ) );
             $d1p_e = substr( max( array_keys( $d1p_map ) ), 0, 13 ) . ':59:59';
-            $rows  = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, {$cnt} AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY bucket", $d1p_s, $d1p_e ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+            $rows  = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at,'%%Y-%%m-%%d %%H:00:00') AS bucket, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at BETWEEN %s AND %s GROUP BY bucket", $d1p_s, $d1p_e ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             foreach ( $rows as $row ) {
                 if ( isset( $d1p_map[ $row->bucket ] ) ) {
                     $d1p_map[ $row->bucket ] = (int) $row->views;
@@ -298,7 +297,7 @@ function cspv_dashboard_query_data() {
         }
         $d7_map = array_fill_keys( $d7_days, 0 );
         if ( $table_exists ) {
-            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, {$cnt} AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY DATE(viewed_at)", $d7_days[0] . ' 00:00:00' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY DATE(viewed_at)", $d7_days[0] . ' 00:00:00' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
             foreach ( $rows as $row ) {
                 if ( isset( $d7_map[ $row->day ] ) ) {
                     $d7_map[ $row->day ] = (int) $row->views;
@@ -313,7 +312,7 @@ function cspv_dashboard_query_data() {
     $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
     $raw_month    = array();
     if ( $table_exists ) {
-        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, {$cnt} AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY day", $m28_s ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY day", $m28_s ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
         foreach ( $rows as $r ) { $raw_month[ $r->day ] = (int) $r->views; }
     }
     for ( $i = 27; $i >= 0; $i-- ) {
@@ -329,7 +328,7 @@ function cspv_dashboard_query_data() {
     $m6_s      = wp_date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
     $raw_6m    = array();
     if ( $table_exists ) {
-        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at, '%%Y-%%u') AS week_key, MIN(DATE(viewed_at)) AS week_start, {$cnt} AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY week_key ORDER BY week_key ASC", $m6_s ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at, '%%Y-%%u') AS week_key, MIN(DATE(viewed_at)) AS week_start, COALESCE(SUM(view_count),0) AS views FROM `{$table}` WHERE viewed_at >= %s GROUP BY week_key ORDER BY week_key ASC", $m6_s ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
         foreach ( $rows as $r ) { $raw_6m[ $r->week_key ] = array( 'views' => (int) $r->views, 'start' => $r->week_start ); }
     }
     // Build 26 week slots

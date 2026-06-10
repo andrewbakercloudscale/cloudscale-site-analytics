@@ -90,7 +90,7 @@ function cspv_add_tools_page() {
  * "cloudscale-site-analytics"; this keeps old bookmarks and help-doc links
  * working with a 301 to the new Tools page.
  *
- * @since 2.9.371
+ * @since 2.9.372
  * @return void
  */
 function cspv_redirect_legacy_slug() {

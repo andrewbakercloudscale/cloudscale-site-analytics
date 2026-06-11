@@ -42,10 +42,8 @@ function cspv_admin_menu_styles() {
  * @return void
  */
 function cspv_admin_menu_enqueue() {
-    wp_register_style( 'cspv-admin-menu', false, array(), CSPV_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- virtual handle, version set
-    wp_enqueue_style( 'cspv-admin-menu' );
     wp_add_inline_style(
-        'cspv-admin-menu',
+        'admin-menu',
         '#adminmenu a[href*="cloudscale"], #adminmenu a[href*="cs-seo-optimizer"] { color: #7dd3fc !important; }
         #adminmenu a[href*="cloudscale"]:hover, #adminmenu a[href*="cs-seo-optimizer"]:hover { color: #fff !important; }'
     );
@@ -90,7 +88,7 @@ function cspv_add_tools_page() {
  * "cloudscale-site-analytics"; this keeps old bookmarks and help-doc links
  * working with a 301 to the new Tools page.
  *
- * @since 2.9.372
+ * @since 2.9.373
  * @return void
  */
 function cspv_redirect_legacy_slug() {

@@ -1,5 +1,5 @@
 'use strict';
-const helpLib = require('/Users/cp363412/Desktop/github/shared-help-docs/help-lib.js');
+const helpLib = require('/Users/cp363412/Desktop/github/wordpress-plugins/shared-help-docs/help-lib.js');
 
 helpLib.run({
     baseUrl:    process.env.WP_BASE_URL,
@@ -136,7 +136,7 @@ helpLib.run({
         },
         {
             id: 'geography', label: 'Geography', file: 'panel-geography.png', tab: 'stats',
-            elementSelector: '#cspv-geo-panel',
+            jsBeforeShot: () => { const el = document.getElementById('cspv-geo-panel'); if (el) el.scrollIntoView({ block: 'start', behavior: 'instant' }); },
             intro: 'An interactive world map showing where your visitors come from, built from country data captured at the time of each beacon hit. Supports drill-down to city level for any country.',
         },
         {

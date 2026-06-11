@@ -9,6 +9,11 @@ node_modules/
 vendor/
 wp-config.php
 wp-content/uploads/
+# SVN deploy
+.svn-credentials.sh
+.svn-working-copy/
+MANUAL-deploy-svn.sh
+
 # Local deploy tooling
 build.sh
 deploy-wordpress.sh

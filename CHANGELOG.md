@@ -3,6 +3,17 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.373] - 2026-06-11
+
+### Changed
+- **WordPress.org approved release.** Approved after full manual review cycle.
+- Admin menu inline style consolidated onto existing enqueue handle (no bare `<style>` tag).
+- Help documentation screenshots regenerated.
+
+### Fixed
+- All WP.org review findings resolved (v2.9.371–2.9.372): Plugin Check errors, missing
+  ABSPATH guards, enqueue violations, and external-service disclosure in readme.txt.
+
 ## [2.9.319] - 2026-06-01
 
 ### Changed

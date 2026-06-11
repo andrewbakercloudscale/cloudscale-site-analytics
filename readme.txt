@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.372
+Stable tag: 2.9.373
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,12 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.373 =
+* WordPress.org approved release
+* Admin menu inline style consolidated onto existing enqueue handle
+* Help documentation screenshots regenerated
+* All WP.org review findings resolved (Plugin Check, ABSPATH guards, enqueue violations)
 
 = 2.9.218 =
 * Remove Jetpack migration tab and all transition blending logic

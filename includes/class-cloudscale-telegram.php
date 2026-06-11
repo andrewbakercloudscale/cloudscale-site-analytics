@@ -28,7 +28,7 @@ class CSPV_Telegram {
 	}
 
 	/**
-	 * Migrate credentials stored under the legacy option names (pre-2.9.372).
+	 * Migrate credentials stored under the legacy option names (pre-2.9.373).
 	 */
 	private static function maybe_migrate_options(): void {
 		static $done = false;

@@ -130,6 +130,145 @@ function cspv_public_view_count( $post_id ) {
     return (int) get_post_meta( $post_id, CSPV_META_KEY, true );
 }
 
+// ---------------------------------------------------------------------------
+// APCu view-count queue
+//
+// Batches per-post view increments in APCu (shared memory) and flushes them
+// to the database once per minute via WP-Cron. When APCu is unavailable the
+// code falls back to the original direct-DB behaviour unchanged.
+//
+// The queue is bounded at CSPV_QUEUE_MAX total pending increments across all
+// posts. Once full, incoming hits are dropped silently — natural rate-limiting
+// under a DDoS that targets the view-counter endpoint.
+// ---------------------------------------------------------------------------
+
+if ( ! defined( 'CSPV_QUEUE_MAX' ) ) {
+    define( 'CSPV_QUEUE_MAX', 1000 );
+}
+
+/**
+ * Return the number of unflushed pending increments for a post from APCu.
+ *
+ * @param int $post_id
+ * @return int
+ */
+function cspv_apcu_pending( int $post_id ): int {
+    if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
+        return 0;
+    }
+    $val = apcu_fetch( 'cspv_q_' . $post_id );
+    return $val === false ? 0 : (int) $val;
+}
+
+/**
+ * Push one view increment into the APCu queue.
+ *
+ * @param int $post_id
+ * @return bool|null  true = queued, false = dropped (queue full), null = APCu unavailable
+ */
+function cspv_apcu_enqueue( int $post_id ) {
+    if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
+        return null;
+    }
+    $total = apcu_fetch( 'cspv_q_total' );
+    if ( $total === false ) {
+        $total = 0;
+    }
+    if ( (int) $total >= CSPV_QUEUE_MAX ) {
+        return false;
+    }
+    $success = false;
+    apcu_inc( 'cspv_q_' . $post_id, 1, $success );
+    if ( ! $success ) {
+        apcu_store( 'cspv_q_' . $post_id, 1 );
+        $dirty = apcu_fetch( 'cspv_q_dirty' );
+        if ( $dirty === false ) {
+            $dirty = array();
+        }
+        $dirty[ $post_id ] = true;
+        apcu_store( 'cspv_q_dirty', $dirty );
+    }
+    apcu_inc( 'cspv_q_total', 1 );
+    return true;
+}
+
+/**
+ * Flush all pending APCu view increments to the database.
+ * Hooked to the 'cspv_flush_view_queue' WP-Cron event (runs every minute).
+ *
+ * @return void
+ */
+function cspv_flush_view_queue(): void {
+    if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
+        return;
+    }
+    if ( class_exists( 'APCuIterator' ) ) {
+        cspv_flush_queue_via_iterator();
+    } else {
+        cspv_flush_queue_via_dirty_list();
+    }
+}
+
+/**
+ * Flush queue by scanning all cspv_q_* keys via APCuIterator.
+ *
+ * @return void
+ */
+function cspv_flush_queue_via_iterator(): void {
+    global $wpdb;
+    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
+    $iter        = new APCuIterator( '/^cspv_q_\d+$/' );
+    foreach ( $iter as $entry ) {
+        $pending = (int) $entry['value'];
+        if ( $pending <= 0 ) { continue; }
+        $post_id = (int) substr( (string) $entry['key'], strlen( 'cspv_q_' ) );
+        if ( $post_id <= 0 ) { continue; }
+        apcu_store( 'cspv_q_' . $post_id, 0 );
+        apcu_store( 'cspv_q_total', max( 0, (int) apcu_fetch( 'cspv_q_total' ) - $pending ) );
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+             VALUES (%d, %s, %d)
+             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)",
+            $post_id, $hour_bucket, $pending
+        ) );
+        update_post_meta( $post_id, CSPV_META_KEY, (int) get_post_meta( $post_id, CSPV_META_KEY, true ) + $pending );
+    }
+}
+
+/**
+ * Flush queue via the dirty-list in APCu (fallback when APCuIterator is absent).
+ *
+ * @return void
+ */
+function cspv_flush_queue_via_dirty_list(): void {
+    $dirty = apcu_fetch( 'cspv_q_dirty' );
+    if ( empty( $dirty ) || ! is_array( $dirty ) ) {
+        return;
+    }
+    global $wpdb;
+    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
+    foreach ( array_keys( $dirty ) as $post_id ) {
+        $post_id = (int) $post_id;
+        $pending = (int) apcu_fetch( 'cspv_q_' . $post_id );
+        if ( $pending <= 0 ) { unset( $dirty[ $post_id ] ); continue; }
+        apcu_store( 'cspv_q_' . $post_id, 0 );
+        apcu_store( 'cspv_q_total', max( 0, (int) apcu_fetch( 'cspv_q_total' ) - $pending ) );
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+             VALUES (%d, %s, %d)
+             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)",
+            $post_id, $hour_bucket, $pending
+        ) );
+        update_post_meta( $post_id, CSPV_META_KEY, (int) get_post_meta( $post_id, CSPV_META_KEY, true ) + $pending );
+        unset( $dirty[ $post_id ] );
+    }
+    apcu_store( 'cspv_q_dirty', $dirty );
+}
+
+add_action( 'cspv_flush_view_queue', 'cspv_flush_view_queue' );
+
 /**
  * Whether the beacon authenticity gate (valid wp_rest nonce) is enforced.
  *
@@ -154,7 +293,7 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.385
+ * @since 2.9.386
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
@@ -185,7 +324,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.385
+ * @since 2.9.386
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {
@@ -399,43 +538,61 @@ function cspv_record_view( WP_REST_Request $request ) {
         ), 200 );
     }
 
-    // --- Write to database -----------------------------------------
+    // --- APCu queue dispatch ------------------------------------------
+    // Try to enqueue the increment instead of writing directly to DB.
+    //   true  = queued (APCu active, batch write deferred to cron)
+    //   false = queue full at CSPV_QUEUE_MAX — drop silently (rate-limiting)
+    //   null  = APCu unavailable — fall through to direct DB write
+    $queued    = cspv_apcu_enqueue( $post_id );
+    $use_queue = ( $queued === true );
+
+    if ( $queued === false ) {
+        return new WP_REST_Response( array(
+            'post_id' => $post_id,
+            'views'   => cspv_public_view_count( $post_id ) + cspv_apcu_pending( $post_id ),
+            'logged'  => false,
+        ), 200 );
+    }
+
+    // --- Write to database (skipped when APCu queue is active) ---------
     global $wpdb;
     $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
-    // Confirm V2 table exists, result cached for 1 hour to avoid SHOW TABLES on every view.
-    $table_exists = get_transient( 'cspv_v2_table_exists' );
-    if ( $table_exists === false ) {
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
-        set_transient( 'cspv_v2_table_exists', $table_exists, HOUR_IN_SECONDS );
-    }
-    if ( $table_exists !== '1' ) {
-        if ( function_exists( 'cspv_create_table_v2' ) ) {
-            cspv_create_table_v2();
+    if ( ! $use_queue ) {
+        // Confirm V2 table exists, result cached for 1 hour to avoid SHOW TABLES on every view.
+        $table_exists = get_transient( 'cspv_v2_table_exists' );
+        if ( $table_exists === false ) {
+            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+            set_transient( 'cspv_v2_table_exists', $table_exists, HOUR_IN_SECONDS );
         }
-        $created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
-        if ( ! $created ) {
-            return new WP_REST_Response( array( 'error' => 'Database table unavailable.' ), 500 );
+        if ( $table_exists !== '1' ) {
+            if ( function_exists( 'cspv_create_table_v2' ) ) {
+                cspv_create_table_v2();
+            }
+            $created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+            if ( ! $created ) {
+                return new WP_REST_Response( array( 'error' => 'Database table unavailable.' ), 500 );
+            }
+            set_transient( 'cspv_v2_table_exists', '1', HOUR_IN_SECONDS );
         }
-        set_transient( 'cspv_v2_table_exists', '1', HOUR_IN_SECONDS );
-    }
 
-    // Upsert hourly view bucket
-    $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-        "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
-         VALUES (%d, %s, 1)
-         ON DUPLICATE KEY UPDATE view_count = view_count + 1",
-        $post_id, $hour_bucket
-    ) );
+        // Upsert hourly view bucket
+        $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+             VALUES (%d, %s, 1)
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
+            $post_id, $hour_bucket
+        ) );
 
-    if ( $result === false ) {
-        return new WP_REST_Response( array(
-            'post_id' => $post_id,
-            'views'   => cspv_public_view_count( $post_id ),
-            'logged'  => false,
-            'error'   => 'Insert failed.',
-        ), 200 );
+        if ( $result === false ) {
+            return new WP_REST_Response( array(
+                'post_id' => $post_id,
+                'views'   => cspv_public_view_count( $post_id ),
+                'logged'  => false,
+                'error'   => 'Insert failed.',
+            ), 200 );
+        }
     }
 
     // Upsert referrer bucket (only if referrer is non empty)
@@ -511,7 +668,16 @@ function cspv_record_view( WP_REST_Request $request ) {
         }
     }
 
-    // Increment denormalised meta counter
+    if ( $use_queue ) {
+        // Increment is batched in APCu; meta counter updated by the cron flush.
+        return new WP_REST_Response( array(
+            'post_id' => $post_id,
+            'views'   => cspv_public_view_count( $post_id ) + cspv_apcu_pending( $post_id ),
+            'logged'  => true,
+        ), 200 );
+    }
+
+    // Increment denormalised meta counter (direct-DB path only)
     $current   = cspv_public_view_count( $post_id );
     $new_count = $current + 1;
     update_post_meta( $post_id, CSPV_META_KEY, $new_count );
@@ -662,20 +828,28 @@ function cspv_get_counts( WP_REST_Request $request ) {
     // set. Bounds DB/meta lookups under repeated hammering from cached listing
     // pages; a 60s TTL keeps numbers fresh enough for archive/home views.
     sort( $ids );
-    $cache_key = 'cspv_counts_' . md5( implode( ',', $ids ) );
-    $cached    = get_transient( $cache_key );
-    if ( is_array( $cached ) ) {
-        return new WP_REST_Response( $cached, 200 );
+
+    // Skip transient cache when APCu is active: we need live pending increments
+    // that would be stale in a 60s-cached response.
+    $apcu_active = function_exists( 'apcu_enabled' ) && apcu_enabled();
+    if ( ! $apcu_active ) {
+        $cache_key = 'cspv_counts_' . md5( implode( ',', $ids ) );
+        $cached    = get_transient( $cache_key );
+        if ( is_array( $cached ) ) {
+            return new WP_REST_Response( $cached, 200 );
+        }
     }
 
     $counts = array();
     foreach ( $ids as $id ) {
         if ( 'publish' === get_post_status( $id ) ) {
-            $counts[ (string) $id ] = cspv_public_view_count( $id );
+            $counts[ (string) $id ] = cspv_public_view_count( $id ) + cspv_apcu_pending( $id );
         }
     }
 
-    set_transient( $cache_key, $counts, (int) apply_filters( 'cspv_counts_cache_ttl', 60 ) );
+    if ( ! $apcu_active ) {
+        set_transient( $cache_key, $counts, (int) apply_filters( 'cspv_counts_cache_ttl', 60 ) );
+    }
 
     return new WP_REST_Response( $counts, 200 );
 }

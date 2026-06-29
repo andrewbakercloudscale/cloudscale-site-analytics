@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.385
+ * Version:      2.9.386
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.385' );
+define( 'CSPV_VERSION',    '2.9.386' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -46,12 +46,27 @@ register_activation_hook( __FILE__, 'cspv_activate' );
 
 register_deactivation_hook( __FILE__, function () {
     wp_clear_scheduled_hook( 'cspv_dbip_auto_update' );
+    wp_clear_scheduled_hook( 'cspv_flush_view_queue' );
 } );
 
-// Ensure the daily DB-IP auto-update cron is always scheduled while the plugin is active.
+// Register a 1-minute WP-Cron interval for the view-queue flush.
+add_filter( 'cron_schedules', function ( $schedules ) {
+    if ( ! isset( $schedules['cspv_every_minute'] ) ) {
+        $schedules['cspv_every_minute'] = array(
+            'interval' => 60,
+            'display'  => __( 'Every Minute (CloudScale Analytics queue flush)', 'cloudscale-site-analytics' ),
+        );
+    }
+    return $schedules;
+} );
+
+// Ensure crons are always scheduled while the plugin is active.
 add_action( 'init', function () {
     if ( ! wp_next_scheduled( 'cspv_dbip_auto_update' ) ) {
         wp_schedule_event( time(), 'daily', 'cspv_dbip_auto_update' );
+    }
+    if ( ! wp_next_scheduled( 'cspv_flush_view_queue' ) ) {
+        wp_schedule_event( time(), 'cspv_every_minute', 'cspv_flush_view_queue' );
     }
 } );
 

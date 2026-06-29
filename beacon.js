@@ -166,6 +166,15 @@
             return;
         }
 
+        // Optimistic +1: read the PHP-rendered count and increment immediately
+        // so the badge never shows an empty/comma loading state.
+        document.querySelectorAll( '.cspv-ad-num' ).forEach( function( el ) {
+            var n = parseInt( el.textContent.replace( /,/g, '' ), 10 );
+            if ( ! isNaN( n ) ) {
+                el.textContent = ( n + 1 ).toLocaleString();
+            }
+        } );
+
         fetch( cspvData.apiUrl, {
             method:      'POST',
             headers:     { 'Content-Type': 'application/json', 'X-WP-Nonce': cspvData.nonce },

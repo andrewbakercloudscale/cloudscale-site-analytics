@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.385
+Stable tag: 2.9.394
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,7 +85,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
-= 2.9.385 =
+= 2.9.394 =
 * WordPress.org approved release
 * Admin menu inline style consolidated onto existing enqueue handle
 * Help documentation screenshots regenerated

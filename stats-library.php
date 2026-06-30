@@ -459,7 +459,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table and $limit_sql are trusted internal values
         "SELECT country_code, COALESCE(SUM(view_count),0) AS views
          FROM `{$table}`
-         WHERE viewed_at BETWEEN %s AND %s AND country_code <> ''
+         WHERE viewed_at BETWEEN %s AND %s AND country_code NOT IN ('','--','ZZ','XX','A1','A2')
          GROUP BY country_code ORDER BY views DESC{$limit_sql}",
         $from_str, $to_str ) );
 
@@ -1423,27 +1423,20 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     $prev_from    = $prev_from_dt->format( 'Y-m-d H:i:s' );
     $prev_to      = $prev_to_dt->format( 'Y-m-d H:i:s' );
 
-    // 5. New countries this period
+    // 5. Top countries by traffic
     $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
     $has_geo   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
     if ( $has_geo ) {
-        $curr_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            "SELECT DISTINCT country_code FROM `{$geo_table}` WHERE viewed_at BETWEEN %s AND %s AND country_code NOT IN ('','--')",
-            $from_str, $to_str
-        ) );
-        $prev_cc = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            "SELECT DISTINCT country_code FROM `{$geo_table}` WHERE viewed_at BETWEEN %s AND %s AND country_code NOT IN ('','--')",
-            $prev_from, $prev_to
-        ) );
-        $new_cc = array_values( array_diff( $curr_cc ?: array(), $prev_cc ?: array() ) );
-        $n      = count( $new_cc );
-        if ( $n > 0 ) {
+        $top_cc = cspv_top_countries( $from_str, $to_str, 5 );
+        if ( ! empty( $top_cc ) ) {
+            $codes   = array_column( $top_cc, 'country_code' );
+            $n       = count( $codes );
             $noun    = $n === 1 ? 'country' : 'countries';
             $items[] = array(
                 'icon'   => '🌍',
-                'text'   => "Traffic from {$n} new {$noun} this period",
-                'type'   => 'positive',
-                'detail' => array_slice( $new_cc, 0, 8 ),
+                'text'   => "Top {$n} {$noun} by traffic this period",
+                'type'   => 'neutral',
+                'detail' => $codes,
             );
         }
     }

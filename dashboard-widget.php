@@ -506,6 +506,47 @@ function cspv_render_dashboard_widget() {
     <?php cspv_render_site_health_html( 'widget' ); ?>
 </div>
 
+<!-- Smart Summary (30-day) -->
+<?php
+$ss_now   = new DateTime( 'now', wp_timezone() );
+$ss_to    = $ss_now->format( 'Y-m-d H:i:s' );
+$ss_from  = ( clone $ss_now )->modify( '-30 days' )->format( 'Y-m-d H:i:s' );
+$ss_host  = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+$ss_kpi   = cspv_insights_kpi( $ss_from, $ss_to, $ss_host );
+$ss_items = cspv_insights_smart_summary( $ss_from, $ss_to, $ss_host, 30, $ss_kpi );
+if ( ! empty( $ss_items ) ) :
+    $ss_type_colors = array( 'positive' => '#059669', 'negative' => '#e53e3e', 'neutral' => '#6d28d9' );
+?>
+<div style="padding:10px 16px 12px;border-top:1px solid #f0f0f0;">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
+        ✨ Smart Summary <span style="font-weight:400;font-style:italic;text-transform:none;font-size:10px;">&mdash; last 30 days</span>
+    </div>
+    <?php foreach ( $ss_items as $ss_item ) :
+        $ss_border = $ss_type_colors[ $ss_item['type'] ] ?? '#6b7280';
+        $ss_detail = '';
+        if ( ! empty( $ss_item['detail'] ) ) {
+            $ss_flags = array();
+            foreach ( $ss_item['detail'] as $ss_cc ) {
+                $ss_cc = strtoupper( (string) $ss_cc );
+                if ( 2 === strlen( $ss_cc ) && ctype_alpha( $ss_cc ) ) {
+                    $ss_flags[] = mb_chr( 0x1F1E6 + ord( $ss_cc[0] ) - 65, 'UTF-8' )
+                                . mb_chr( 0x1F1E6 + ord( $ss_cc[1] ) - 65, 'UTF-8' )
+                                . ' ' . $ss_cc;
+                }
+            }
+            if ( $ss_flags ) {
+                $ss_detail = ': ' . implode( ' ', $ss_flags );
+            }
+        }
+    ?>
+    <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 8px;border-left:3px solid <?php echo esc_attr( $ss_border ); ?>;background:#f9fafb;border-radius:0 4px 4px 0;margin-bottom:4px;">
+        <span style="font-size:13px;flex-shrink:0;line-height:1.4;"><?php echo esc_html( $ss_item['icon'] ); ?></span>
+        <span style="font-size:11px;color:#374151;line-height:1.4;"><?php echo esc_html( $ss_item['text'] ) . esc_html( $ss_detail ); ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <!-- Footer -->
 <div class="cspv-dw-footer">
     <a href="<?php echo esc_url( $stats_url ); ?>" class="cspv-dw-link">View Analytics...</a>

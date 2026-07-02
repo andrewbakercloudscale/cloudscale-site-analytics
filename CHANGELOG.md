@@ -3,6 +3,11 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.413] - 2026-07-02
+
+### Performance
+- **Dashboard widget's Smart Summary re-ran identical queries repeatedly on every admin dashboard load.** `cspv_insights_kpi()` and `cspv_smart_summary_items()` each independently ran their own `SHOW TABLES LIKE` check for the same 3-4 custom tables, and both fetched the identical top-200-referrers-in-window query when given the same period — CS Monitor flagged 9 `SHOW TABLES` round trips (down to 4 unique tables) and 2 byte-for-byte duplicate 52ms referrer queries in one page load. Added `cspv_table_exists()` and `cspv_referrer_rows_for_range()`, both memoized per-request via `static` caches, and routed every call site through them. No behavior change — same results, fewer round trips.
+
 ## [2.9.412] - 2026-07-02
 
 ### Fixed

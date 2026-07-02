@@ -3,6 +3,11 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.412] - 2026-07-02
+
+### Fixed
+- **Debug button and view counter leaked into post excerpts on listing pages.** `cspv_inject_debug_button()` and `cspv_auto_display_views()` both gated on `is_singular()`, which only checks whether the *requested page* is a single post/page, not whether the *post currently being filtered* is the one being viewed. A page template that lists other posts (e.g. a topic/pillar page rendering excerpts via `get_the_excerpt()`, which runs `the_content` internally through `wp_trim_excerpt()`) is itself singular, so every listed post's excerpt got the debug button and/or counter prepended too. Both functions now also check `get_the_ID() === get_queried_object_id()` so they only fire on the actual post being viewed.
+
 ## [2.9.409] - 2026-07-02
 
 ### Fixed

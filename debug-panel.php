@@ -102,7 +102,15 @@ add_filter( 'the_content', 'cspv_inject_debug_button', 100 );
  * @return string Content with debug button prepended, or unchanged for non-admins.
  */
 function cspv_inject_debug_button( $content ) {
-    if ( ! is_singular() ) {
+    // is_singular() only tells us the REQUESTED page is a single post/page --
+    // it says nothing about which post is currently being filtered. A page
+    // template that lists other posts (e.g. a custom "topic" page rendering
+    // excerpts via get_the_excerpt(), which internally runs the_content
+    // through wp_trim_excerpt()) is itself singular, so without this check
+    // the button gets prepended to every listed post's excerpt too -- not
+    // just the one post actually being viewed. Confirmed happening on
+    // andrewbaker.ninja's pillar topic pages, 2026-07-02.
+    if ( ! is_singular() || get_the_ID() !== get_queried_object_id() ) {
 		return $content; }
     if ( ! current_user_can( 'manage_options' ) ) {
 		return $content; }
@@ -113,7 +121,7 @@ function cspv_inject_debug_button( $content ) {
 /**
  * Convert a 2-char ISO 3166-1 country code to its flag emoji.
  *
- * @since 2.9.409
+ * @since 2.9.412
  * @param string $cc Country code (e.g. "ZA", "US").
  * @return string Flag emoji or 🌐 for unknown.
  */
@@ -129,7 +137,7 @@ function cspv_flag_emoji( string $cc ): string {
 /**
  * Return a human-readable country name for common ISO codes.
  *
- * @since 2.9.409
+ * @since 2.9.412
  * @param string $cc Country code.
  * @return string Country name, or the code itself if not in the map.
  */

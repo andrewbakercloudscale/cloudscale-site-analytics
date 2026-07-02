@@ -180,7 +180,15 @@ function cspv_build_counter_html() {
  * @return string Modified content with counter injected, or unchanged content.
  */
 function cspv_auto_display_views( $content ) {
-    if ( ! is_singular() || is_feed() || is_admin() ) {
+    // is_singular() only tells us the REQUESTED page is a single post/page --
+    // it says nothing about which post is currently being filtered. A page
+    // template that lists other posts (e.g. a custom "topic" page rendering
+    // excerpts via get_the_excerpt(), which internally runs the_content
+    // through wp_trim_excerpt()) is itself singular, so without this check
+    // every listed post's excerpt gets the counter prepended too -- not just
+    // the one post actually being viewed. Confirmed happening on
+    // andrewbaker.ninja's pillar topic pages, 2026-07-02.
+    if ( ! is_singular() || is_feed() || is_admin() || get_the_ID() !== get_queried_object_id() ) {
         return $content;
     }
 

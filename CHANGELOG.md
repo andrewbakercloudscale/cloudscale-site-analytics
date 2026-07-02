@@ -3,6 +3,19 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.409] - 2026-07-02
+
+### Fixed
+- **View-count queue raised from 1,000/min to 10,000/min global + 2,000/min per-post caps.** The old single global cap silently dropped hits with no visibility once exceeded, and one viral post could exhaust the entire budget and starve tracking on every other post. Now bounded both ways, and queue saturation sends a rate-limited Telegram alert (stop_reason/counts) instead of failing silently.
+- **`deploy-all-sites.sh` was deploying both sites to the same container.** Pre-exporting `PI_CONTAINER`/`PI_SITE_URL` before calling `pi_connect()` doesn't work — the function resets those from its own profile registry, clobbering the override. Added a proper `wordpress-help` profile to the shared `pi-connect.sh` and switched to selecting it via `PI_PROFILE`.
+- **Help-doc screenshots were captured against the wrong site.** `adminUrl` used `WP_BASE_URL` (the help.cloudscale.consulting publish target) instead of `WP_SCREENSHOT_URL` (andrewbaker.ninja, where the plugin runs), so every admin screenshot 404'd and published the site's custom 404 page as every section's thumbnail.
+
+## [2.9.399] - 2026-06-30
+
+### Changed
+- **Smart Summary widget enhancements.** Traffic growth items now include the total view count alongside the percentage change. Top countries now show each country's percentage share of period traffic. Best day item now includes the top post on that day and its share of the day's views.
+- Dashboard widget: removed "Hot Pages per Time Window" section from widget context (visible on full stats page only).
+
 ## [2.9.373] - 2026-06-11
 
 ### Changed

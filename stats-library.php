@@ -1352,14 +1352,15 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
     // 1. Overall traffic direction
     if ( isset( $kpi['trend_views_pct'] ) && null !== $kpi['trend_views_pct'] ) {
-        $pct = (int) $kpi['trend_views_pct'];
-        $abs = abs( $pct );
+        $pct       = (int) $kpi['trend_views_pct'];
+        $abs       = abs( $pct );
+        $views_fmt = number_format( $total_views );
         if ( $pct > 0 ) {
-            $items[] = array( 'icon' => '📈', 'text' => "Traffic is up {$abs}% vs the previous {$period} days", 'type' => 'positive', 'detail' => null );
+            $items[] = array( 'icon' => '📈', 'text' => "Traffic is up {$abs}% vs the previous {$period} days, {$views_fmt} views", 'type' => 'positive', 'detail' => null );
         } elseif ( $pct < 0 ) {
-            $items[] = array( 'icon' => '📉', 'text' => "Traffic is down {$abs}% vs the previous {$period} days", 'type' => 'negative', 'detail' => null );
+            $items[] = array( 'icon' => '📉', 'text' => "Traffic is down {$abs}% vs the previous {$period} days, {$views_fmt} views", 'type' => 'negative', 'detail' => null );
         } else {
-            $items[] = array( 'icon' => '➡️', 'text' => "Traffic is flat vs the previous {$period} days", 'type' => 'neutral', 'detail' => null );
+            $items[] = array( 'icon' => '➡️', 'text' => "Traffic is flat vs the previous {$period} days, {$views_fmt} views", 'type' => 'neutral', 'detail' => null );
         }
     }
 
@@ -1371,8 +1372,25 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
         $from_str, $to_str
     ) );
     if ( $best_day && (int) $best_day->views > 0 ) {
-        $label   = gmdate( 'l, M j', strtotime( $best_day->day ) );
-        $items[] = array( 'icon' => '🏆', 'text' => "Best day was {$label} with " . number_format( (int) $best_day->views ) . ' views', 'type' => 'positive', 'detail' => null );
+        $label        = gmdate( 'l, M j', strtotime( $best_day->day ) );
+        $day_views    = (int) $best_day->views;
+        $best_day_str = $best_day->day;
+        $best_text    = "Best day was {$label} with " . number_format( $day_views ) . ' views';
+        $best_p = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            "SELECT post_id, SUM(view_count) AS views FROM `{$views_table}`
+             WHERE DATE(viewed_at) = %s GROUP BY post_id ORDER BY views DESC LIMIT 1",
+            $best_day_str
+        ) );
+        if ( $best_p && (int) $best_p->views > 0 ) {
+            $bp_post = get_post( (int) $best_p->post_id );
+            if ( $bp_post ) {
+                $bp_title = html_entity_decode( $bp_post->post_title, ENT_QUOTES, 'UTF-8' );
+                $bp_short = mb_strlen( $bp_title ) > 40 ? mb_substr( $bp_title, 0, 37 ) . '...' : $bp_title;
+                $bp_pct   = (int) round( (int) $best_p->views / $day_views * 100 );
+                $best_text .= ". \"{$bp_short}\" drove {$bp_pct}%";
+            }
+        }
+        $items[] = array( 'icon' => '🏆', 'text' => $best_text, 'type' => 'positive', 'detail' => null );
     }
 
     // 3. Top post share
@@ -1429,14 +1447,18 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     if ( $has_geo ) {
         $top_cc = cspv_top_countries( $from_str, $to_str, 5 );
         if ( ! empty( $top_cc ) ) {
-            $codes   = array_column( $top_cc, 'country_code' );
-            $n       = count( $codes );
-            $noun    = $n === 1 ? 'country' : 'countries';
+            $country_data = array();
+            foreach ( $top_cc as $cc_row ) {
+                $cc_pct         = $total_views > 0 ? (int) round( $cc_row['views'] / $total_views * 100 ) : 0;
+                $country_data[] = array( 'cc' => $cc_row['country_code'], 'pct' => $cc_pct );
+            }
+            $n    = count( $country_data );
+            $noun = $n === 1 ? 'country' : 'countries';
             $items[] = array(
                 'icon'   => '🌍',
                 'text'   => "Top {$n} {$noun} by traffic this period",
                 'type'   => 'neutral',
-                'detail' => $codes,
+                'detail' => $country_data,
             );
         }
     }

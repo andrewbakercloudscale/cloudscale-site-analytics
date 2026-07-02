@@ -29,7 +29,11 @@ helpLib.run({
     downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-site-analytics.zip',
     repoUrl:     'https://github.com/andrewbakercloudscale/wordpress-free-analytics',
 
-    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-site-analytics`,
+    // adminUrl must use WP_SCREENSHOT_URL (andrewbaker.ninja) — that's where the
+    // plugin is installed and where the CSDT session cookies authenticate.
+    // WP_BASE_URL is the publish target (help.cloudscale.consulting) which
+    // doesn't have wp-admin reachable for these screenshots.
+    adminUrl:   `${process.env.WP_SCREENSHOT_URL || process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-site-analytics`,
     logoFile:   `${__dirname}/../cloudscale-analytics-icon.jpg`,
 
     pluginFile: `${__dirname}/../stats-page.php`,

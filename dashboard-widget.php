@@ -526,16 +526,26 @@ if ( ! empty( $ss_items ) ) :
         $ss_detail = '';
         if ( ! empty( $ss_item['detail'] ) ) {
             $ss_flags = array();
-            foreach ( $ss_item['detail'] as $ss_cc ) {
-                $ss_cc = strtoupper( (string) $ss_cc );
+            foreach ( $ss_item['detail'] as $ss_entry ) {
+                if ( is_array( $ss_entry ) ) {
+                    $ss_cc  = strtoupper( (string) ( $ss_entry['cc'] ?? '' ) );
+                    $ss_pct = isset( $ss_entry['pct'] ) ? (int) $ss_entry['pct'] : 0;
+                } else {
+                    $ss_cc  = strtoupper( (string) $ss_entry );
+                    $ss_pct = 0;
+                }
                 if ( 2 === strlen( $ss_cc ) && ctype_alpha( $ss_cc ) ) {
-                    $ss_flags[] = mb_chr( 0x1F1E6 + ord( $ss_cc[0] ) - 65, 'UTF-8' )
-                                . mb_chr( 0x1F1E6 + ord( $ss_cc[1] ) - 65, 'UTF-8' )
-                                . ' ' . $ss_cc;
+                    $ss_flag  = mb_chr( 0x1F1E6 + ord( $ss_cc[0] ) - 65, 'UTF-8' )
+                              . mb_chr( 0x1F1E6 + ord( $ss_cc[1] ) - 65, 'UTF-8' );
+                    $ss_label = $ss_flag . ' ' . $ss_cc;
+                    if ( $ss_pct > 0 ) {
+                        $ss_label .= ' ' . $ss_pct . '%';
+                    }
+                    $ss_flags[] = $ss_label;
                 }
             }
             if ( $ss_flags ) {
-                $ss_detail = ': ' . implode( ' ', $ss_flags );
+                $ss_detail = ': ' . implode( '  ', $ss_flags );
             }
         }
     ?>

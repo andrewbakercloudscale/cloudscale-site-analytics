@@ -137,13 +137,23 @@ function cspv_public_view_count( $post_id ) {
 // to the database once per minute via WP-Cron. When APCu is unavailable the
 // code falls back to the original direct-DB behaviour unchanged.
 //
-// The queue is bounded at CSPV_QUEUE_MAX total pending increments across all
-// posts. Once full, incoming hits are dropped silently — natural rate-limiting
-// under a DDoS that targets the view-counter endpoint.
+// The queue is bounded two ways: CSPV_QUEUE_MAX_PER_POST caps a single post's
+// pending increments so one viral post cannot exhaust the whole budget and
+// starve tracking on every other post, and CSPV_QUEUE_MAX caps the total
+// across all posts so a flood spread across many post IDs is still bounded.
+// Both are sized well above realistic peak concurrent traffic so they only
+// bite under an actual DDoS against the view-counter endpoint (per-IP
+// throttling in ip-throttle.php is the precise abuse defense; these are
+// backstops). Once either is hit, incoming hits are dropped —
+// cspv_flush_view_queue() alerts via Telegram (rate-limited) if any drops
+// occurred, so it is never silent.
 // ---------------------------------------------------------------------------
 
 if ( ! defined( 'CSPV_QUEUE_MAX' ) ) {
-    define( 'CSPV_QUEUE_MAX', 1000 );
+    define( 'CSPV_QUEUE_MAX', 10000 );
+}
+if ( ! defined( 'CSPV_QUEUE_MAX_PER_POST' ) ) {
+    define( 'CSPV_QUEUE_MAX_PER_POST', 2000 );
 }
 
 /**
@@ -161,10 +171,25 @@ function cspv_apcu_pending( int $post_id ): int {
 }
 
 /**
+ * Increments an APCu integer counter, initialising it to 1 if it does not
+ * exist yet. Small helper to avoid repeating the inc-or-store dance.
+ *
+ * @param string $key APCu key.
+ * @return void
+ */
+function cspv_apcu_bump( string $key ): void {
+    $success = false;
+    apcu_inc( $key, 1, $success );
+    if ( ! $success ) {
+        apcu_store( $key, 1 );
+    }
+}
+
+/**
  * Push one view increment into the APCu queue.
  *
  * @param int $post_id
- * @return bool|null  true = queued, false = dropped (queue full), null = APCu unavailable
+ * @return bool|null  true = queued, false = dropped (a cap was hit), null = APCu unavailable
  */
 function cspv_apcu_enqueue( int $post_id ) {
     if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
@@ -175,6 +200,11 @@ function cspv_apcu_enqueue( int $post_id ) {
         $total = 0;
     }
     if ( (int) $total >= CSPV_QUEUE_MAX ) {
+        cspv_apcu_bump( 'cspv_q_dropped' );
+        return false;
+    }
+    if ( cspv_apcu_pending( $post_id ) >= CSPV_QUEUE_MAX_PER_POST ) {
+        cspv_apcu_bump( 'cspv_q_dropped_per_post' );
         return false;
     }
     $success = false;
@@ -207,6 +237,51 @@ function cspv_flush_view_queue(): void {
     } else {
         cspv_flush_queue_via_dirty_list();
     }
+    cspv_alert_on_queue_drops();
+}
+
+/**
+ * Alerts via Telegram if the view-count queue dropped any hits since the last
+ * flush (CSPV_QUEUE_MAX or CSPV_QUEUE_MAX_PER_POST exceeded). Dropped views are
+ * never recoverable, so this makes saturation visible instead of a silent,
+ * unexplained gap in the numbers. Rate-limited to one alert per 15 minutes so a
+ * sustained spike does not flood Telegram with a message every cron tick.
+ *
+ * @return void
+ */
+function cspv_alert_on_queue_drops(): void {
+    $dropped_global   = (int) apcu_fetch( 'cspv_q_dropped' );
+    $dropped_per_post = (int) apcu_fetch( 'cspv_q_dropped_per_post' );
+    if ( $dropped_global <= 0 && $dropped_per_post <= 0 ) {
+        return;
+    }
+    apcu_store( 'cspv_q_dropped', 0 );
+    apcu_store( 'cspv_q_dropped_per_post', 0 );
+
+    if ( ! class_exists( 'CloudScale_Telegram' ) || ! CloudScale_Telegram::is_configured() ) {
+        return;
+    }
+    if ( get_transient( 'cspv_queue_saturated_alerted' ) ) {
+        return;
+    }
+    set_transient( 'cspv_queue_saturated_alerted', 1, 15 * MINUTE_IN_SECONDS );
+
+    $reasons = array();
+    if ( $dropped_global > 0 ) {
+        $reasons[] = sprintf( '%d dropped by the global cap (CSPV_QUEUE_MAX = %d)', $dropped_global, CSPV_QUEUE_MAX );
+    }
+    if ( $dropped_per_post > 0 ) {
+        $reasons[] = sprintf( '%d dropped by a single post exceeding its own cap (CSPV_QUEUE_MAX_PER_POST = %d)', $dropped_per_post, CSPV_QUEUE_MAX_PER_POST );
+    }
+
+    CloudScale_Telegram::send(
+        sprintf(
+            "View-count queue saturated: %s.\n\nThese views were not recorded. Further alerts are suppressed for 15 minutes while this continues.",
+            implode( '; ', $reasons )
+        ),
+        'Site Analytics',
+        'error'
+    );
 }
 
 /**
@@ -293,7 +368,7 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.394
+ * @since 2.9.409
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
@@ -324,7 +399,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.394
+ * @since 2.9.409
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {

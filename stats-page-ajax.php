@@ -758,8 +758,8 @@ add_action( 'cspv_dbip_auto_update', function() {
         cspv_dbip_auto_update_run();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[cloudscale-site-analytics] cron cspv_dbip_auto_update failed (%s): %s', get_class( $e ), $e->getMessage() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional cron error logging
-        if ( class_exists( 'CSPV_Telegram' ) ) {
-            CSPV_Telegram::send(
+        if ( class_exists( 'CloudScale_Telegram' ) ) {
+            CloudScale_Telegram::send(
                 "DB-IP geolocation auto-update cron failed.\n\nError: " . $e->getMessage(),
                 'Site Analytics',
                 'error'

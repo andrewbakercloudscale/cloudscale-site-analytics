@@ -25,8 +25,10 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Site 2/2 — cs_wordpress (help.cloudscale.consulting)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-PI_CONTAINER=cs_wordpress PI_SITE_URL=https://help.cloudscale.consulting \
-    bash "$SCRIPT_DIR/deploy-wordpress.sh"
+# NOTE: pi_connect() inside deploy-wordpress.sh sets PI_CONTAINER/PI_SITE_URL
+# itself from the pi-connect.sh profile registry — pre-exporting them here does
+# NOT override it, they get clobbered. Select the site via PI_PROFILE instead.
+PI_PROFILE=wordpress-help bash "$SCRIPT_DIR/deploy-wordpress.sh"
 
 echo ""
 echo "╔═════════════════════════════════════════════════════════════════╗"

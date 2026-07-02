@@ -82,6 +82,58 @@ function cspv_referrer_source() {
 }
 
 /**
+ * Check whether a custom analytics table exists, cached per request.
+ *
+ * Single SHOW TABLES round trip per unique table name per request, no matter
+ * how many stats functions ask — dashboard widget + Smart Summary previously
+ * asked this same question for the same 3-4 tables 8-9 times in one page load.
+ *
+ * @since  2.9.416
+ * @param  string $table  Fully-qualified table name.
+ * @return bool
+ */
+function cspv_table_exists( $table ) {
+    static $cache = array();
+    if ( isset( $cache[ $table ] ) ) {
+        return $cache[ $table ];
+    }
+    global $wpdb;
+    $cache[ $table ] = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    return $cache[ $table ];
+}
+
+/**
+ * Fetch referrer rows for a table/window/limit, cached per request.
+ *
+ * cspv_insights_kpi() and cspv_smart_summary_items() both fetch the exact
+ * same top-200-referrers-in-window query when given the same period —
+ * this collapses that into a single query per unique (table, from, to,
+ * limit) combination per request.
+ *
+ * @since  2.9.416
+ * @param  string $ref_table
+ * @param  string $from_str
+ * @param  string $to_str
+ * @param  int    $limit
+ * @return array
+ */
+function cspv_referrer_rows_for_range( $ref_table, $from_str, $to_str, $limit ) {
+    static $cache = array();
+    $key = "{$ref_table}|{$from_str}|{$to_str}|{$limit}";
+    if ( isset( $cache[ $key ] ) ) {
+        return $cache[ $key ];
+    }
+    global $wpdb;
+    $cache[ $key ] = $wpdb->get_results( $wpdb->prepare(
+        "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
+         WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
+         GROUP BY referrer ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $limit
+    ) );
+    return $cache[ $key ];
+}
+
+/**
  * Check whether a column exists in the referrer table, result cached per request.
  *
  * @param  string $col  Column name.
@@ -450,7 +502,7 @@ function cspv_top_countries( $from_str, $to_str, $limit = 20 ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = cspv_table_exists( $table );
     if ( ! $table_exists ) {
         return array();
     }
@@ -491,7 +543,7 @@ function cspv_top_pages_by_country( $country_code, $from_str, $to_str, $limit = 
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = cspv_table_exists( $table );
     if ( ! $table_exists ) {
         return array();
     }
@@ -597,7 +649,7 @@ function cspv_unique_visitors_for_range( $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = cspv_table_exists( $table );
     if ( ! $table_exists ) {
         return 0;
     }
@@ -631,7 +683,7 @@ function cspv_session_depth_percentiles( $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_sessions_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = cspv_table_exists( $table );
     if ( ! $table_exists ) {
         return null; // Table not yet created, caller should hide the UI
     }
@@ -849,15 +901,11 @@ function cspv_insights_kpi( $from_str, $to_str, $own_host ) {
     $countries   = cspv_top_countries( $from_str, $to_str, 1 );
     $top_country = ! empty( $countries ) ? $countries[0] : null;
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref = cspv_table_exists( $ref_table );
     $top_ref = null;
     $top_ref_no_self = null;
     if ( $has_ref ) {
-        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
-             WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
-             GROUP BY referrer ORDER BY views DESC LIMIT 200",
-            $from_str, $to_str ) );
+        $ref_rows = cspv_referrer_rows_for_range( $ref_table, $from_str, $to_str, 200 );
         if ( ! empty( $ref_rows ) ) {
             $all  = cspv_insights_label_refs( $ref_rows, $own_host, true );
             $ext  = cspv_insights_label_refs( $ref_rows, $own_host, false );
@@ -898,7 +946,7 @@ function cspv_insights_traffic_sources( $from_str, $to_str, $own_host ) {
     $ref_table = esc_sql( $src['table'] );
 
     $total = (int) cspv_views_for_range( $from_str, $to_str );
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref = cspv_table_exists( $ref_table );
     if ( ! $has_ref ) {
         return array( array( 'label' => 'Direct', 'views' => $total, 'is_self' => false ) );
     }
@@ -939,7 +987,7 @@ function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period )
     $src       = cspv_referrer_source();
     $ref_table = esc_sql( $src['table'] );
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref = cspv_table_exists( $ref_table );
     if ( ! $has_ref ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
@@ -1008,7 +1056,7 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
 
     // Fetch new vs returning visitor data from the visitors table.
     $visitor_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
-    $has_visitors  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $visitor_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
+    $has_visitors  = cspv_table_exists( $visitor_table );
     $audience_map  = array();
 
     if ( $has_visitors ) {
@@ -1080,7 +1128,7 @@ function cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host, $max_po
     $src       = cspv_referrer_source();
     $ref_table = esc_sql( $src['table'] );
 
-    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref     = cspv_table_exists( $ref_table );
     $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array( 'headers' => array(), 'rows' => array() ); }
 
@@ -1150,7 +1198,7 @@ function cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host, $m
     $src       = cspv_referrer_source();
     $ref_table = esc_sql( $src['table'] );
 
-    $has_ref     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref     = cspv_table_exists( $ref_table );
     $has_post_id = $has_ref ? cspv_ref_table_has_col( 'post_id' ) : false;
     if ( ! $has_post_id ) { return array(); }
 
@@ -1223,7 +1271,7 @@ function cspv_insights_referrer_domains_full( $from_str, $to_str, $own_host, $li
     $src       = cspv_referrer_source();
     $ref_table = esc_sql( $src['table'] );
 
-    $has_ref = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref = cspv_table_exists( $ref_table );
     if ( ! $has_ref ) { return array(); }
 
     $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -1256,7 +1304,7 @@ function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_co
     global $wpdb;
     $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
 
-    $has_geo = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_geo = cspv_table_exists( $geo_table );
     if ( ! $has_geo ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
@@ -1414,14 +1462,9 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     // 4. Top external source concentration
     $src       = cspv_referrer_source();
     $ref_table = $src['table'];
-    $has_ref   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_ref   = cspv_table_exists( $ref_table );
     if ( $has_ref && $total_views > 0 ) {
-        $ref_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            "SELECT referrer, COALESCE(SUM(view_count),0) AS views FROM `{$ref_table}`
-             WHERE viewed_at BETWEEN %s AND %s AND referrer IS NOT NULL AND referrer <> ''
-             GROUP BY referrer ORDER BY views DESC LIMIT 200",
-            $from_str, $to_str
-        ) );
+        $ref_rows = cspv_referrer_rows_for_range( $ref_table, $from_str, $to_str, 200 );
         $labeled = cspv_insights_label_refs( $ref_rows, $own_host, false );
         if ( ! empty( $labeled ) ) {
             $top_label = key( $labeled );
@@ -1443,7 +1486,7 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
 
     // 5. Top countries by traffic
     $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
-    $has_geo   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $geo_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $has_geo   = cspv_table_exists( $geo_table );
     if ( $has_geo ) {
         $top_cc = cspv_top_countries( $from_str, $to_str, 5 );
         if ( ! empty( $top_cc ) ) {
@@ -1504,7 +1547,7 @@ function cspv_unique_visitors_for_post( $post_id, $from_str, $to_str ) {
     global $wpdb;
     $table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = cspv_table_exists( $table );
     if ( ! $table_exists ) {
         return 0;
     }

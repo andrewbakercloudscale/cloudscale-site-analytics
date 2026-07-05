@@ -88,7 +88,7 @@ function cspv_referrer_source() {
  * how many stats functions ask — dashboard widget + Smart Summary previously
  * asked this same question for the same 3-4 tables 8-9 times in one page load.
  *
- * @since  2.9.416
+ * @since  2.9.421
  * @param  string $table  Fully-qualified table name.
  * @return bool
  */
@@ -110,7 +110,7 @@ function cspv_table_exists( $table ) {
  * this collapses that into a single query per unique (table, from, to,
  * limit) combination per request.
  *
- * @since  2.9.416
+ * @since  2.9.421
  * @param  string $ref_table
  * @param  string $from_str
  * @param  string $to_str
@@ -628,7 +628,7 @@ function cspv_geo_lookup_dbip( $ip ) {
         if ( is_array( $record ) && isset( $record['country']['iso_code'] ) ) {
             return strtoupper( substr( $record['country']['iso_code'], 0, 2 ) );
         }
-    } catch ( \Exception $e ) {
+    } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- intentional: if stats query fails, fall through to return empty result
         // Invalid IP or DB error, silently return empty
     }
 
@@ -991,8 +991,8 @@ function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period )
     if ( ! $has_ref ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
-        ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
-        : "DATE(viewed_at)";
+        ? 'DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))'
+        : 'DATE(viewed_at)';
 
     $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT {$date_expr} AS bucket, referrer, COALESCE(SUM(view_count),0) AS views
@@ -1308,8 +1308,8 @@ function cspv_insights_countries_over_time( $from_str, $to_str, $period, $max_co
     if ( ! $has_geo ) { return array( 'dates' => array(), 'series' => array() ); }
 
     $date_expr = $period > 30
-        ? "DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))"
-        : "DATE(viewed_at)";
+        ? 'DATE(DATE_SUB(viewed_at, INTERVAL WEEKDAY(viewed_at) DAY))'
+        : 'DATE(viewed_at)';
 
     $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         "SELECT {$date_expr} AS bucket, country_code, COALESCE(SUM(view_count),0) AS views

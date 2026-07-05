@@ -348,7 +348,8 @@ function cspv_dashboard_query_data() {
             $m6_values[] = $data['views'];
         }
         // Ensure exactly 26 entries, pad front with zeros if needed
-        while ( count( $m6_labels ) < 26 ) {
+        $m6_pad_count = max( 0, 26 - count( $m6_labels ) );
+        for ( $i = 0; $i < $m6_pad_count; $i++ ) {
             array_unshift( $m6_labels, '' );
             array_unshift( $m6_values, 0 );
         }

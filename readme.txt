@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.9.416
+Stable tag: 2.9.421
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,7 +85,9 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
-= 2.9.416 =
+= 2.9.421 =
+* Fix: search-result thumbnails were forced to 150x150 on every search page even when the active theme requested a larger size; now only applied when no explicit size was requested
+* Fix: shared Telegram settings card used a non-literal text domain and unescaped output, both flagged by WP.org's automated plugin checker
 * Perf: Dashboard widget's Smart Summary ran the same SHOW TABLES check up to 9 times and the same top-referrers query twice per page load — both memoized per-request, no behaviour change
 * Fix: Debug button and view counter no longer leak into post excerpts on listing pages, only the actual post being viewed
 * Fix: View-count queue raised from 1,000/min to 10,000/min global + 2,000/min per-post caps, with a Telegram alert on saturation instead of silent drops

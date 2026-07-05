@@ -356,7 +356,9 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 
 /**
  * Force 'thumbnail' image size on search-result pages so full-size
- * infographics are not rendered in the results list.
+ * infographics are not rendered in the results list. Only applies when
+ * the template didn't already request a specific (smaller) size itself,
+ * so themes that explicitly ask for e.g. 'medium' are respected.
  *
  * @since 2.9.94
  * @param string|int[] $size
@@ -365,7 +367,7 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 add_filter( 'post_thumbnail_size', 'cspv_search_thumbnail_size' );
 
 function cspv_search_thumbnail_size( $size ) {
-	if ( is_search() ) {
+	if ( is_search() && in_array( $size, array( 'full', 'post-thumbnail' ), true ) ) {
 		return 'thumbnail';
 	}
 	return $size;

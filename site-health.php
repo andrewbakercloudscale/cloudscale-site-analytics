@@ -218,7 +218,7 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     global $wpdb;
 
     $end   = wp_date( 'Y-m-d', strtotime( "-{$offset} days", $today_ts ) ) . ' 23:59:59';
-    $start = wp_date( 'Y-m-d', strtotime( "-" . ( $offset + $days ) . " days", $today_ts ) ) . ' 00:00:00';
+    $start = wp_date( 'Y-m-d', strtotime( '-' . ( $offset + $days ) . ' days', $today_ts ) ) . ' 00:00:00';
 
     $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
         "SELECT post_id, COALESCE(SUM(view_count),0) AS views FROM `{$table}`
@@ -354,9 +354,9 @@ function cspv_render_site_health_html( $context = 'widget' ) {
     <?php foreach ( $health['hot_pages'] as $label => $h ) :
         $pc = $period_colors[ $label ];
         if ( $h['sufficient'] ) :
-            $arrow     = $h['pct_change'] >= 0 ? '▲' : '▼';
-            $val_color = $rag_colors[ $h['rag'] ];
-    ?>
+				$arrow     = $h['pct_change'] >= 0 ? '▲' : '▼';
+				$val_color = $rag_colors[ $h['rag'] ];
+				?>
         <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
             <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>
@@ -371,7 +371,7 @@ function cspv_render_site_health_html( $context = 'widget' ) {
                 vs <?php echo (int) $h['previous_count']; ?> prior
             </div>
         </div>
-    <?php else : ?>
+				<?php else : ?>
         <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
             <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
                 <?php echo esc_html( $label ); ?>

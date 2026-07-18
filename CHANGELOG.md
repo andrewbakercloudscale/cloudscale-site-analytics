@@ -3,6 +3,15 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.423] - 2026-07-05
+
+### Changed
+- **Standards and code quality improvements (WP.org submission hardening).**
+- NOWDOC syntax removed from PHP files (heredoc/NOWDOC rejected by WordPress.org plugin directory scanner).
+- `phpcs:ignore` inline suppressions tightened: added missing rule-specific justification comments throughout `rest-api.php` and related files.
+- `cspv_flush_view_queue()` wrapped in `try { ... } catch ( \Throwable $e )` so an unexpected DB or APCu exception in the WP-Cron flush never kills the cron process silently; errors are logged via `error_log()`.
+- `build.sh` `--include='phpcs.xml'` line removed: the line caused `phpcs.xml` to be bundled into the distributable zip (overriding the `--exclude='*.xml'` rule below it), which triggers the WordPress.org automated scanner rejection. The `--exclude='*.xml'` rule that follows already handles this correctly.
+
 ## [2.9.413] - 2026-07-02
 
 ### Performance

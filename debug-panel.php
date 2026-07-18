@@ -9,7 +9,7 @@
  *   - Manual override to set the displayed count
  *
  * Only visible to users with manage_options capability.
- * Button renders INLINE next to the view counter (pink, 🐛 icon).
+ * Button renders INLINE next to the view counter (pink, 🕐 icon).
  *
  * @package CloudScale_Site_Analytics
  */
@@ -114,14 +114,14 @@ function cspv_inject_debug_button( $content ) {
 		return $content; }
     if ( ! current_user_can( 'manage_options' ) ) {
 		return $content; }
-    $btn = '<button id="cspv-debug-toggle" style="display:none" title="View Diagnostics">🐛 Debug</button>';
+    $btn = '<button id="cspv-debug-toggle" style="display:none" title="View History">🕐 History</button>';
     return wp_kses_post( $btn ) . $content;
 }
 
 /**
  * Convert a 2-char ISO 3166-1 country code to its flag emoji.
  *
- * @since 2.9.421
+ * @since 2.9.433
  * @param string $cc Country code (e.g. "ZA", "US").
  * @return string Flag emoji or 🌐 for unknown.
  */
@@ -137,7 +137,7 @@ function cspv_flag_emoji( string $cc ): string {
 /**
  * Return a human-readable country name for common ISO codes.
  *
- * @since 2.9.421
+ * @since 2.9.433
  * @param string $cc Country code.
  * @return string Country name, or the code itself if not in the map.
  */
@@ -449,7 +449,7 @@ function cspv_render_debug_panel() {
     ?>
 <div id="cspv-debug-panel">
     <div class="cspv-dbg-header">
-        <div>🐛 View Diagnostics, Post #<?php echo (int) $post_id; ?></div>
+        <div>🕐 History, Post #<?php echo (int) $post_id; ?></div>
         <button class="cspv-dbg-close" id="cspv-dbg-close" title="Close">✕</button>
     </div>
     <div class="cspv-dbg-body">

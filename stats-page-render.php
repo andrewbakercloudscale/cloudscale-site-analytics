@@ -1684,9 +1684,9 @@ ob_start();
             var cls = 'cspv-ins-sum-item cspv-ins-sum-' + (item.type || 'neutral');
             var detail = '';
             if (item.detail && item.detail.length) {
-                detail = ': ' + item.detail.map(function(cc) {
-                    return countryFlag(cc) + cc;
-                }).join(' ');
+                detail = ': ' + item.detail.map(function(d) {
+                    return countryFlag(d.cc) + esc(d.cc) + ' (' + parseInt(d.pct, 10) + '%)';
+                }).join(', ');
             }
             html += '<li class="' + cls + '">';
             html += '<span class="cspv-ins-sum-icon">' + esc(item.icon) + '</span>';

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.421
+ * Version:      2.9.433
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.421' );
+define( 'CSPV_VERSION',    '2.9.433' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -41,6 +41,35 @@ require_once CSPV_PLUGIN_DIR . 'dashboard-widget.php';
 require_once CSPV_PLUGIN_DIR . 'stats-page.php';
 require_once CSPV_PLUGIN_DIR . 'site-health.php';
 require_once CSPV_PLUGIN_DIR . 'debug-panel.php';
+
+// Our UI uses plain native emoji characters everywhere (Smart Summary icons, flags).
+// WP's built-in twemoji polyfill replaces them with <img> tags from s.w.org when it
+// (sometimes wrongly) decides a browser lacks native emoji support; if that CDN is
+// ever unreachable the images break. Since native rendering is all we need, skip the
+// polyfill outright rather than depending on an external CDN we don't control.
+add_action( 'init', function () {
+    remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
+    remove_action( 'wp_print_styles', 'print_emoji_styles' );
+    remove_action( 'embed_head', 'print_emoji_detection_script' );
+    remove_filter( 'wp_mail', 'wp_staticize_emoji_for_email' );
+    remove_filter( 'the_content_feed', 'wp_staticize_emoji' );
+    remove_filter( 'comment_text_rss', 'wp_staticize_emoji' );
+    add_filter( 'tiny_mce_plugins', function ( $plugins ) {
+        return is_array( $plugins ) ? array_diff( $plugins, array( 'wpemoji' ) ) : $plugins;
+    } );
+    add_filter( 'wp_resource_hints', function ( $urls ) {
+        return array_values( array_diff( $urls, array( 'https://s.w.org' ) ) );
+    } );
+}, 1 );
+
+// wp-admin/includes/admin-filters.php re-registers the admin_print_scripts/
+// admin_print_styles emoji hooks, and that file loads after `init` has already
+// fired — so the removal above never catches them on admin pages. Remove again
+// on admin_init, which runs after admin-filters.php has loaded.
+add_action( 'admin_init', function () {
+    remove_action( 'admin_print_scripts', 'print_emoji_detection_script' );
+    remove_action( 'admin_print_styles', 'print_emoji_styles' );
+}, 1 );
 
 register_activation_hook( __FILE__, 'cspv_activate' );
 

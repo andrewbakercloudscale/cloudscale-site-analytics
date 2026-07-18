@@ -229,15 +229,19 @@ function cspv_apcu_enqueue( int $post_id ) {
  * @return void
  */
 function cspv_flush_view_queue(): void {
-    if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
-        return;
+    try {
+        if ( ! function_exists( 'apcu_enabled' ) || ! apcu_enabled() ) {
+            return;
+        }
+        if ( class_exists( 'APCuIterator' ) ) {
+            cspv_flush_queue_via_iterator();
+        } else {
+            cspv_flush_queue_via_dirty_list();
+        }
+        cspv_alert_on_queue_drops();
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[cloudscale-site-analytics] cron cspv_flush_view_queue (%s): %s', get_class( $e ), $e->getMessage() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional cron safety net
     }
-    if ( class_exists( 'APCuIterator' ) ) {
-        cspv_flush_queue_via_iterator();
-    } else {
-        cspv_flush_queue_via_dirty_list();
-    }
-    cspv_alert_on_queue_drops();
 }
 
 /**
@@ -368,7 +372,7 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.421
+ * @since 2.9.433
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
@@ -399,7 +403,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.421
+ * @since 2.9.433
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {

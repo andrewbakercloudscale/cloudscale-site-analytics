@@ -17,7 +17,9 @@ if ( class_exists( 'CloudScale_Telegram' ) ) {
 	return;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- shared cross-plugin utility; CloudScale IS the brand prefix
 class CloudScale_Telegram {
+// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
 
 	const OPTION_TOKEN   = 'cloudscale_telegram_bot_token'; // pragma:allow-secret
 	const OPTION_CHAT_ID = 'cloudscale_telegram_chat_id';
@@ -33,7 +35,7 @@ class CloudScale_Telegram {
 	 * @param string $level   One of: info, warning, error, critical.
 	 */
 	private static function alert_prefix( string $source, string $level ): string {
-		$host   = (string) ( parse_url( home_url(), PHP_URL_HOST ) ?: '' );
+		$host   = (string) ( wp_parse_url( home_url(), PHP_URL_HOST ) ?: '' );
 		$domain = implode( '.', array_map( 'ucfirst', explode( '.', strtolower( $host ) ) ) );
 
 		$emojis = [
@@ -87,7 +89,7 @@ class CloudScale_Telegram {
 	 */
 	public static function save_from_post(): void {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- caller is responsible for nonce check
-		update_option( self::OPTION_TOKEN,   sanitize_text_field( wp_unslash( $_POST['telegram_token']   ?? '' ) ) );
+		update_option( self::OPTION_TOKEN, sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) ) );
 		update_option( self::OPTION_CHAT_ID, sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ?? '' ) ) );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 	}
@@ -165,13 +167,13 @@ class CloudScale_Telegram {
 			check_ajax_referer( 'cloudscale_telegram_test', 'nonce' );
 
 			// phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified above
-			$token   = sanitize_text_field( wp_unslash( $_POST['telegram_token']   ?? '' ) );
+			$token   = sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) );
 			$chat_id = sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ?? '' ) );
 			$source  = sanitize_text_field( wp_unslash( $_POST['test_source'] ?? '' ) ) ?: 'Telegram';
 			// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 			// Fall back to stored credentials (used by the credentials panel test button).
-			if ( ! $token )   { $token   = (string) get_option( self::OPTION_TOKEN,   '' ); }
+			if ( ! $token ) { $token   = (string) get_option( self::OPTION_TOKEN, '' ); }
 			if ( ! $chat_id ) { $chat_id = (string) get_option( self::OPTION_CHAT_ID, '' ); }
 
 			if ( ! $token || ! $chat_id ) {
@@ -269,65 +271,64 @@ class CloudScale_Telegram {
 		</div>
 		<?php if ( ! $js_output ) {
 			$js_output = true;
-			$telegram_settings_js = <<<'ENDJS'
-(function(){
-	['cs-telegram-token','cs-telegram-chat-id'].forEach(function(inputId){
-		var toggleId=inputId==='cs-telegram-token'?'cs-telegram-token-toggle':'cs-telegram-chat-toggle';
-		var inp=document.getElementById(inputId);
-		var btn=document.getElementById(toggleId);
-		if(!inp||!btn)return;
-		btn.addEventListener('click',function(){
-			var shown=inp.type==='text';
-			inp.type=shown?'password':'text';
-			btn.textContent=shown?'Show':'Hide';
-		});
-	});
-	var fetchBtn=document.getElementById('cs-telegram-fetch-btn');
-	if(fetchBtn){
-		fetchBtn.addEventListener('click',function(){
-			var btn=this;
-			var token=(document.getElementById('cs-telegram-token').value||'').trim();
-			var msg=document.getElementById('cs-telegram-fetch-msg');
-			var chatIn=document.getElementById('cs-telegram-chat-id');
-			if(!token){msg.textContent='Enter bot token first.';msg.style.color='#c00';return;}
-			btn.disabled=true;
-			msg.textContent='Fetching...';msg.style.color='#666';
-			var fd=new FormData();
-			fd.append('action','cloudscale_telegram_fetch_chat_id');
-			fd.append('nonce',btn.dataset.nonce);
-			fd.append('telegram_token',token);
-			fetch(ajaxurl,{method:'POST',body:fd})
-				.then(function(r){return r.json();})
-				.then(function(d){
-					if(d.success){chatIn.value=d.data.chat_id;msg.textContent='Chat ID found: '+d.data.chat_id;msg.style.color='#0a5';}
-					else{msg.textContent=d.data||'Failed.';msg.style.color='#c00';}
-				})
-				.catch(function(){msg.textContent='Request error.';msg.style.color='#c00';})
-				.finally(function(){btn.disabled=false;});
-		});
-	}
-	var testBtn=document.getElementById('cs-telegram-test-btn');
-	if(testBtn){
-		testBtn.addEventListener('click',function(){
-			var btn=this;
-			var msg=document.getElementById('cs-telegram-test-msg');
-			btn.disabled=true;
-			if(msg){msg.textContent='Sending...';msg.style.color='#666';}
-			var fd=new FormData();
-			fd.append('action','cloudscale_telegram_test');
-			fd.append('nonce',btn.dataset.nonce);
-			fd.append('test_source',btn.dataset.source||'');
-			fetch(ajaxurl,{method:'POST',body:fd})
-				.then(function(r){return r.json();})
-				.then(function(d){
-					if(msg){msg.textContent=d.success?(d.data&&d.data.msg?d.data.msg:'Sent.'):(d.data||'Failed.');msg.style.color=d.success?'#0a5':'#c00';}
-				})
-				.catch(function(){if(msg){msg.textContent='Request error.';msg.style.color='#c00';}})
-				.finally(function(){btn.disabled=false;});
-		});
-	}
-})();
-ENDJS;
+			$telegram_settings_js =
+				"(function(){\n"
+				. "\t['cs-telegram-token','cs-telegram-chat-id'].forEach(function(inputId){\n"
+				. "\t\tvar toggleId=inputId==='cs-telegram-token'?'cs-telegram-token-toggle':'cs-telegram-chat-toggle';\n"
+				. "\t\tvar inp=document.getElementById(inputId);\n"
+				. "\t\tvar btn=document.getElementById(toggleId);\n"
+				. "\t\tif(!inp||!btn)return;\n"
+				. "\t\tbtn.addEventListener('click',function(){\n"
+				. "\t\t\tvar shown=inp.type==='text';\n"
+				. "\t\t\tinp.type=shown?'password':'text';\n"
+				. "\t\t\tbtn.textContent=shown?'Show':'Hide';\n"
+				. "\t\t});\n"
+				. "\t});\n"
+				. "\tvar fetchBtn=document.getElementById('cs-telegram-fetch-btn');\n"
+				. "\tif(fetchBtn){\n"
+				. "\t\tfetchBtn.addEventListener('click',function(){\n"
+				. "\t\t\tvar btn=this;\n"
+				. "\t\t\tvar token=(document.getElementById('cs-telegram-token').value||'').trim();\n"
+				. "\t\t\tvar msg=document.getElementById('cs-telegram-fetch-msg');\n"
+				. "\t\t\tvar chatIn=document.getElementById('cs-telegram-chat-id');\n"
+				. "\t\t\tif(!token){msg.textContent='Enter bot token first.';msg.style.color='#c00';return;}\n"
+				. "\t\t\tbtn.disabled=true;\n"
+				. "\t\t\tmsg.textContent='Fetching...';msg.style.color='#666';\n"
+				. "\t\t\tvar fd=new FormData();\n"
+				. "\t\t\tfd.append('action','cloudscale_telegram_fetch_chat_id');\n"
+				. "\t\t\tfd.append('nonce',btn.dataset.nonce);\n"
+				. "\t\t\tfd.append('telegram_token',token);\n"
+				. "\t\t\tfetch(ajaxurl,{method:'POST',body:fd})\n"
+				. "\t\t\t\t.then(function(r){return r.json();})\n"
+				. "\t\t\t\t.then(function(d){\n"
+				. "\t\t\t\t\tif(d.success){chatIn.value=d.data.chat_id;msg.textContent='Chat ID found: '+d.data.chat_id;msg.style.color='#0a5';}\n"
+				. "\t\t\t\t\telse{msg.textContent=d.data||'Failed.';msg.style.color='#c00';}\n"
+				. "\t\t\t\t})\n"
+				. "\t\t\t\t.catch(function(){msg.textContent='Request error.';msg.style.color='#c00';})\n"
+				. "\t\t\t\t.finally(function(){btn.disabled=false;});\n"
+				. "\t\t});\n"
+				. "\t}\n"
+				. "\tvar testBtn=document.getElementById('cs-telegram-test-btn');\n"
+				. "\tif(testBtn){\n"
+				. "\t\ttestBtn.addEventListener('click',function(){\n"
+				. "\t\t\tvar btn=this;\n"
+				. "\t\t\tvar msg=document.getElementById('cs-telegram-test-msg');\n"
+				. "\t\t\tbtn.disabled=true;\n"
+				. "\t\t\tif(msg){msg.textContent='Sending...';msg.style.color='#666';}\n"
+				. "\t\t\tvar fd=new FormData();\n"
+				. "\t\t\tfd.append('action','cloudscale_telegram_test');\n"
+				. "\t\t\tfd.append('nonce',btn.dataset.nonce);\n"
+				. "\t\t\tfd.append('test_source',btn.dataset.source||'');\n"
+				. "\t\t\tfetch(ajaxurl,{method:'POST',body:fd})\n"
+				. "\t\t\t\t.then(function(r){return r.json();})\n"
+				. "\t\t\t\t.then(function(d){\n"
+				. "\t\t\t\t\tif(msg){msg.textContent=d.success?(d.data&&d.data.msg?d.data.msg:'Sent.'):(d.data||'Failed.');msg.style.color=d.success?'#0a5':'#c00';}\n"
+				. "\t\t\t\t})\n"
+				. "\t\t\t\t.catch(function(){if(msg){msg.textContent='Request error.';msg.style.color='#c00';}})\n"
+				. "\t\t\t\t.finally(function(){btn.disabled=false;});\n"
+				. "\t\t});\n"
+				. "\t}\n"
+				. "})();\n";
 			// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.NoExplicitVersion -- virtual inline-only handle, no src URL, no cache-busting needed
 			wp_register_script( 'cloudscale-telegram-ui', false, array(), false, true );
 			wp_add_inline_script( 'cloudscale-telegram-ui', $telegram_settings_js );

@@ -250,7 +250,6 @@ echo ""
 mkdir -p "$TEMP_DIR/$PLUGIN_NAME"
 rsync -a \
   --exclude='.*' \
-  --include='phpcs.xml' \
   --exclude='*.zip' --exclude='*.sh' --exclude='*.xml' \
   --exclude='*.json' \
   --exclude='repo/' --exclude='docs/' --exclude='tests/' \

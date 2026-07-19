@@ -372,13 +372,22 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.433
+ * @since 2.9.434
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
     $remote_addr = $_SERVER['REMOTE_ADDR'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- validated via filter_var; REMOTE_ADDR is server-set, not user-supplied
     $raw_ip      = '';
-    if ( cspv_is_cloudflare_ip( $remote_addr ) && ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
+
+    // CF-Connecting-IP is authoritative (set by Cloudflare, stripped from client
+    // input) when the request reached us via Cloudflare. That's true both when the
+    // immediate peer is a published Cloudflare edge IP AND when it's a private/
+    // loopback address — the case for a Cloudflare *Tunnel* origin (cloudflared ->
+    // nginx -> php), where REMOTE_ADDR is the internal gateway, never a CF edge.
+    // Without this, tunnel traffic fell through to X-Forwarded-For (often a CF/proxy
+    // hop that doesn't geolocate), producing "Unknown" countries.
+    $remote_is_private = false === filter_var( $remote_addr, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE );
+    if ( ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) && ( cspv_is_cloudflare_ip( $remote_addr ) || $remote_is_private ) ) {
         $raw_ip = trim( sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) );
     } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
         $raw_ip = trim( explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) )[0] );
@@ -403,7 +412,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.433
+ * @since 2.9.434
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {

@@ -157,7 +157,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
 
                 if ( $page > 1 ) {
                     $query_vars[ $param_key ] = $page - 1;
-                    echo '<a class="cspv-rp-page cspv-rp-arrow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">&laquo;</a>';
+                    echo '<a class="cspv-rp-page cspv-rp-arrow" rel="nofollow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">&laquo;</a>';
                 }
 
                 $start = max( 1, $page - 2 );
@@ -165,7 +165,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
 
                 if ( $start > 1 ) {
                     $query_vars[ $param_key ] = 1;
-                    echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">1</a>';
+                    echo '<a class="cspv-rp-page" rel="nofollow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">1</a>';
                     if ( $start > 2 ) echo '<span class="cspv-rp-ellipsis">&hellip;</span>';
                 }
 
@@ -174,19 +174,19 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
                     if ( $i === $page ) {
                         echo '<span class="cspv-rp-page cspv-rp-current">' . (int) $i . '</span>';
                     } else {
-                        echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $i . '</a>';
+                        echo '<a class="cspv-rp-page" rel="nofollow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $i . '</a>';
                     }
                 }
 
                 if ( $end < $total_pages ) {
                     if ( $end < $total_pages - 1 ) echo '<span class="cspv-rp-ellipsis">&hellip;</span>';
                     $query_vars[ $param_key ] = $total_pages;
-                    echo '<a class="cspv-rp-page" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $total_pages . '</a>';
+                    echo '<a class="cspv-rp-page" rel="nofollow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">' . (int) $total_pages . '</a>';
                 }
 
                 if ( $page < $total_pages ) {
                     $query_vars[ $param_key ] = $page + 1;
-                    echo '<a class="cspv-rp-page cspv-rp-arrow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">&raquo;</a>';
+                    echo '<a class="cspv-rp-page cspv-rp-arrow" rel="nofollow" href="' . esc_url( $base_url . '?' . http_build_query( $query_vars ) ) . '">&raquo;</a>';
                 }
 
                 echo '</div>';

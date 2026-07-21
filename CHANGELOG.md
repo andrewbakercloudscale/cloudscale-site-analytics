@@ -3,6 +3,11 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.435] - 2026-07-21
+
+### Fixed
+- **Recent Posts widget pagination links are now `rel="nofollow"`.** Google was crawling every `?cspv_rp_*` pagination combination (119 URLs reported as "Crawled - currently not indexed" in Search Console). The links still work for visitors; crawlers are told not to follow them.
+
 ## [2.9.423] - 2026-07-05
 
 ### Changed

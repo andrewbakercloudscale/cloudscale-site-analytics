@@ -88,7 +88,7 @@ function cspv_referrer_source() {
  * how many stats functions ask — dashboard widget + Smart Summary previously
  * asked this same question for the same 3-4 tables 8-9 times in one page load.
  *
- * @since  2.9.437
+ * @since  2.9.438
  * @param  string $table  Fully-qualified table name.
  * @return bool
  */
@@ -110,7 +110,7 @@ function cspv_table_exists( $table ) {
  * this collapses that into a single query per unique (table, from, to,
  * limit) combination per request.
  *
- * @since  2.9.437
+ * @since  2.9.438
  * @param  string $ref_table
  * @param  string $from_str
  * @param  string $to_str

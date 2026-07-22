@@ -121,7 +121,7 @@ function cspv_inject_debug_button( $content ) {
 /**
  * Convert a 2-char ISO 3166-1 country code to its flag emoji.
  *
- * @since 2.9.437
+ * @since 2.9.438
  * @param string $cc Country code (e.g. "ZA", "US").
  * @return string Flag emoji or 🌐 for unknown.
  */
@@ -137,7 +137,7 @@ function cspv_flag_emoji( string $cc ): string {
 /**
  * Return a human-readable country name for common ISO codes.
  *
- * @since 2.9.437
+ * @since 2.9.438
  * @param string $cc Country code.
  * @return string Country name, or the code itself if not in the map.
  */

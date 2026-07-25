@@ -1796,17 +1796,15 @@ ob_start();
         var wrap = document.getElementById('cspv-ins-posts-wrap');
         if (!wrap || !posts || !posts.length) return;
         // Five-column table with a real min-width (680px) so the wrap's
-        // overflow-x:auto gives a clean horizontal scroll — the Article column
-        // keeps a fixed 220px and wraps at words, never one-letter-per-line.
-        // Fixed layout that fits the viewport (no horizontal scroll) so every
-        // column — including the last, Audio completed — is always on screen.
-        // Headers wrap to 2 lines; the Article column takes 36% and wraps.
+        // overflow-x:auto gives a clean horizontal scroll on narrow screens,
+        // keeping every column reachable (including the last, Audio completed).
+        // Auto layout (not fixed) with a wide Article column that wraps at words.
         var html = '<style>'
-            + '.cspv-ins-posts-tbl{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;}'
-            + '.cspv-ins-posts-tbl th,.cspv-ins-posts-tbl td{padding:7px 5px;text-align:right;vertical-align:middle;}'
+            + '.cspv-ins-posts-tbl{border-collapse:collapse;width:100%;min-width:680px;font-size:12px;}'
+            + '.cspv-ins-posts-tbl th,.cspv-ins-posts-tbl td{padding:7px 8px;text-align:right;vertical-align:middle;}'
             + '.cspv-ins-posts-tbl thead th{color:#e5e7eb;font-weight:700;background:#0f172a;font-size:11px;white-space:normal;line-height:1.2;}'
             + '.cspv-ins-posts-tbl tbody td{color:#0f172a;border-bottom:1px solid #eef2f7;white-space:nowrap;}'
-            + '.cspv-ins-posts-tbl th.left,.cspv-ins-posts-tbl td.left{text-align:left;white-space:normal;width:36%;}'
+            + '.cspv-ins-posts-tbl th.left,.cspv-ins-posts-tbl td.left{text-align:left;white-space:normal;width:260px;min-width:240px;}'
             + '.cspv-ins-posts-tbl td.left a{color:#1d4ed8;text-decoration:none;font-weight:600;line-height:1.3;word-break:break-word;}'
             + '</style>';
         html += '<table class="cspv-ins-posts-tbl"><thead><tr>'

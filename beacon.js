@@ -234,6 +234,65 @@
     }
 
     // ------------------------------------------------------------------
+    // Audio narration engagement tracking (play + complete)
+    // ------------------------------------------------------------------
+    // For each "Listen to this article" player (<audio data-post-id>): record a
+    // "play" the first time the listener presses play, and a "complete" when the
+    // audio reaches its end. Together these give a true completion rate. Each
+    // event is deduped per post per browser per 24h (like view counting), so a
+    // pause/resume or replay never double counts. Reads the id from each element,
+    // so it works on single posts and on listings with several players.
+    // ------------------------------------------------------------------
+    function sendAudioEvent( pid, event ) {
+        var key = 'cspv_audio_' + event + '_' + pid;
+        try {
+            var raw = localStorage.getItem( key );
+            if ( raw && Date.now() - parseInt( raw, 10 ) < DEDUP_TTL_MS ) {
+                log( 'audio ' + event + ' already recorded within 24h for', pid );
+                return;
+            }
+        } catch ( e ) {}
+
+        fetch( cspvData.audioEventBase + pid, {
+            method:      'POST',
+            headers:     { 'Content-Type': 'application/json', 'X-WP-Nonce': cspvData.nonce },
+            body:        JSON.stringify( { event: event } ),
+            credentials: 'same-origin',
+            keepalive:   true,
+        } )
+        .then( function ( r ) { return r.ok ? r.json() : null; } )
+        .then( function ( d ) {
+            log( 'audio ' + event + ' recorded for', pid, d );
+            try { localStorage.setItem( key, String( Date.now() ) ); } catch ( e ) {}
+        } )
+        .catch( function ( err ) { log( 'audio ' + event + ' error:', err ); } );
+    }
+
+    function trackAudioEngagement() {
+        if ( ! cspvData.audioEventBase ) { return; }
+        var players = document.querySelectorAll( 'audio[data-post-id]' );
+        if ( ! players.length ) { return; }
+
+        players.forEach( function ( el ) {
+            var pid = el.getAttribute( 'data-post-id' );
+            if ( ! pid || ! /^\d+$/.test( pid ) ) { return; }
+            var playedThisLoad = false, endedThisLoad = false;
+
+            el.addEventListener( 'play', function () {
+                if ( playedThisLoad ) { return; }   // once per element per page load
+                playedThisLoad = true;
+                sendAudioEvent( pid, 'play' );
+            } );
+
+            el.addEventListener( 'ended', function () {
+                if ( endedThisLoad ) { return; }
+                endedThisLoad = true;
+                sendAudioEvent( pid, 'complete' );
+            } );
+        } );
+    }
+
+    // ------------------------------------------------------------------
     // Boot (guarded against double execution)
     // ------------------------------------------------------------------
     var booted = false;
@@ -245,6 +304,7 @@
         } else {
             fetchCounts();
         }
+        trackAudioEngagement();
     }
 
     if ( document.readyState === 'complete' ) {

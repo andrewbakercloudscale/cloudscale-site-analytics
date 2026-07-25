@@ -185,10 +185,10 @@ class CSPV_Search_Widget extends WP_Widget {
  */
 function cspv_search_widget_css() {
 	return '
-.cspv-search-form{display:flex;gap:0;width:100%;}
+.cspv-search-form{display:flex;gap:0;width:100%;box-sizing:border-box;padding-right:16px;}
 .cspv-search-input{flex:1;min-width:0;padding:8px 12px;font-size:14px;border:2px solid #ddd;border-right:none;border-radius:4px 0 0 4px;outline:none;transition:border-color .15s;}
 .cspv-search-input:focus{border-color:var(--cspv-btn-color,#e8491d);}
-.cspv-search-btn{display:inline-flex;align-items:center;justify-content:center;padding:0 14px;background:var(--cspv-btn-color,#e8491d);border:2px solid var(--cspv-btn-color,#e8491d);border-radius:0 4px 4px 0;color:#fff;cursor:pointer;transition:background .15s,border-color .15s;line-height:1;}
+.cspv-search-btn{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;padding:0 30px;min-width:72px;background:var(--cspv-btn-color,#e8491d);border:2px solid var(--cspv-btn-color,#e8491d);border-radius:0 4px 4px 0;color:#fff;cursor:pointer;transition:background .15s,border-color .15s;line-height:1;}
 .cspv-search-btn:hover{background:var(--cspv-btn-hover,#f27c1a);border-color:var(--cspv-btn-hover,#f27c1a);}
 ';
 }

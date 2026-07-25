@@ -78,10 +78,14 @@ function cspv_enqueue_beacon() {
     }, 99, 2 );
 
     $data = array(
-        'mode'       => $is_singular ? 'record' : 'fetch',
-        'countsUrl'  => rest_url( 'cloudscale-site-analytics/v1/counts' ),
-        'nonce'      => wp_create_nonce( 'wp_rest' ),
-        'dedupOn'    => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
+        'mode'          => $is_singular ? 'record' : 'fetch',
+        'countsUrl'     => rest_url( 'cloudscale-site-analytics/v1/counts' ),
+        'nonce'         => wp_create_nonce( 'wp_rest' ),
+        'dedupOn'       => get_option( 'cspv_dedup_enabled', 'yes' ) !== 'no',
+        // Base URL for the narration engagement beacon (play + complete events);
+        // the post id is appended per <audio> element (works on single posts and
+        // multi-result listings).
+        'audioEventBase' => rest_url( 'cloudscale-site-analytics/v1/audio/' ),
     );
 
     if ( $is_singular ) {

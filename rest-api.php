@@ -372,7 +372,7 @@ function cspv_beacon_auth_required() {
  * X-Forwarded-For / X-Real-IP / REMOTE_ADDR. Returns '' when no valid IP can
  * be determined. Single source of truth for IP resolution across endpoints.
  *
- * @since 2.9.440
+ * @since 2.9.456
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
@@ -412,7 +412,7 @@ function cspv_get_client_ip() {
  * still not persist meaningfully, so we skip it (real volumetric defense for a
  * public beacon belongs at the CDN/WAF edge). No external request is made.
  *
- * @since 2.9.440
+ * @since 2.9.456
  * @return bool  True when the current IP has exceeded the limit this window.
  */
 function cspv_read_rate_limited() {
@@ -492,6 +492,27 @@ function cspv_register_endpoint() {
         )
     );
 
+    // Audio narration engagement beacon. Fired by beacon.js on the "Listen to
+    // this article" <audio> "play" and "ended" events (event=play|complete).
+    // Same public-but-hardened contract as /record.
+    register_rest_route(
+        'cloudscale-site-analytics/v1',
+        '/audio/(?P<id>\d+)',
+        array(
+            'methods'             => 'POST',
+            'callback'            => 'cspv_record_audio_event',
+            'permission_callback' => '__return_true', // Public by design: anonymous listener beacon. Hardened: validated ID + wp_rest nonce + per-IP throttle.
+            'args'                => array(
+                'id' => array(
+                    'validate_callback' => function ( $param ) {
+                        return is_numeric( $param ) && (int) $param > 0;
+                    },
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        )
+    );
+
     // Diagnostics endpoint, used by the stats page to confirm beacon is reachable
     register_rest_route(
         'cloudscale-site-analytics/v1',
@@ -502,6 +523,88 @@ function cspv_register_endpoint() {
             'permission_callback' => '__return_true', // Public by design: read-only reachability probe, returns no site data (see reviewer note above).
         )
     );
+}
+
+/**
+ * REST callback for POST /cloudscale-site-analytics/v1/audio/{id}.
+ *
+ * Records one narration engagement event (play or completion) for the post in
+ * the current hour bucket. Mirrors cspv_record_view's public-endpoint hardening
+ * (nocache headers, kill switch, post validation, wp_rest nonce gate, per-IP
+ * throttle) but writes only the audio table. Browser-side dedup (localStorage,
+ * 24h) keeps this to roughly one play + one completion per listener per day,
+ * matching how views are deduped, so plays vs completes is a true rate.
+ *
+ * @since  1.7.0
+ * @param  WP_REST_Request $request Incoming REST request.
+ * @return WP_REST_Response
+ */
+function cspv_record_audio_event( WP_REST_Request $request ) {
+    cspv_send_nocache_headers();
+
+    if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
+        return new WP_REST_Response( array( 'logged' => false, 'paused' => true ), 200 );
+    }
+
+    $post_id = absint( $request->get_param( 'id' ) );
+    if ( $post_id <= 0 ) {
+        return new WP_REST_Response( array( 'error' => 'Invalid post ID.' ), 400 );
+    }
+    $post = get_post( $post_id );
+    if ( ! $post || 'publish' !== $post->post_status ) {
+        return new WP_REST_Response( array( 'error' => 'Post not found.' ), 404 );
+    }
+
+    // Which event: play (pressed play) or complete (reached the end). Anything
+    // else is rejected so the column choice below is always safe.
+    $body   = $request->get_json_params();
+    $event  = ( is_array( $body ) && isset( $body['event'] ) ) ? sanitize_key( $body['event'] ) : 'complete';
+    if ( ! in_array( $event, array( 'play', 'complete' ), true ) ) {
+        return new WP_REST_Response( array( 'error' => 'Invalid event.' ), 400 );
+    }
+    $column = ( 'play' === $event ) ? 'plays' : 'completes';
+
+    // Beacon authenticity gate (same as views): require a valid wp_rest nonce
+    // unless the kill switch disables it.
+    if ( cspv_beacon_auth_required() ) {
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return new WP_REST_Response( array( 'logged' => false ), 200 );
+        }
+    }
+
+    // Per-IP throttle (shared with views): silent accept on trip.
+    $raw_ip  = cspv_get_client_ip();
+    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
+    if ( $ip_hash && cspv_is_throttled( $ip_hash ) ) {
+        return new WP_REST_Response( array( 'logged' => false ), 200 );
+    }
+
+    global $wpdb;
+    $table       = esc_sql( $wpdb->prefix . 'cs_analytics_audio_v2' );
+    $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
+
+    // Ensure the table exists (cached like the views-table check).
+    $exists = get_transient( 'cspv_audio_table_exists' );
+    if ( $exists === false ) {
+        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+        set_transient( 'cspv_audio_table_exists', $exists, HOUR_IN_SECONDS );
+    }
+    if ( $exists !== '1' ) {
+        if ( function_exists( 'cspv_create_table_audio_v2' ) ) { cspv_create_table_audio_v2(); }
+        set_transient( 'cspv_audio_table_exists', '1', HOUR_IN_SECONDS );
+    }
+
+    // Column name is one of two hard-coded literals selected above — safe to
+    // interpolate; only post_id and the hour bucket are user-influenced values.
+    $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
+        "INSERT INTO `{$table}` (post_id, bucketed_at, `{$column}`)
+         VALUES (%d, %s, 1)
+         ON DUPLICATE KEY UPDATE `{$column}` = `{$column}` + 1",
+        $post_id, $hour_bucket
+    ) );
+
+    return new WP_REST_Response( array( 'logged' => true, 'event' => $event ), 200 );
 }
 
 /**

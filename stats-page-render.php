@@ -332,7 +332,7 @@ function cspv_render_insights_tab( $vars ) {
                 <!-- Top Posts by Views (audience table) -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Views</div>
-                    <div id="cspv-ins-posts-wrap" style="overflow-x:auto;"></div>
+                    <div id="cspv-ins-posts-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"></div>
                 </div>
 
                 <!-- Top Posts by Referrer -->
@@ -1583,10 +1583,16 @@ ob_start();
         return (arr || []).filter(function(x) { return !x.is_self; });
     }
 
-    function insCustomLegend(elId, items, colorFn, dashFn, valuesFn, total) {
+    function insCustomLegend(elId, items, colorFn, dashFn, valuesFn, total, horizontal, limit) {
         var el = document.getElementById(elId);
         if (!el) return;
-        el.innerHTML = items.map(function(label, i) {
+        if (horizontal) {
+            el.style.display = 'flex';
+            el.style.flexWrap = 'wrap';
+            el.style.justifyContent = 'center';
+            el.style.gap = '8px 18px';
+        }
+        var itemsHtml = items.map(function(label, i) {
             var col = colorFn(i);
             var inner;
             if (dashFn) {
@@ -1609,12 +1615,38 @@ ob_start();
                     + (total ? ' <span style="color:#94a3b8">(' + Math.round(v / total * 100) + '%)</span>' : '')
                     + '</span>';
             }
-            return '<span class="cspv-ins-legend-item" style="display:flex;align-items:center;width:100%;min-width:0">'
+            var itemStyle  = horizontal ? 'display:inline-flex;align-items:center;gap:6px' : 'display:flex;align-items:center;width:100%;min-width:0';
+            var labelStyle = horizontal ? 'white-space:nowrap' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0';
+            return '<span class="cspv-ins-legend-item" style="' + itemStyle + '">'
                 + inner
-                + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">' + esc(label) + '</span>'
+                + '<span style="' + labelStyle + '">' + esc(label) + '</span>'
                 + stat
                 + '</span>';
-        }).join('');
+        });
+
+        // Optional cap (vertical legends only): show the top `limit` rows and a
+        // "View N more" toggle that reveals the rest, so a long source list does
+        // not dominate the panel.
+        var lim = ( limit && ! horizontal ) ? parseInt( limit, 10 ) : 0;
+        if ( ! lim || itemsHtml.length <= lim ) {
+            el.innerHTML = itemsHtml.join('');
+            return;
+        }
+        var hiddenCount = itemsHtml.length - lim;
+        el.innerHTML = itemsHtml.slice(0, lim).join('')
+            + '<div class="cspv-ins-legend-more" style="display:none">' + itemsHtml.slice(lim).join('') + '</div>'
+            + '<button type="button" class="cspv-ins-legend-toggle" style="display:block;width:100%;margin-top:8px;'
+            + 'background:none;border:none;color:#1d4ed8;font-size:12px;font-weight:700;cursor:pointer;padding:5px 0;text-align:center;">'
+            + 'View ' + hiddenCount + ' more</button>';
+        var moreEl = el.querySelector('.cspv-ins-legend-more');
+        var toggleBtn = el.querySelector('.cspv-ins-legend-toggle');
+        if ( toggleBtn && moreEl ) {
+            toggleBtn.addEventListener('click', function() {
+                var open = moreEl.style.display !== 'none';
+                moreEl.style.display = open ? 'none' : 'block';
+                toggleBtn.textContent = open ? ('View ' + hiddenCount + ' more') : 'View less';
+            });
+        }
     }
 
     function renderInsTrafficSources(sources) {
@@ -1640,7 +1672,7 @@ ob_start();
                 }
             }
         });
-        insCustomLegend('cspv-ins-traffic-legend', labels, function(i){ return colors[i]; }, null, function(i){ return values[i]; }, total);
+        insCustomLegend('cspv-ins-traffic-legend', labels, function(i){ return colors[i]; }, null, function(i){ return values[i]; }, total, false, 10);
     }
 
     function renderInsGrowthChart(growth) {
@@ -1763,29 +1795,39 @@ ob_start();
     function renderInsPostsTable(posts) {
         var wrap = document.getElementById('cspv-ins-posts-wrap');
         if (!wrap || !posts || !posts.length) return;
-        var maxV = posts[0].views || 1;
-        var hasAud = posts.some(function(p) { return p.unique_visitors > 0; });
-        var html = '<table class="cspv-ins-posts-tbl"><thead><tr>';
-        html += '<th class="left">Post</th><th>Views</th>';
-        if (hasAud) html += '<th>Readers</th><th>Audience</th>';
-        html += '</tr></thead><tbody>';
-        posts.forEach(function(p, i) {
-            var pct = Math.round(p.views / maxV * 100);
-            var col = insColor(i);
-            html += '<tr>';
-            html += '<td class="cspv-ins-pt-title-cell"><a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.title.length > 55 ? p.title.slice(0,52)+'…' : p.title) + '</a></td>';
-            html += '<td class="cspv-ins-pt-num-cell"><div class="cspv-ins-pt-bar-wrap"><div class="cspv-ins-pt-bar-fill" style="width:' + pct + '%;background:' + col + '"></div><span class="cspv-ins-pt-bar-label">' + p.views.toLocaleString() + '</span></div></td>';
-            if (hasAud) {
-                var u = p.unique_visitors || 0;
-                html += '<td class="cspv-ins-pt-num-cell">' + (u > 0 ? u.toLocaleString() : '·') + '</td>';
-                html += '<td class="cspv-ins-pt-aud-cell">';
-                if (u > 0) {
-                    html += '<div class="cspv-ins-aud-bar"><div class="cspv-ins-aud-new" style="width:' + (p.new_pct||0) + '%"></div><div class="cspv-ins-aud-ret" style="width:' + (p.returning_pct||0) + '%"></div></div>';
-                    html += '<span class="cspv-ins-aud-label">' + (p.new_pct||0) + '% new · ' + (p.returning_pct||0) + '% returning</span>';
-                } else { html += '·'; }
-                html += '</td>';
-            }
-            html += '</tr>';
+        // Five-column table with a real min-width (680px) so the wrap's
+        // overflow-x:auto gives a clean horizontal scroll — the Article column
+        // keeps a fixed 220px and wraps at words, never one-letter-per-line.
+        // Fixed layout that fits the viewport (no horizontal scroll) so every
+        // column — including the last, Audio completed — is always on screen.
+        // Headers wrap to 2 lines; the Article column takes 36% and wraps.
+        var html = '<style>'
+            + '.cspv-ins-posts-tbl{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;}'
+            + '.cspv-ins-posts-tbl th,.cspv-ins-posts-tbl td{padding:7px 5px;text-align:right;vertical-align:middle;}'
+            + '.cspv-ins-posts-tbl thead th{color:#e5e7eb;font-weight:700;background:#0f172a;font-size:11px;white-space:normal;line-height:1.2;}'
+            + '.cspv-ins-posts-tbl tbody td{color:#0f172a;border-bottom:1px solid #eef2f7;white-space:nowrap;}'
+            + '.cspv-ins-posts-tbl th.left,.cspv-ins-posts-tbl td.left{text-align:left;white-space:normal;width:36%;}'
+            + '.cspv-ins-posts-tbl td.left a{color:#1d4ed8;text-decoration:none;font-weight:600;line-height:1.3;word-break:break-word;}'
+            + '</style>';
+        html += '<table class="cspv-ins-posts-tbl"><thead><tr>'
+            + '<th class="left">Article</th>'
+            + '<th title="Total page loads (a refresh counts again)">Views</th>'
+            + '<th title="Distinct people (a refresh does not re-count)">Unique visitors</th>'
+            + '<th title="Visitors who pressed play on the narration">&#9654;&#65039; Audio started</th>'
+            + '<th title="Visitors who listened to the end, with completion rate">&#9989; Audio completed</th>'
+            + '</tr></thead><tbody>';
+        posts.forEach(function(p) {
+            var uniq  = p.unique_visitors || 0;
+            var plays = p.audio_plays || 0;
+            var fin   = p.audio_completes || 0;
+            var rate  = plays > 0 ? Math.min(100, Math.round(fin / plays * 100)) : 0;
+            html += '<tr>'
+                + '<td class="left"><a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.title) + '</a></td>'
+                + '<td>' + p.views.toLocaleString() + '</td>'
+                + '<td>' + (uniq  > 0 ? uniq.toLocaleString()  : '·') + '</td>'
+                + '<td>' + (plays > 0 ? plays.toLocaleString() : '·') + '</td>'
+                + '<td>' + (fin   > 0 ? fin.toLocaleString() + ' (' + rate + '%)' : '·') + '</td>'
+                + '</tr>';
         });
         html += '</tbody></table>';
         wrap.innerHTML = html;
@@ -1844,7 +1886,10 @@ ob_start();
         var h = Math.max(100, top.length * 30);
         ctx.height = h;
         if (wrap) wrap.style.height = h + 'px';
-        var labels = top.map(function(x){ return countryFlag(x.country_code) + (x.country_code || '·'); });
+        // Flag + 2-letter code. The flag can mis-measure on a <canvas> axis, so we
+        // reserve extra label width (afterFit) and left-align the labels away from
+        // the axis (crossAlign 'far') so the code after the flag is never clipped.
+        var labels = top.map(function(x){ return countryFlag(x.country_code) + (x.country_code || '··').toUpperCase(); });
         var values = top.map(function(x){ return x.views; });
         var total  = values.reduce(function(a,b){ return a+b; }, 0) || 1;
         insCharts['cspv-ins-country-chart'] = new Chart(ctx, {
@@ -1865,7 +1910,7 @@ ob_start();
                 },
                 scales: {
                     x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
-                    y: { ticks: { font: { size: 12 } }, grid: { display: false } }
+                    y: { afterFit: function(sc){ sc.width = Math.max(sc.width, 88); }, ticks: { crossAlign: 'far', padding: 6, font: { size: 12 } }, grid: { display: false } }
                 }
             }
         });
@@ -1878,7 +1923,7 @@ ob_start();
         var datasets = ct.series.map(function(s, i) {
             var col = insColor(i + 5);
             return {
-                label: countryFlag(s.label) + s.label,
+                label: s.label + ' ' + countryFlag(s.label),
                 data: s.data,
                 borderColor: col,
                 backgroundColor: col,
@@ -1902,7 +1947,8 @@ ob_start();
         insCustomLegend('cspv-ins-country-time-legend',
             datasets.map(function(ds){ return ds.label; }),
             function(i){ return insColor(i + 5); },
-            function(i){ return INS_DASHES[i % INS_DASHES.length]; });
+            function(i){ return INS_DASHES[i % INS_DASHES.length]; },
+            null, null, true);
     }
 
     function renderInsRefLanding(data) {

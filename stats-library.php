@@ -88,7 +88,7 @@ function cspv_referrer_source() {
  * how many stats functions ask — dashboard widget + Smart Summary previously
  * asked this same question for the same 3-4 tables 8-9 times in one page load.
  *
- * @since  2.9.440
+ * @since  2.9.456
  * @param  string $table  Fully-qualified table name.
  * @return bool
  */
@@ -110,7 +110,7 @@ function cspv_table_exists( $table ) {
  * this collapses that into a single query per unique (table, from, to,
  * limit) combination per request.
  *
- * @since  2.9.440
+ * @since  2.9.456
  * @param  string $ref_table
  * @param  string $from_str
  * @param  string $to_str
@@ -1092,6 +1092,29 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
         }
     }
 
+    // Narration completions per post (how many listeners finished the "Listen
+    // to this article" audio) from the audio table, if it exists.
+    $audio_table = esc_sql( $wpdb->prefix . 'cs_analytics_audio_v2' );
+    $audio_map   = array();
+    if ( cspv_table_exists( $audio_table ) ) {
+        $pids2 = array();
+        foreach ( $rows as $r ) { $pids2[] = (int) $r->post_id; }
+        $audio_ph  = implode( ', ', array_fill( 0, count( $pids2 ), '%d' ) );
+        $audio_rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name; IN clause uses %d placeholders
+            "SELECT post_id, COALESCE(SUM(plays),0) AS plays, COALESCE(SUM(completes),0) AS completes
+             FROM `{$audio_table}`
+             WHERE bucketed_at BETWEEN %s AND %s AND post_id IN ({$audio_ph})
+             GROUP BY post_id",
+            array_merge( array( $from_str, $to_str ), $pids2 )
+        ) );
+        foreach ( (array) $audio_rows as $ar ) {
+            $audio_map[ (int) $ar->post_id ] = array(
+                'plays'     => (int) $ar->plays,
+                'completes' => (int) $ar->completes,
+            );
+        }
+    }
+
     $result = array();
     foreach ( $rows as $r ) {
         $pid  = absint( $r->post_id );
@@ -1103,9 +1126,11 @@ function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
         );
         $result[] = array_merge(
             array(
-                'title' => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
-                'url'   => get_permalink( $pid ),
-                'views' => (int) $r->views,
+                'title'           => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
+                'url'             => get_permalink( $pid ),
+                'views'           => (int) $r->views,
+                'audio_plays'     => isset( $audio_map[ $pid ] ) ? (int) $audio_map[ $pid ]['plays'] : 0,
+                'audio_completes' => isset( $audio_map[ $pid ] ) ? (int) $audio_map[ $pid ]['completes'] : 0,
             ),
             $aud
         );

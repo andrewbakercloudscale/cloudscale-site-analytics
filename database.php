@@ -25,6 +25,7 @@ function cspv_activate() {
     cspv_create_table_visitors_v2();
     cspv_create_table_404_v2();
     cspv_create_table_sessions_v2();
+    cspv_create_table_audio_v2();
     add_option( 'cspv_version', CSPV_VERSION );
 }
 
@@ -58,6 +59,47 @@ function cspv_create_table_v2() {
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta( $sql );
+}
+
+/**
+ * Create the V2 audio-narration engagement table.
+ *
+ * One row per post per hour with two counters for the "Listen to this article"
+ * player: `plays` (a listener pressed play) and `completes` (a listener reached
+ * the end). The beacon increments the current hour's bucket on the <audio>
+ * "play" and "ended" events, deduped per listener per 24h, so the ratio gives a
+ * true completion rate.
+ *
+ * @since 1.7.0
+ * @return void
+ */
+function cspv_create_table_audio_v2() {
+    global $wpdb;
+
+    $table           = $wpdb->prefix . 'cs_analytics_audio_v2';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE IF NOT EXISTS {$table} (
+        id           BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        post_id      BIGINT(20) UNSIGNED NOT NULL,
+        bucketed_at  DATETIME            NOT NULL COMMENT 'Hour bucket, always :00:00',
+        plays        INT UNSIGNED        NOT NULL DEFAULT 0,
+        completes    INT UNSIGNED        NOT NULL DEFAULT 0,
+        PRIMARY KEY (id),
+        UNIQUE KEY post_hour (post_id, bucketed_at),
+        KEY bucketed_at (bucketed_at),
+        KEY post_id     (post_id)
+    ) {$charset_collate};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+
+    // dbDelta is unreliable at ADDing a column to an already-existing table, so
+    // ensure `plays` explicitly (it was introduced after `completes`). Idempotent.
+    $has_plays = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'plays' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name; column names cannot be bound params
+    if ( ! $has_plays ) {
+        $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN plays INT UNSIGNED NOT NULL DEFAULT 0 AFTER bucketed_at" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name, no user input; one-time additive migration
+    }
 }
 
 /**

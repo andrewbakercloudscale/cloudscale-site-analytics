@@ -31,11 +31,22 @@ VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
 VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
 VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
 NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
-ESC_VER=$(echo "$CURRENT_VER" | sed 's/\./\./g')
+ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
 echo "Version bump: $CURRENT_VER → $NEW_VER"
+# Targeted bump ONLY. The old blanket replace-everywhere sed rewrote EVERY
+# occurrence of the previous version — historical @since/@deprecated docblock
+# tags and past readme.txt changelog headings included — so release history
+# was silently rewritten on every build.
+sed -i '' "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
+sed -i '' "s/\(define([[:space:]]*'CSPV_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-site-analytics.php"
+sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
+# Promote ONLY the topmost changelog heading written for the pre-bump version;
+# headings for past releases are never dragged forward.
+sed -i '' "1,/^= ${ESC_VER} =\$/ s/^= ${ESC_VER} =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
+# JS @version headers.
 while IFS= read -r vfile; do
-  sed -i '' "s/$ESC_VER/$NEW_VER/g" "$vfile"
-done < <(grep -rl "$CURRENT_VER" "$REPO_DIR" --include="*.php" --include="*.js" --include="*.txt" 2>/dev/null | grep -v "\.git" | grep -v "/repo/" | grep -v "/node_modules/")
+  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
+done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/" | grep -v "/node_modules/")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # PHP syntax check — abort before packaging if any file has a parse error

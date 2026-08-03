@@ -10,8 +10,9 @@ module.exports = async () => {
 
     const c = JSON.parse(cookiesRaw);
 
-    // Inject WordPress auth cookies directly — bypasses login form, 2FA, and
-    // WPS Hide Login. Playwright never touches the login page at all.
+    // Inject WordPress auth cookies directly — bypasses the login form, 2FA, and
+    // the hidden login page (all provided by CloudScale Cyber DevTools' built-in
+    // login security). Playwright never touches the login page at all.
     const browser = await chromium.launch();
     const context = await browser.newContext();
 

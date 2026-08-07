@@ -85,7 +85,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
-= 2.9.462 =
+= 2.9.421 =
 * Fix: search-result thumbnails were forced to 150x150 on every search page even when the active theme requested a larger size; now only applied when no explicit size was requested
 * Fix: shared Telegram settings card used a non-literal text domain and unescaped output, both flagged by WP.org's automated plugin checker
 * Perf: Dashboard widget's Smart Summary ran the same SHOW TABLES check up to 9 times and the same top-referrers query twice per page load — both memoized per-request, no behaviour change
@@ -98,7 +98,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * Help documentation screenshots regenerated
 * All WP.org review findings resolved (Plugin Check, ABSPATH guards, enqueue violations)
 
-= 2.9.218 =
+= 2.9.209 =
 * Remove Jetpack migration tab and all transition blending logic
 * All Time Views now sources from beacon log (cspv_views_v2) only, not post meta
 * Stat cards always show actual tracked views; post_meta fallback removed
@@ -159,6 +159,20 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 = 2.6.2 =
 * Fail2Ban second-tier protection: permanently blocks IPs exceeding configurable page limit
 
+= 2.5.4 =
+* Stats page shows all recorded data regardless of tracking filter
+* REST endpoint enforces post type tracking filter
+* Badge colour options: blue, pink, red, purple, grey
+* Two layer view deduplication: client side (localStorage, 24h TTL) and server side (IP + post, 24h window)
+* View counter positioned above post title
+* Display settings moved into main Tools page as Display tab
+* Database auto upgrade for missing columns
+* Admin bypass for IP throttle during testing
+* Two column grid layout for Top Posts widget on desktop
+* Dashboard widget colours changed from pink to green
+* Transition period logic for Jetpack migration blending
+* Jetpack Stats one click migration tool
+
 = 2.4.0 =
 * All Time banner on Statistics page with lifetime totals
 * All Time Top Posts panel
@@ -181,20 +195,6 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 = 1.0.0 =
 * Initial release: JavaScript beacon, post meta view counter, REST endpoint, admin column
-
-= 2.5.4 =
-* Stats page shows all recorded data regardless of tracking filter
-* REST endpoint enforces post type tracking filter
-* Badge colour options: blue, pink, red, purple, grey
-* Two layer view deduplication: client side (localStorage, 24h TTL) and server side (IP + post, 24h window)
-* View counter positioned above post title
-* Display settings moved into main Tools page as Display tab
-* Database auto upgrade for missing columns
-* Admin bypass for IP throttle during testing
-* Two column grid layout for Top Posts widget on desktop
-* Dashboard widget colours changed from pink to green
-* Transition period logic for Jetpack migration blending
-* Jetpack Stats one click migration tool
 
 == External services ==
 

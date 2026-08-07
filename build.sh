@@ -17,15 +17,32 @@ TEMP_DIR=$(mktemp -d)
 
 echo "Building plugin zip from $REPO_DIR..."
 # ── Auto-increment patch version ─────────────────────────────────────────────
-MAIN_PHP=$(grep -rl "^ \* Version:" "$REPO_DIR" --include="*.php" 2>/dev/null | grep -v "repo/" | head -1)
-if [ -z "$MAIN_PHP" ]; then
-  echo "ERROR: Could not find main plugin PHP file with Version header."
+# Pin the main file rather than taking the first `grep -rl` hit: that ordering is
+# filesystem-dependent, and line 41 below already hardcodes this same file, so a
+# `head -1` that ever resolved elsewhere would bump two different files' versions.
+MAIN_PHP="$REPO_DIR/cloudscale-site-analytics.php"
+if [ ! -f "$MAIN_PHP" ]; then
+  echo "ERROR: main plugin file not found: $MAIN_PHP"
   exit 1
 fi
-CURRENT_VER=$(grep "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+# Take the HIGHEST of the three version strings as the base, not the header alone.
+# The header froze at 2.9.457 while the other two reached 2.9.463; bumping from the
+# header would have shipped 2.9.458 — a version LOWER than what is already live,
+# which WordPress would refuse to treat as an update. sort -V picks the real
+# high-water mark so a drifted tree converges on the next build instead of
+# regressing.
+HDR_NOW=$(grep -m1 "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+CSPV_NOW=$(grep -m1 "CSPV_VERSION" "$MAIN_PHP" | grep -o "'[^']*'" | tail -1 | tr -d "'")
+TAG_NOW=$(grep -m1 "^Stable tag:" "$REPO_DIR/readme.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+CURRENT_VER=$(printf '%s\n' "$HDR_NOW" "$CSPV_NOW" "$TAG_NOW" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
 if [ -z "$CURRENT_VER" ]; then
-  echo "ERROR: Could not extract version from $MAIN_PHP"
+  echo "ERROR: Could not extract a version from $MAIN_PHP or readme.txt"
   exit 1
+fi
+if [ "$HDR_NOW" != "$CSPV_NOW" ] || [ "$CSPV_NOW" != "$TAG_NOW" ]; then
+  echo "NOTE: version strings had drifted (header=$HDR_NOW CSPV=$CSPV_NOW tag=$TAG_NOW);"
+  echo "      converging all three on the bump from $CURRENT_VER."
 fi
 VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
 VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
@@ -37,9 +54,16 @@ echo "Version bump: $CURRENT_VER → $NEW_VER"
 # occurrence of the previous version — historical @since/@deprecated docblock
 # tags and past readme.txt changelog headings included — so release history
 # was silently rewritten on every build.
-sed -i '' "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
-sed -i '' "s/\(define([[:space:]]*'CSPV_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-site-analytics.php"
-sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
+#
+# These three seds match on the FIELD, not on the old value. They used to require
+# the line to already equal $ESC_VER, which is precisely how the drift became
+# permanent: once CSPV_VERSION and Stable tag moved past the header, every
+# subsequent bump silently matched nothing and changed nothing, with no error.
+# Matching the field keeps the bump targeted (history and @since tags are still
+# never touched) while guaranteeing all three converge.
+sed -i '' "s/^\( \* Version:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$MAIN_PHP"
+sed -i '' "s/\(define([[:space:]]*'CSPV_VERSION',[[:space:]]*'\)[0-9][0-9.]*'/\1${NEW_VER}'/" "$MAIN_PHP"
+sed -i '' "s/^\(Stable tag:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
 # Promote ONLY the topmost changelog heading written for the pre-bump version;
 # headings for past releases are never dragged forward.
 # A new changelog entry is written as "= Unreleased =" and this stamps it with the
@@ -379,18 +403,44 @@ echo "Contents:"
 unzip -l "$ZIP_FILE" | head -25
 echo ""
 
-# Show version and verify stable tag matches
+# ── Verify ALL THREE version strings agree ───────────────────────────────────
+# This used to compare CSPV_VERSION against Stable tag and nothing else, so it
+# could never see the one version that matters most: the "* Version:" plugin
+# header, which is what WordPress itself reads and displays. The header silently
+# froze at 2.9.457 on 2026-07-25 while CSPV_VERSION and Stable tag advanced to
+# 2.9.463 — six releases where WP reported a version that had not existed for
+# weeks, and the check said OK every time. A gate that passes while measuring the
+# wrong thing is worse than no gate, so it now asserts all three and says how
+# many it compared.
+HEADER_VER=$(grep -m1 "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 VERSION=$(grep "CSPV_VERSION" "$REPO_DIR/cloudscale-site-analytics.php" | head -1 | grep -o "'[^']*'" | tail -1 | tr -d "'")
 STABLE_TAG=$(grep "^Stable tag:" "$REPO_DIR/readme.txt" | head -1 | sed 's/Stable tag:[[:space:]]*//' | tr -d '[:space:]')
-echo "Plugin version: $VERSION"
-echo "Stable tag:     $STABLE_TAG"
-if [ "$VERSION" != "$STABLE_TAG" ]; then
+
+echo "Plugin header:  ${HEADER_VER:-<missing>}"
+echo "CSPV_VERSION:   ${VERSION:-<missing>}"
+echo "Stable tag:     ${STABLE_TAG:-<missing>}"
+
+VER_FAIL=0
+for pair in "plugin header:${HEADER_VER}" "CSPV_VERSION:${VERSION}" "Stable tag:${STABLE_TAG}"; do
+  label="${pair%%:*}"
+  value="${pair##*:}"
+  if [ -z "$value" ]; then
+    echo "ERROR: could not read the $label version."
+    VER_FAIL=1
+  fi
+done
+if [ "$VER_FAIL" -eq 0 ] && { [ "$HEADER_VER" != "$VERSION" ] || [ "$VERSION" != "$STABLE_TAG" ]; }; then
   echo ""
-  echo "ERROR: Version mismatch! Plugin version ($VERSION) != Stable tag ($STABLE_TAG)"
-  echo "Update readme.txt Stable tag before deploying."
+  echo "ERROR: Version mismatch — these three must be identical:"
+  echo "  plugin header  = $HEADER_VER   (what WordPress reports)"
+  echo "  CSPV_VERSION   = $VERSION      (what the code uses for cache busting)"
+  echo "  Stable tag     = $STABLE_TAG   (what WordPress.org publishes)"
+  VER_FAIL=1
+fi
+if [ "$VER_FAIL" -ne 0 ]; then
   exit 1
 fi
-echo "Version check: OK"
+echo "Version check: OK (3 version strings compared, all $HEADER_VER)"
 echo ""
 echo "To deploy to S3, run:"
   echo "  bash $SCRIPT_DIR/backup-s3.sh"

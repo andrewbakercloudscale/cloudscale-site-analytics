@@ -32,6 +32,7 @@ fi
 echo "--- Obtaining test session via CSDT API (role: ${CSDT_ROLE})..."
 SESSION_JSON=$(curl -s -X POST "$CSDT_SESSION_URL" \
     --data-urlencode "secret=${CSDT_SECRET}" \
+    -H "X-CSDT-CI-Token: ${CSDT_CI_TOKEN:-}" \
     --data-urlencode "role=${CSDT_ROLE}" \
     -d "ttl=7200")
 
@@ -65,6 +66,7 @@ _cleanup() {
     echo "--- Closing test session..."
     curl -s -X POST "$CSDT_LOGOUT_URL" \
         --data-urlencode "secret=${CSDT_SECRET}" \
+        -H "X-CSDT-CI-Token: ${CSDT_CI_TOKEN:-}" \
         --data-urlencode "role=${CSDT_ROLE}" \
         --data-urlencode "session_token=${SESSION_TOKEN}" > /dev/null
     echo "--- Test session closed."

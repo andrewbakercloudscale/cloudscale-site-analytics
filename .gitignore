@@ -36,3 +36,6 @@ tests/.env
 
 # Playwright test artifacts
 tests/test-results/
+
+# Playwright MCP scratch output (page snapshots, console logs, downloaded fixtures).
+.playwright-mcp/

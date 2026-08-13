@@ -291,12 +291,26 @@ async function newAuthedPage(browser, opts = {}) {
     return page;
 }
 
-/** Authenticated APIRequestContext, for REST / admin-ajax calls. */
+/**
+ * Authenticated APIRequestContext, for REST / admin-ajax calls.
+ *
+ * Cookies go in via storageState at construction, NOT addCookies(): that method exists on
+ * BrowserContext but not on APIRequestContext (verified against Playwright 1.62 — its prototype
+ * offers storageState alone), so the previous version threw "ctx.addCookies is not a function"
+ * on its first line. Nothing had called it yet, which is why an exported helper in the file
+ * declared to be the single source of truth had never once run.
+ *
+ * storageState requires expires as a number on every cookie, so a session cookie is -1 rather
+ * than absent — omitting it drops the cookie silently and the request arrives logged out.
+ */
 async function newAuthedRequest({ ttl = 900, role = ROLE } = {}) {
-    const sess = await getSession(ttl, role);
-    const ctx  = await pwRequest.newContext({ baseURL: SITE, ...netOpts() });
-    await ctx.addCookies(cookiesFrom(sess));
-    return ctx;
+    const sess    = await getSession(ttl, role);
+    const cookies = cookiesFrom(sess).map(c => ({ expires: -1, ...c }));
+    return await pwRequest.newContext({
+        baseURL: SITE,
+        ...netOpts(),
+        storageState: { cookies, origins: [] },
+    });
 }
 
 /** Write storageState for playwright.config.js `use.storageState`. */

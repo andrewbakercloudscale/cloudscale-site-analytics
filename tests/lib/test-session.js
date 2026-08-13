@@ -334,9 +334,37 @@ async function killSession() {
     finally { await ctx.dispose(); }
 }
 
+/**
+ * Can a session minted for this role write to a post?
+ *
+ * Test roles are capped below Administrator on purpose, and the cap is real: a "settings only"
+ * role holds `manage_options` — enough to open every plugin settings screen — and no rights over
+ * posts at all. Specs that drive the block editor, upload an image, or use the frontend editor bar
+ * need a role that can, and there is exactly one: "Admin journeys" (`csdt_test_admin`).
+ *
+ * Before this existed, such a spec failed as a locator that never appeared, twenty seconds later,
+ * saying nothing about the cause. The session response now carries `wp_role`, so a spec can skip
+ * with an instruction instead. Absent `wp_role` (an older companion-plugin build) is treated as
+ * capable, so this can never turn a passing suite into a silently skipped one.
+ *
+ * @param {object} sess Session payload from getSession().
+ * @returns {boolean}
+ */
+function sessionCanEditPosts(sess) {
+    const role = sess && sess.wp_role;
+    if (!role) return true;
+    return ['csdt_test_admin', 'administrator', 'editor', 'author'].includes(role);
+}
+
+/** The message to skip with, naming the fix rather than the symptom. */
+const NEEDS_EDITOR_ROLE =
+    'this spec writes to a post, so it needs a Test Account Manager user with the "Admin journeys" '
+    + 'role — create one in the panel and set CSDT_TEST_ADMIN_ROLE to its name';
+
 module.exports = {
     SITE, ROLE,
     getSession, cookiesFrom,
     newAuthedContext, newAuthedPage, newAuthedRequest,
     writeStorageState, killSession,
+    sessionCanEditPosts, NEEDS_EDITOR_ROLE,
 };

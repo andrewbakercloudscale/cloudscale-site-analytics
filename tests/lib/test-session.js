@@ -42,7 +42,7 @@
  *   authorised yet — once one has, that site refuses it and says so.
  *
  * Required env (see each plugin's .env.test / .env.cloudscale):
- *   WP_SITE                or WP_BASE_URL   — e.g. https://andrewbaker.ninja
+ *   WP_SITE                or WP_BASE_URL   — e.g. https://example.com
  *   CSDT_CI_TOKEN          — passkey-minted token (csdtci_…); preferred
  *   CSDT_TEST_SECRET       — legacy shared secret; only for a site with no authorised device
  *   CSDT_TEST_ROLE         — test role name (the "Name" column, not the WP role)

@@ -4,8 +4,8 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * WP_HOME is pinned to https://andrewbaker.ninja, so a restored or QA copy 301s any other
- * hostname straight to the canonical domain. Open qa.andrewbaker.ninja and you are looking at
+ * WP_HOME is pinned to the canonical domain, so a restored or QA copy 301s any other
+ * hostname straight to it. Open the QA hostname in a browser and you are looking at
  * PRODUCTION while believing you are testing a copy — which is how a review of a "QA instance"
  * ended up reporting three services broken.
  *
@@ -14,7 +14,7 @@
  * first, and Node resolves through real DNS — so half the run would hit production and half the
  * copy, which is worse than either.
  *
- * A CONNECT proxy fixes both at once: every client speaks to "andrewbaker.ninja" as usual, and
+ * A CONNECT proxy fixes both at once: every client speaks to the canonical hostname as usual, and
  * this forwards the tunnel to the chosen IP. TLS is end-to-end through the tunnel, so the copy's
  * self-signed certificate is what the client sees (hence ignoreHTTPSErrors in the config), and
  * nothing has to know it is being redirected.

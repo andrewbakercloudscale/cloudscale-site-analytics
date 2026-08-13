@@ -356,10 +356,39 @@ function sessionCanEditPosts(sess) {
     return ['csdt_test_admin', 'administrator', 'editor', 'author'].includes(role);
 }
 
+/**
+ * Can a session minted for this role use the plugin's own admin-facing tools on a post?
+ *
+ * A stricter question than sessionCanEditPosts(), and the distinction is load-bearing. The frontend
+ * editor bar and the block editor's "Generate with AI" button both require `manage_options` AND
+ * `edit_post` on the post — the first to be offered at all, the second because that is what the
+ * ai_image_* handlers ask. Of the scoped test roles only `csdt_test_admin` ("Admin journeys") has
+ * both: TEST_ADMIN_CAPS grants manage_options, edit_posts, edit_others_posts and upload_files,
+ * while plain `author` has the post capabilities and no manage_options at all.
+ *
+ * Without this split, pointing CSDT_TEST_ADMIN_ROLE at an author-role user would satisfy
+ * sessionCanEditPosts(), un-skip those specs, and hand them back the twenty-second locator timeout
+ * this whole mechanism exists to replace — a failure saying nothing about the cause.
+ *
+ * @param {object} sess Session payload from getSession().
+ * @returns {boolean}
+ */
+function sessionCanUseAdminTools(sess) {
+    const role = sess && sess.wp_role;
+    if (!role) return true;
+    return ['csdt_test_admin', 'administrator'].includes(role);
+}
+
 /** The message to skip with, naming the fix rather than the symptom. */
 const NEEDS_EDITOR_ROLE =
-    'this spec writes to a post, so it needs a Test Account Manager user with the "Admin journeys" '
-    + 'role — create one in the panel and set CSDT_TEST_ADMIN_ROLE to its name';
+    'this spec writes to a post, so it needs a Test Account Manager user that can — "Admin journeys" '
+    + '(or Author for own-post work); create one in the panel and set CSDT_TEST_ADMIN_ROLE to its name';
+
+/** Same, for the specs that also need manage_options. */
+const NEEDS_ADMIN_TOOLS_ROLE =
+    'this spec uses an admin-gated tool on a post, so it needs the "Admin journeys" role '
+    + 'specifically (manage_options AND post editing — Author has only the latter); create one in '
+    + 'the Test Account Manager and set CSDT_TEST_ADMIN_ROLE to its name';
 
 module.exports = {
     SITE, ROLE,
@@ -367,4 +396,5 @@ module.exports = {
     newAuthedContext, newAuthedPage, newAuthedRequest,
     writeStorageState, killSession,
     sessionCanEditPosts, NEEDS_EDITOR_ROLE,
+    sessionCanUseAdminTools, NEEDS_ADMIN_TOOLS_ROLE,
 };

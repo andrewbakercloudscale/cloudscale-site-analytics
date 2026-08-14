@@ -97,14 +97,19 @@ test('All chart canvases render with non-zero dimensions', async ({ page }) => {
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
     await page.waitForTimeout(1500); // allow charts to paint
 
-    const canvasIds = [
-        'cspv-ins-traffic-chart',
-        'cspv-ins-growth-chart',
-        'cspv-ins-posts-chart',
-        'cspv-ins-country-chart',
-        'cspv-ins-country-time-chart',
-        'cspv-ins-refs-chart',
-    ];
+    // Derived from the page, not hardcoded. This listed six ids and one of them —
+    // cspv-ins-posts-chart — does not exist anywhere in the plugin, so the test hung for its full
+    // 60-second timeout waiting for a canvas that was renamed or removed long ago, and reported it
+    // as "chart canvases render with non-zero dimensions" failing. A hardcoded list of element ids
+    // in a test is a second copy of the markup, and it was the copy nobody was reading.
+    //
+    // Asserting the COUNT as well, so this cannot pass by finding no charts at all.
+    const canvasIds = await page.$$eval(
+        '#cspv-ins-content canvas[id]',
+        els => els.map(el => el.id)
+    );
+    console.log('chart canvases on the page:', canvasIds.join(', ') || '(none)');
+    expect(canvasIds.length, 'the Insights tab must render its chart canvases').toBeGreaterThanOrEqual(5);
     for (const id of canvasIds) {
         const box = await page.locator('#' + id).boundingBox();
         console.log(id, '->', JSON.stringify(box));

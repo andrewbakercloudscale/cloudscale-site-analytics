@@ -137,7 +137,13 @@ add_action( 'admin_enqueue_scripts', 'cspv_404_enqueue_purge_script', 20 );
  * @return void
  */
 function cspv_404_enqueue_purge_script( $hook ) {
-	if ( 'tools_page_cloudscale-site-analytics' !== $hook ) {
+	// Both hook suffixes: WordPress serves this page as tools_page_* when the Tools submenu is
+	// visible to the user and admin_page_* when it is not (a capability that hides the Tools menu
+	// detaches the submenu, and the page is registered as hidden instead). Accepting only
+	// tools_page_* loaded no CSS and no JS for such a user, so the panel rendered as raw markup:
+	// server-rendered elements were present and every JS-driven one stayed hidden for ever.
+	if ( 'tools_page_cloudscale-site-analytics' !== $hook
+		&& 'admin_page_cloudscale-site-analytics' !== $hook ) {
 		return;
 	}
 	$nonce = wp_json_encode( wp_create_nonce( 'cspv_404_data' ) );

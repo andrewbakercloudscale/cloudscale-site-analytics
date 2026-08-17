@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.471
+ * Version:      2.9.475
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
@@ -19,11 +19,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.471' );
+define( 'CSPV_VERSION',    '2.9.475' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+// Error text in the units the timeouts are set in: WordPress reports a 120-second ceiling as
+// "120000 milliseconds". Required before the shared Telegram class, which uses it too.
+require_once CSPV_PLUGIN_DIR . 'includes/class-cloudscale-error-text.php';
 require_once CSPV_PLUGIN_DIR . 'includes/class-cloudscale-telegram.php';
 require_once CSPV_PLUGIN_DIR . 'stats-library.php';
 require_once CSPV_PLUGIN_DIR . 'database.php';

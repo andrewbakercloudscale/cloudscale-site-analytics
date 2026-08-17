@@ -666,7 +666,7 @@ function cspv_download_dbip_file() {
     ) );
 
     if ( is_wp_error( $response ) ) {
-        return new WP_Error( 'download_failed', 'Download failed: ' . $response->get_error_message() );
+        return new WP_Error( 'download_failed', 'Download failed: ' . CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
     }
 
     $code = wp_remote_retrieve_response_code( $response );
@@ -741,7 +741,7 @@ function cspv_ajax_download_dbip() {
     try {
         $result = cspv_download_dbip_file();
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( $result->get_error_message() );
+            wp_send_json_error( CloudScale_Error_Text::in_seconds( $result->get_error_message() ) );
         } else {
             wp_send_json_success( $result );
         }
@@ -891,7 +891,7 @@ function cspv_save_display_settings() {
         if ( ! file_exists( $mmdb_path ) ) {
             $dl = cspv_download_dbip_file();
             if ( is_wp_error( $dl ) ) {
-                $geo_notice = ' DB-IP download failed: ' . esc_html( $dl->get_error_message() );
+                $geo_notice = ' DB-IP download failed: ' . esc_html( CloudScale_Error_Text::in_seconds( $dl->get_error_message() ) );
             } else {
                 $geo_notice = ' DB-IP Lite (' . esc_html( $dl['size'] ) . ') downloaded automatically.';
             }

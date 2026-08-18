@@ -1067,8 +1067,10 @@ function cspv_ajax_widget_lists() {
         $from_str = $from->format( 'Y-m-d H:i:s' );
         $to_str   = $now->format( 'Y-m-d H:i:s' );
 
-        // Top pages (shared function)
-        $top_pages = cspv_top_pages( $from_str, $to_str, 3 );
+        // Top pages (shared function). One extra row vs. referrers (4 vs. 3) to
+        // offset the referrers column's taller header (Sites/Pages toggle buttons),
+        // keeping the two list columns level.
+        $top_pages = cspv_top_pages( $from_str, $to_str, 4 );
 
         // Referrers (domains + pages)
         $ref_domains = cspv_top_referrer_domains( $from_str, $to_str, 3 );

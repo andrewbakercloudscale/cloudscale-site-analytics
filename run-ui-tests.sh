@@ -22,11 +22,19 @@ for var in CSDT_SECRET CSDT_ROLE CSDT_SESSION_URL CSDT_LOGOUT_URL; do
 done
 
 # ── Load WP_BASE_URL ──────────────────────────────────────────────────────────
-if [[ -f "$TESTS_DIR/.env" ]]; then
+# When CSDT_ENV_TEST points at a different site's credentials (e.g. testing
+# help.cloudscale.consulting instead of the default andrewbaker.ninja), that
+# file's WP_SITE must win over tests/.env's hardcoded default — otherwise a
+# site-switch run would silently test the wrong site while reporting it hit
+# the one you asked for.
+if [[ -n "${CSDT_ENV_TEST:-}" ]]; then
+    WP_BASE_URL=$(grep '^WP_SITE=' "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
+elif [[ -f "$TESTS_DIR/.env" ]]; then
     WP_BASE_URL=$(grep '^WP_BASE_URL=' "$TESTS_DIR/.env" | cut -d'=' -f2- | tr -d '\r')
 fi
 [[ -z "${WP_BASE_URL:-}" ]] && WP_BASE_URL=$(grep '^WP_SITE=' "$ENV_TEST" | cut -d'=' -f2- | tr -d '\r')
 [[ -z "${WP_BASE_URL:-}" ]] && { echo "ERROR: WP_BASE_URL not set in $TESTS_DIR/.env or $ENV_TEST"; exit 1; }
+echo "--- Target site: ${WP_BASE_URL}"
 
 # ── Obtain test session via CSDT API ─────────────────────────────────────────
 echo "--- Obtaining test session via CSDT API (role: ${CSDT_ROLE})..."

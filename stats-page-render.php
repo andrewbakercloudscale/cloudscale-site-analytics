@@ -224,6 +224,7 @@ function cspv_render_insights_tab( $vars ) {
                 <span style="font-size:14px;font-weight:700;letter-spacing:.04em;">&#x1F4CA; INSIGHTS</span>
                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                     <div class="cspv-ins-period-btns">
+                        <button class="cspv-ins-period" data-period="1">24 hours</button>
                         <button class="cspv-ins-period" data-period="7">7 days</button>
                         <button class="cspv-ins-period active" data-period="30">30 days</button>
                         <button class="cspv-ins-period" data-period="90">90 days</button>
@@ -387,14 +388,10 @@ function cspv_render_insights_tab( $vars ) {
                 </div>
 
                 <!-- Post Analytics (search + drill-down) -->
-                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:16px;margin-bottom:8px;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title" style="background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">🔍 Post Analytics</div>
                     <div style="padding:16px;">
-                        <div style="display:flex;gap:8px;margin-bottom:12px;max-width:580px;">
-                            <input type="text" id="cspv-ph-search" placeholder="Search posts by title…" autocomplete="off"
-                                   style="flex:1;padding:9px 13px;border:2px solid #06b6d4;border-radius:6px;font-size:13px;">
-                            <button id="cspv-ph-search-btn" style="padding:9px 18px;background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Search</button>
-                        </div>
+                        <input type="text" id="cspv-ph-search" class="cspv-ins-panel-search" placeholder="Search posts by title…" autocomplete="off" style="max-width:580px;">
                         <div id="cspv-ph-list" style="max-height:380px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;">
                             <?php if ( empty( $ph_top_posts ) ) : ?>
                                 <div style="padding:20px;text-align:center;color:#888;">No posts with views found.</div>
@@ -426,7 +423,7 @@ function cspv_render_insights_tab( $vars ) {
                 </div>
 
                 <!-- Geo Post View -->
-                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:0;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div style="background:linear-gradient(135deg,#581c87,#7e22ce);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">&#x1F5FA; Geo Post View</div>
                     <div style="padding:12px 16px 16px;">
                         <p style="margin:0 0 10px;font-size:12px;color:#64748b;">Click a post to see its geographic traffic distribution.</p>
@@ -473,7 +470,7 @@ function cspv_render_insights_tab( $vars ) {
                 </div>
 
                 <!-- 404 Tracking -->
-                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:0;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div id="cspv-404-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;" title="Click to expand/collapse">
                         <span>🚫 404 Error Log <span id="cspv-404-chevron" style="font-size:12px;transition:transform .2s;display:inline-block;transform:rotate(-90deg);margin-left:6px;">&#9660;</span></span>
                     </div>
@@ -1089,6 +1086,10 @@ ob_start();
     var insPeriod     = 30;
     var insSelfOn     = true;
     var insCharts     = {};
+    // Set by the Geo Post View section below; called by the period-button
+    // handler so a currently-open geo map reloads for the new period instead
+    // of silently continuing to show the old one.
+    var insOnPeriodChange = null;
     // Your Content panel state
     var insightsData  = null;
     var insightsSub   = 'top';
@@ -2100,6 +2101,7 @@ ob_start();
             insightsData = null;
             loadInsDashboard();
             loadYourContent();
+            if (insOnPeriodChange) insOnPeriodChange();
         });
     });
 
@@ -2131,7 +2133,10 @@ ob_start();
         var to   = now.toISOString().slice(0, 10);
         var from = new Date(now - (insPeriod - 1) * 864e5).toISOString().slice(0, 10);
         var rangeEl = document.getElementById('cspv-insights-range');
-        if (rangeEl) rangeEl.textContent = 'Last ' + insPeriod + ' days';
+        // This panel only supports whole calendar dates server-side, so "24 hours"
+        // resolves to today's calendar day rather than a true rolling 24h window —
+        // still label it to match what the period button says, not "Last 1 days".
+        if (rangeEl) rangeEl.textContent = insPeriod === 1 ? 'Last 24 hours' : 'Last ' + insPeriod + ' days';
         document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-loading">Loading…</div>';
         var fd = new FormData();
         fd.append('action', 'cspv_insights');
@@ -3371,7 +3376,7 @@ ob_start();
         'insights-dashboard': {
             title: '💡 Insights Dashboard',
             body: '<p>The <strong>Insights</strong> tab gives you a rolling-window view of your site\'s performance, unlike the Statistics tab which uses a calendar date picker, Insights always shows the last N days relative to today.</p>'
-                + '<p><strong>Period buttons</strong> (7 / 30 / 90 / 180 / 360 days) change the window for every chart and metric simultaneously.</p>'
+                + '<p><strong>Period buttons</strong> (24 hours / 7 / 30 / 90 / 180 / 360 days) change the window for every chart and metric simultaneously. "24 hours" is a rolling window from right now, not "today so far".</p>'
                 + '<p><strong>Self toggle</strong> filters out traffic from your own domain. <span style="color:#22c55e;font-weight:700;">Green = ON</span> (self-traffic excluded), <span style="color:#ef4444;font-weight:700;">Red = OFF</span> (self-traffic included). Filtering happens client-side instantly with no reload.</p>'
                 + '<p><strong>KPI cards</strong> show Total Views, Unique Visitors, Top Country, and Top Referrer for the period. The ▲/▼ badge compares to the previous equal-length period.</p>'
                 + '<p><strong>Traffic Sources</strong>, doughnut breakdown of Direct, Self, search engines, social, and other referrers.</p>'
@@ -3407,7 +3412,6 @@ ob_start();
     // ── Post History tab ────────────────────────────────────────────
     (function() {
         var searchInput = document.getElementById('cspv-ph-search');
-        var searchBtn   = document.getElementById('cspv-ph-search-btn');
         var listBox     = document.getElementById('cspv-ph-list');
         if (!searchInput || !listBox) return;
 
@@ -3460,12 +3464,13 @@ ob_start();
             });
         });
 
-        // Search button click
+        // Enter still runs a full server-side search across ALL posts, for when
+        // the wanted one isn't in this pre-rendered top-100 list \u2014 no visible
+        // button for it, consistent with every other panel's search box.
         function doSearch() {
             var q = searchInput.value.trim();
             if (q.length < 2) return;
-            searchBtn.disabled = true;
-            searchBtn.textContent = 'Searching...';
+            searchInput.disabled = true;
             fetch(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -3474,8 +3479,7 @@ ob_start();
             })
             .then(function(r) { return r.json(); })
             .then(function(resp) {
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search Posts';
+                searchInput.disabled = false;
                 if (!resp.success || !resp.data.length) {
                     listBox.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">No posts found for \u201c' + q + '\u201d</div>';
                     return;
@@ -3485,7 +3489,7 @@ ob_start();
                 resp.data.forEach(function(p, i) {
                     var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
                     var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#06b6d4;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
-                    html += '<div class="cspv-ph-row" data-id="' + p.id + '" data-url="' + escHtml(p.url || '') + '" style="display:flex;align-items:center;' +
+                    html += '<div class="cspv-ph-row" data-id="' + p.id + '" data-url="' + escHtml(p.url || '') + '" data-title="' + escHtml((p.title || '').toLowerCase()) + '" style="display:flex;align-items:center;' +
                         'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
                         '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
                         escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + p.type + '</span>' + viewLink + '</div>' +
@@ -3494,10 +3498,9 @@ ob_start();
                 listBox.innerHTML = html;
                 wireRowClicks();
             })
-            .catch(function() { searchBtn.disabled = false; searchBtn.textContent = 'Search Posts'; });
+            .catch(function() { searchInput.disabled = false; });
         }
 
-        searchBtn.addEventListener('click', doSearch);
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
         });
@@ -3605,7 +3608,8 @@ ob_start();
 
     // ── Geo Post View section ──────────────────────────────────────────────────
     (function() {
-        var geoMap = null, geoMarkers = [], geoLoadedId = 0;
+        var geoMap = null, geoMarkers = [], geoLoadedId = 0, geoLoadedPeriod = null;
+        var geoActivePostId = 0, geoActiveTitle = '';
         var geoList = document.getElementById('cspv-geo-post-list');
         if (!geoList) return;
 
@@ -3616,15 +3620,21 @@ ob_start();
             var legend  = document.getElementById('cspv-geo-map-legend');
             if (!wrap || !mapEl) return;
 
+            geoActivePostId = postId;
+            geoActiveTitle  = title;
+
             if (titleEl) titleEl.textContent = '🗺️ ' + title.substring(0, 70);
             wrap.style.display = 'block';
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-            if (geoLoadedId === postId && geoMap) {
+            // Re-fetch if the post changed OR the Insights period changed —
+            // otherwise switching periods left a stale, wrong-period map open.
+            if (geoLoadedId === postId && geoLoadedPeriod === insPeriod && geoMap) {
                 setTimeout(function() { geoMap.invalidateSize(); }, 100);
                 return;
             }
-            geoLoadedId = postId;
+            geoLoadedId     = postId;
+            geoLoadedPeriod = insPeriod;
 
             if (geoMap) {
                 geoMarkers.forEach(function(m) { geoMap.removeLayer(m); });
@@ -3641,7 +3651,7 @@ ob_start();
             fetch(ajaxUrl, {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=cspv_post_geo_map&nonce=' + encodeURIComponent(nonce) + '&post_id=' + postId
+                body: 'action=cspv_post_geo_map&nonce=' + encodeURIComponent(nonce) + '&post_id=' + postId + '&period=' + insPeriod
             })
             .then(function(r) { return r.json(); })
             .then(function(resp) {
@@ -3763,6 +3773,14 @@ ob_start();
                 }
             });
         }
+
+        // Reload the currently-open map (if any) when the period button changes.
+        insOnPeriodChange = function() {
+            var wrap = document.getElementById('cspv-geo-map-wrap');
+            if (geoActivePostId && wrap && wrap.style.display !== 'none') {
+                loadGeoSection(geoActivePostId, geoActiveTitle);
+            }
+        };
     })();
 
 })();

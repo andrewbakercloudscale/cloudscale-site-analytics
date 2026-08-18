@@ -28,7 +28,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # NOTE: pi_connect() inside deploy-wordpress.sh sets PI_CONTAINER/PI_SITE_URL
 # itself from the pi-connect.sh profile registry — pre-exporting them here does
 # NOT override it, they get clobbered. Select the site via PI_PROFILE instead.
-PI_PROFILE=wordpress-help bash "$SCRIPT_DIR/deploy-wordpress.sh"
+#
+# SKIP_BUILD=1 reuses the zip site 1 already built. Without it, this second
+# call runs build.sh again, which bumps the version a second time — so the two
+# sites always end up one patch version apart instead of in sync.
+SKIP_BUILD=1 PI_PROFILE=wordpress-help bash "$SCRIPT_DIR/deploy-wordpress.sh"
 
 echo ""
 echo "╔═════════════════════════════════════════════════════════════════╗"

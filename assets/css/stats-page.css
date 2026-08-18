@@ -831,6 +831,15 @@ body.cspv-modal-open { overflow: hidden; }
 }
 .cspv-ins-loading-overlay { text-align: center; padding: 32px; color: var(--csds-muted, #9ca3af); font-size: 13px; }
 
+/* Per-panel search inputs */
+.cspv-ins-panel-search {
+    display: block; width: 100%; box-sizing: border-box; margin-bottom: 10px;
+    padding: 7px 11px; font-size: 12px; border: 1px solid var(--csds-border, #d1d5db);
+    border-radius: 6px; color: var(--csds-text-2, #374151);
+}
+.cspv-ins-panel-search:focus { outline: none; border-color: var(--csds-accent, #3b82f6); }
+.cspv-ins-empty-msg { color: var(--csds-muted, #9ca3af); font-size: 13px; padding: 16px; text-align: center; }
+
 /* Legends */
 .cspv-ins-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; justify-content: center; }
 .cspv-ins-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--csds-text-2, #374151); cursor: default; }

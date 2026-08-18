@@ -289,6 +289,7 @@ function cspv_render_insights_tab( $vars ) {
                 <div class="cspv-ins-chart-row">
                     <div class="cspv-ins-chart-panel cspv-ins-panel-narrow">
                         <div class="cspv-ins-chart-title">Traffic Sources</div>
+                        <input type="text" id="cspv-ins-traffic-search" class="cspv-ins-panel-search" placeholder="Filter sources…" autocomplete="off">
                         <div style="position:relative;height:200px;">
                             <canvas id="cspv-ins-traffic-chart"></canvas>
                         </div>
@@ -296,6 +297,7 @@ function cspv_render_insights_tab( $vars ) {
                     </div>
                     <div class="cspv-ins-chart-panel cspv-ins-panel-wide" style="display:flex;flex-direction:column;">
                         <div class="cspv-ins-chart-title">Referrer Growth</div>
+                        <input type="text" id="cspv-ins-growth-search" class="cspv-ins-panel-search" placeholder="Filter referrers…" autocomplete="off">
                         <div style="position:relative;flex:1;min-height:200px;">
                             <canvas id="cspv-ins-growth-chart"></canvas>
                         </div>
@@ -332,12 +334,14 @@ function cspv_render_insights_tab( $vars ) {
                 <!-- Top Posts by Views (audience table) -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Views</div>
+                    <input type="text" id="cspv-ins-posts-search" class="cspv-ins-panel-search" placeholder="Filter by post title…" autocomplete="off">
                     <div id="cspv-ins-posts-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"></div>
                 </div>
 
                 <!-- Top Posts by Referrer -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Posts by Referrer</div>
+                    <input type="text" id="cspv-ins-ref-table-search" class="cspv-ins-panel-search" placeholder="Filter by post title…" autocomplete="off">
                     <div id="cspv-ins-ref-table-wrap" style="overflow-x:auto;">
                         <div id="cspv-ins-ref-table"></div>
                     </div>
@@ -346,12 +350,14 @@ function cspv_render_insights_tab( $vars ) {
                 <!-- Referrer Landing Pages -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Landing Pages per Referrer</div>
-                    <div id="cspv-ins-ref-landing" style="padding:12px 16px;"></div>
+                    <input type="text" id="cspv-ins-ref-landing-search" class="cspv-ins-panel-search" placeholder="Filter by referrer or page title…" autocomplete="off" style="margin:0 16px 10px;width:calc(100% - 32px);">
+                    <div id="cspv-ins-ref-landing" style="padding:0 16px 16px;"></div>
                 </div>
 
                 <!-- Top Referrer Domains -->
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div class="cspv-ins-chart-title">Top Referrer Domains</div>
+                    <input type="text" id="cspv-ins-refs-search" class="cspv-ins-panel-search" placeholder="Filter domains…" autocomplete="off">
                     <div style="position:relative;" id="cspv-ins-refs-wrap">
                         <canvas id="cspv-ins-refs-chart"></canvas>
                     </div>
@@ -370,6 +376,9 @@ function cspv_render_insights_tab( $vars ) {
                             <button class="cspv-insights-sub" data-sub="down">Trending Down</button>
                             <span style="flex:1;"></span>
                             <span class="cspv-insights-col-header">Views</span>
+                        </div>
+                        <div style="padding:10px 16px 0;">
+                            <input type="text" id="cspv-insights-search" class="cspv-ins-panel-search" placeholder="Filter by post title…" autocomplete="off">
                         </div>
                         <div id="cspv-insights-list">
                             <div class="cspv-loading">Loading…</div>
@@ -1083,6 +1092,22 @@ ob_start();
     var insightsData  = null;
     var insightsSub   = 'top';
 
+    // Per-panel search terms (Insights tab) — all lowercase, '' = no filter
+    var insSearch = {
+        traffic: '', growth: '', posts: '', refTable: '', refLanding: '', refsChart: '', content: ''
+    };
+    function insMatches( text, term ) {
+        return !term || String( text || '' ).toLowerCase().indexOf( term ) !== -1;
+    }
+    function insBindSearch( id, key, onChange ) {
+        var el = document.getElementById( id );
+        if ( ! el ) return;
+        el.addEventListener( 'input', function() {
+            insSearch[ key ] = el.value.trim().toLowerCase();
+            onChange();
+        } );
+    }
+
     // ── Tab switching ──────────────────────────────────────────────
     function activateTab(tabName) {
         var btn = document.querySelector('.cspv-tab[data-tab="' + tabName + '"]');
@@ -1508,20 +1533,50 @@ ob_start();
             });
     }
 
+    // Filter-by-label helper, shared by every panel whose rows are { label, ... }.
+    function insFilterByLabel( arr, term ) {
+        if ( ! term ) return arr || [];
+        return ( arr || [] ).filter( function( x ) { return insMatches( x.label, term ); } );
+    }
+    function insFilterByTitle( arr, term ) {
+        if ( ! term ) return arr || [];
+        return ( arr || [] ).filter( function( x ) { return insMatches( x.title, term ); } );
+    }
+    function insFilterGrowth( growth, term ) {
+        if ( ! term || ! growth ) return growth;
+        return { dates: growth.dates, series: ( growth.series || [] ).filter( function( s ) { return insMatches( s.label, term ); } ) };
+    }
+    function insFilterRefTable( pbr, term ) {
+        if ( ! term || ! pbr ) return pbr;
+        return { headers: pbr.headers, rows: ( pbr.rows || [] ).filter( function( r ) { return insMatches( r.title, term ); } ) };
+    }
+    function insFilterRefLanding( data, term ) {
+        if ( ! term ) return data || [];
+        var out = [];
+        ( data || [] ).forEach( function( ref ) {
+            var labelMatch = insMatches( ref.label, term );
+            var pages = labelMatch ? ref.pages : ( ref.pages || [] ).filter( function( p ) { return insMatches( p.title, term ); } );
+            if ( pages && pages.length ) {
+                out.push( { label: ref.label, total: ref.total, is_self: ref.is_self, pages: pages } );
+            }
+        } );
+        return out;
+    }
+
     function renderInsDashboard() {
         if (!insDashData) return;
         var d = insDashData;
         renderInsKPI(d.kpi);
         renderInsSmartSummary(d.smart_summary);
-        renderInsTrafficSources(d.traffic_sources);
-        renderInsGrowthChart(d.referrer_growth);
+        renderInsTrafficSources(insFilterByLabel(d.traffic_sources, insSearch.traffic));
+        renderInsGrowthChart(insFilterGrowth(d.referrer_growth, insSearch.growth));
         renderInsCountryChart(d.views_by_country);
         renderInsCountryTimeChart(d.top_countries_over_time);
         renderInsPeakHours(d.peak_hours);
-        renderInsPostsTable(d.top_posts);
-        renderInsRefTable(d.top_posts_by_referrer);
-        renderInsRefLanding(d.referrer_landing_pages);
-        renderInsRefsChart(d.top_referrer_domains);
+        renderInsPostsTable(insFilterByTitle(d.top_posts, insSearch.posts));
+        renderInsRefTable(insFilterRefTable(d.top_posts_by_referrer, insSearch.refTable));
+        renderInsRefLanding(insFilterRefLanding(d.referrer_landing_pages, insSearch.refLanding));
+        renderInsRefsChart(insFilterByLabel(d.top_referrer_domains, insSearch.refsChart));
     }
 
     function countryFlag(cc) {
@@ -1652,7 +1707,11 @@ ob_start();
     function renderInsTrafficSources(sources) {
         insDestroyChart('cspv-ins-traffic-chart');
         var data = insFilterSelf(sources || []);
-        if (!data.length) return;
+        var legendEl = document.getElementById('cspv-ins-traffic-legend');
+        if (!data.length) {
+            if (legendEl) legendEl.innerHTML = '<div class="cspv-ins-empty-msg">No matching traffic sources.</div>';
+            return;
+        }
         var total = data.reduce(function(s,x){ return s + x.views; }, 0) || 1;
         var labels = data.map(function(x){ return x.label; });
         var values = data.map(function(x){ return x.views; });
@@ -1678,9 +1737,13 @@ ob_start();
     function renderInsGrowthChart(growth) {
         insDestroyChart('cspv-ins-growth-chart');
         var ctx = document.getElementById('cspv-ins-growth-chart');
+        var growthLegendEl = document.getElementById('cspv-ins-growth-legend');
         if (!ctx || !growth || !growth.dates || !growth.series) return;
         var series = insSelfOn ? growth.series : growth.series.filter(function(s){ return !s.is_self; });
-        if (!series.length) return;
+        if (!series.length) {
+            if (growthLegendEl) growthLegendEl.innerHTML = '<div class="cspv-ins-empty-msg">No matching referrers.</div>';
+            return;
+        }
         var datasets = series.map(function(s, i) {
             return {
                 label: s.label, data: s.data,
@@ -1794,7 +1857,11 @@ ob_start();
 
     function renderInsPostsTable(posts) {
         var wrap = document.getElementById('cspv-ins-posts-wrap');
-        if (!wrap || !posts || !posts.length) return;
+        if (!wrap) return;
+        if (!posts || !posts.length) {
+            wrap.innerHTML = '<div class="cspv-ins-empty-msg">No matching posts.</div>';
+            return;
+        }
         // Five-column table with a real min-width (680px) so the wrap's
         // overflow-x:auto gives a clean horizontal scroll on narrow screens,
         // keeping every column reachable (including the last, Audio completed).
@@ -1834,7 +1901,11 @@ ob_start();
     function renderInsRefTable(pbr) {
         var wrap = document.getElementById('cspv-ins-ref-table');
         if (!wrap || !pbr || !pbr.headers || !pbr.headers.length) {
-            if (wrap) wrap.innerHTML = '<div style="padding:16px;color:#9ca3af;font-size:13px;">No referrer data available for this period.</div>';
+            if (wrap) wrap.innerHTML = '<div class="cspv-ins-empty-msg">No referrer data available for this period.</div>';
+            return;
+        }
+        if (!pbr.rows || !pbr.rows.length) {
+            wrap.innerHTML = '<div class="cspv-ins-empty-msg">No matching posts.</div>';
             return;
         }
         var headers = insSelfOn ? pbr.headers : pbr.headers.filter(function(h){ return h !== 'Self'; });
@@ -1954,7 +2025,9 @@ ob_start();
         if (!wrap) return;
         var filtered = insFilterSelf(data || []);
         if (!filtered.length) {
-            wrap.innerHTML = '<div style="color:#9ca3af;font-size:13px;">No referrer data available for this period.</div>';
+            wrap.innerHTML = '<div class="cspv-ins-empty-msg">'
+                + (insSearch.refLanding ? 'No matching referrers or pages.' : 'No referrer data available for this period.')
+                + '</div>';
             return;
         }
         var grandTotal = filtered.reduce(function(s, r) { return s + r.total; }, 0) || 1;
@@ -1989,7 +2062,11 @@ ob_start();
         var ctx = document.getElementById('cspv-ins-refs-chart');
         var wrap = document.getElementById('cspv-ins-refs-wrap');
         var data = insFilterSelf(refs || []);
-        if (!ctx || !data.length) return;
+        if (!ctx) return;
+        if (!data.length) {
+            if (wrap) wrap.innerHTML = '<canvas id="cspv-ins-refs-chart"></canvas><div class="cspv-ins-empty-msg">No matching domains.</div>';
+            return;
+        }
         var h = Math.max(120, data.length * 28);
         ctx.height = h;
         if (wrap) wrap.style.height = h + 'px';
@@ -2019,7 +2096,9 @@ ob_start();
             btn.classList.add('active');
             insPeriod = parseInt(btn.dataset.period, 10);
             insDashData = null;
+            insightsData = null;
             loadInsDashboard();
+            loadYourContent();
         });
     });
 
@@ -2035,6 +2114,15 @@ ob_start();
             if (insDashData) { renderInsDashboard(); }
         });
     }());
+
+    // Per-panel search boxes — filter the already-loaded dashboard data client-side.
+    insBindSearch('cspv-ins-traffic-search',    'traffic',    renderInsDashboard);
+    insBindSearch('cspv-ins-growth-search',     'growth',     renderInsDashboard);
+    insBindSearch('cspv-ins-posts-search',      'posts',      renderInsDashboard);
+    insBindSearch('cspv-ins-ref-table-search',  'refTable',   renderInsDashboard);
+    insBindSearch('cspv-ins-ref-landing-search','refLanding', renderInsDashboard);
+    insBindSearch('cspv-ins-refs-search',       'refsChart',  renderInsDashboard);
+    insBindSearch('cspv-insights-search',       'content',    renderInsightsList);
 
     // ── Your Content panel (uses Insights period selector) ────────
     function loadYourContent() {
@@ -2061,10 +2149,12 @@ ob_start();
     function renderInsightsList() {
         if (!insightsData) return;
         var key   = insightsSub === 'top' ? 'top' : insightsSub === 'up' ? 'trending_up' : 'trending_down';
-        var items = insightsData[key];
+        var items = insFilterByTitle(insightsData[key], insSearch.content);
         var el    = document.getElementById('cspv-insights-list');
         if (!items || !items.length) {
-            var msgs = { top: 'No posts viewed in this period.', up: 'No posts trending up.', down: 'No posts trending down.' };
+            var msgs = insSearch.content
+                ? { top: 'No matching posts.', up: 'No matching posts.', down: 'No matching posts.' }
+                : { top: 'No posts viewed in this period.', up: 'No posts trending up.', down: 'No posts trending down.' };
             el.innerHTML = '<div class="cspv-empty">' + (msgs[insightsSub] || 'No data.') + '</div>';
             return;
         }

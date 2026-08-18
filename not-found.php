@@ -158,7 +158,19 @@ function cspv_404_enqueue_purge_script( $hook ) {
 		. 'if(d.success){var inner=document.getElementById("cspv-404-inner");'
 		. 'if(inner)inner.innerHTML="<p style=\"color:#059669;font-size:13px;font-weight:600;\">\u2713 404 log cleared.<\/p>";}'
 		. 'else{btn.disabled=false;btn.textContent="\uD83D\uDDD1 Clear Log";}'
-		. '});});})();';
+		. '});});'
+		. 'var search=document.getElementById("cspv-404-search");if(!search)return;'
+		. 'search.addEventListener("input",function(){'
+		. 'var term=search.value.trim().toLowerCase();'
+		. 'var rows=document.querySelectorAll("#cspv-404-inner tbody tr[data-search]");'
+		. 'var shown=0;'
+		. 'rows.forEach(function(tr){'
+		. 'var match=!term||tr.getAttribute("data-search").indexOf(term)!==-1;'
+		. 'tr.style.display=match?"":"none";if(match)shown++;'
+		. '});'
+		. 'var empty=document.getElementById("cspv-404-no-matches");'
+		. 'if(empty)empty.style.display=(shown===0&&rows.length>0)?"":"none";'
+		. '});})();';
 	wp_add_inline_script( 'cspv-stats-page', $js );
 }
 
@@ -247,6 +259,7 @@ function cspv_render_404_html() {
 		<p style="color:#888;font-size:13px;">No 404 errors recorded yet.</p>
 	<?php else : ?>
 
+	<input type="text" id="cspv-404-search" class="cspv-ins-panel-search" placeholder="Filter by URL or referrer…" autocomplete="off" style="max-width:400px;">
 	<div style="overflow-x:auto;">
 		<table style="width:100%;border-collapse:collapse;font-size:13px;">
 			<thead>
@@ -260,9 +273,10 @@ function cspv_render_404_html() {
 			</thead>
 			<tbody>
 				<?php foreach ( $rows as $i => $row ) :
-					$bg = $i % 2 === 0 ? '#fff' : '#fff8f8';
+					$bg     = $i % 2 === 0 ? '#fff' : '#fff8f8';
+					$search = strtolower( $row->url . ' ' . $row->referrer );
 				?>
-				<tr style="background:<?php echo esc_attr( $bg ); ?>;border-bottom:1px solid #fee2e2;">
+				<tr data-search="<?php echo esc_attr( $search ); ?>" style="background:<?php echo esc_attr( $bg ); ?>;border-bottom:1px solid #fee2e2;">
 					<td style="padding:8px 12px;word-break:break-all;">
 						<a href="<?php echo esc_url( $row->url ); ?>" target="_blank" rel="noopener"
 						   style="color:#dc2626;text-decoration:none;font-family:monospace;font-size:12px;">
@@ -292,6 +306,7 @@ function cspv_render_404_html() {
 				<?php endforeach; ?>
 			</tbody>
 		</table>
+		<div id="cspv-404-no-matches" class="cspv-ins-empty-msg" style="display:none;">No matching URLs.</div>
 	</div>
 
 	<?php endif; ?>

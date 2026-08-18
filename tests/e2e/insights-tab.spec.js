@@ -1,8 +1,10 @@
 /**
  * Insights tab — layout, CSS, and data verification
  * Verifies: KPI cards load real data, all chart canvases render, CSS grid applies,
- * legend dots are colored, period buttons reload data, country flags appear,
- * Your Content uses the Insights period (not Stats tab dates).
+ * legend dots are colored, period buttons reload data (including Your Content —
+ * regression coverage for the bug where it kept showing the previous period),
+ * country flags appear, Your Content uses the Insights period (not Stats tab
+ * dates), and the per-panel search boxes filter their panel without going stale.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -195,4 +197,124 @@ test('Insights tab takes a full-page screenshot', async ({ page }) => {
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'test-results/insights-full.png', fullPage: true });
+});
+
+// Regression test for the bug where clicking a period button (7/30/90/180/360 days)
+// only reloaded the dashboard charts/KPIs above — "Your Content" kept showing the
+// previous period's posts and range label until the tab was closed and reopened.
+test('Switching period also reloads Your Content, not just the dashboard', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#cspv-insights-list')).not.toContainText('Loading', { timeout: 15000 });
+
+    const rangeBefore = await page.locator('#cspv-insights-range').textContent();
+    expect(rangeBefore).toContain('Last 30 days');
+
+    // Switch to 7 days — both the dashboard AND Your Content must reload.
+    await page.locator('[data-period="7"]').click();
+    await expect(page.locator('#cspv-ins-loading')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 15000 });
+
+    // Your Content range label must update to the new period, not stay stale.
+    await expect(page.locator('#cspv-insights-range')).toHaveText('Last 7 days', { timeout: 15000 });
+});
+
+test('Traffic Sources search filters the legend', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1000);
+
+    const legend = page.locator('#cspv-ins-traffic-legend');
+    const initialCount = await legend.locator('.cspv-ins-legend-item').count();
+    if (initialCount < 2) { test.skip(); return; }
+
+    const firstLabel = (await legend.locator('.cspv-ins-legend-item').first().textContent()).trim();
+    const term = firstLabel.slice(0, Math.min(3, firstLabel.length));
+
+    await page.locator('#cspv-ins-traffic-search').fill(term);
+    await page.waitForTimeout(300);
+
+    const filteredCount = await legend.locator('.cspv-ins-legend-item').count();
+    console.log('Traffic legend items before:', initialCount, 'after filter "' + term + '":', filteredCount);
+    expect(filteredCount).toBeGreaterThan(0);
+    expect(filteredCount).toBeLessThanOrEqual(initialCount);
+
+    // A nonsense term should show the "no matches" message, not a stale/blank legend.
+    await page.locator('#cspv-ins-traffic-search').fill('zzzzznomatch');
+    await page.waitForTimeout(300);
+    await expect(legend).toContainText('No matching');
+});
+
+test('Top Posts by Views search filters the table to matching titles', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1000);
+
+    const rows = page.locator('#cspv-ins-posts-wrap .cspv-ins-posts-tbl tbody tr');
+    const initialCount = await rows.count();
+    if (initialCount < 1) { test.skip(); return; }
+
+    const firstTitle = (await rows.first().locator('td.left a').textContent()).trim();
+    const term = firstTitle.slice(0, Math.min(4, firstTitle.length));
+
+    await page.locator('#cspv-ins-posts-search').fill(term);
+    await page.waitForTimeout(300);
+
+    const filteredRows = page.locator('#cspv-ins-posts-wrap .cspv-ins-posts-tbl tbody tr');
+    const filteredCount = await filteredRows.count();
+    console.log('Posts table rows before:', initialCount, 'after filter "' + term + '":', filteredCount);
+    expect(filteredCount).toBeGreaterThan(0);
+    expect(filteredCount).toBeLessThanOrEqual(initialCount);
+
+    await page.locator('#cspv-ins-posts-search').fill('zzzzznomatch');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#cspv-ins-posts-wrap')).toContainText('No matching posts');
+});
+
+test('Your Content search filters the post list', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#cspv-insights-list')).not.toContainText('Loading', { timeout: 15000 });
+
+    const items = page.locator('#cspv-insights-list .cspv-insights-row');
+    const initialCount = await items.count();
+    if (initialCount < 1) { test.skip(); return; }
+
+    await page.locator('#cspv-insights-search').fill('zzzzznomatch');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#cspv-insights-list')).toContainText('No matching posts');
+
+    await page.locator('#cspv-insights-search').fill('');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#cspv-insights-list .cspv-insights-row')).toHaveCount(initialCount);
+});
+
+test('404 Error Log search filters rows client-side', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    // The panel is collapsed by default — expand it.
+    await page.locator('#cspv-404-header').click();
+    await page.waitForTimeout(300);
+
+    const searchBox = page.locator('#cspv-404-search');
+    if (await searchBox.count() === 0) {
+        console.log('No 404 rows recorded — skipping search test');
+        test.skip();
+        return;
+    }
+
+    const rows = page.locator('#cspv-404-inner tbody tr[data-search]');
+    const initialCount = await rows.count();
+
+    await searchBox.fill('zzzzznomatch');
+    await page.waitForTimeout(200);
+    const visibleAfter = await rows.evaluateAll(trs => trs.filter(tr => tr.style.display !== 'none').length);
+    expect(visibleAfter).toBe(0);
+    await expect(page.locator('#cspv-404-no-matches')).toBeVisible();
+
+    await searchBox.fill('');
+    await page.waitForTimeout(200);
+    const visibleReset = await rows.evaluateAll(trs => trs.filter(tr => tr.style.display !== 'none').length);
+    expect(visibleReset).toBe(initialCount);
 });

@@ -351,6 +351,28 @@ fi
 echo "readme.txt section limits: OK"
 echo ""
 
+# ── WordPress.org submission gates ──────────────────────────────────────────
+# The six classes round R (18Aug26) rejected cyber-devtools on, checked against the
+# STAGED tree. This ran in NO plugin but cyber-devtools until 2026-08-18, which is how
+# this plugin's own set_time_limit()/prefix problems went unmeasured. The checker is
+# marker-immune on purpose: seven submissions were refused while csdt-submission-ok
+# markers sat on the offending lines and the reviewer never saw one.
+_WPORG_VALIDATE="$GITHUB_DIR/shared-build-tools/validate-wp-submission.sh"
+echo "Running WordPress.org submission gates..."
+if [ ! -f "$_WPORG_VALIDATE" ]; then
+    # Fail loudly: a silently-missing validator would recreate the exact hole this closes.
+    echo "ERROR: submission validator not found at $_WPORG_VALIDATE"
+    exit 1
+fi
+if ! bash "$_WPORG_VALIDATE" "$REPO_DIR" --offline; then
+    echo ""
+    echo "ERROR: WordPress.org submission gates failed — build blocked."
+    echo "  Fix the findings above, or record a deliberate exemption with a written"
+    echo "  reason in .wporg-prefixes.json. There is no inline marker that silences them."
+    exit 1
+fi
+echo ""
+
 # ── Shared class copies must match their canonical source ────────────────────
 # CloudScale_Telegram and the model-name map are shared by all five plugins and guarded by
 # class_exists(), so exactly ONE copy loads at runtime. On the live install that copy belongs

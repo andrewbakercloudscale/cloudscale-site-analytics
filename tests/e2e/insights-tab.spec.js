@@ -182,12 +182,17 @@ test('Country time chart legend contains flag emojis', async ({ page }) => {
     const legendText = await page.locator('#cspv-ins-country-time-legend').textContent();
     console.log('Country time legend text:', legendText);
 
-    if (legendText.trim()) {
+    // ZZ ("unknown country") renders a globe placeholder, not a flag — a site with
+    // too little traffic to have resolved geo data shows only that globe, which is
+    // correct behavior, not a bug. Only assert a flag exists once the legend names
+    // at least one real (non-ZZ) country code.
+    const hasRealCountry = /\b(?!ZZ\b)[A-Z]{2}\b/.test(legendText);
+    if (hasRealCountry) {
         // Flag emoji characters are in the range U+1F1E6–U+1F1FF
         const hasFlag = /[\u{1F1E6}-\u{1F1FF}]/u.test(legendText);
         expect(hasFlag, 'Country legend should contain flag emoji').toBe(true);
     } else {
-        console.log('No country time data — skipping flag check');
+        console.log('No resolved country data (only ZZ/unknown, or none) — skipping flag check');
         test.skip();
     }
 });

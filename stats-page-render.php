@@ -387,7 +387,7 @@ function cspv_render_insights_tab( $vars ) {
                 </div>
 
                 <!-- Post Analytics (search + drill-down) -->
-                <div class="cspv-ins-chart-panel" style="margin-top:16px;margin-bottom:8px;">
+                <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo" style="margin-top:16px;margin-bottom:8px;">
                     <div class="cspv-ins-chart-title" style="background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">🔍 Post Analytics</div>
                     <div style="padding:16px;">
                         <div style="display:flex;gap:8px;margin-bottom:12px;max-width:580px;">
@@ -430,6 +430,7 @@ function cspv_render_insights_tab( $vars ) {
                     <div style="background:linear-gradient(135deg,#581c87,#7e22ce);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">&#x1F5FA; Geo Post View</div>
                     <div style="padding:12px 16px 16px;">
                         <p style="margin:0 0 10px;font-size:12px;color:#64748b;">Click a post to see its geographic traffic distribution.</p>
+                        <input type="text" id="cspv-geo-search" class="cspv-ins-panel-search" placeholder="Filter by post title…" autocomplete="off">
                         <div id="cspv-geo-post-list" style="max-height:260px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;">
                             <?php if ( empty( $ph_top_posts ) ) : ?>
                                 <div style="padding:20px;text-align:center;color:#888;font-size:12px;">No posts with views found.</div>
@@ -3501,6 +3502,29 @@ ob_start();
             if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
         });
 
+        // Live filter, consistent with every other panel's search box: narrows
+        // the already-rendered rows on every keystroke, no button needed. The
+        // button/Enter above still does a full server-side search across ALL
+        // posts for when the wanted one isn't in this top-100 list yet.
+        var phNoMatchEl = null;
+        searchInput.addEventListener('input', function() {
+            var term = searchInput.value.trim().toLowerCase();
+            var rows = listBox.querySelectorAll('.cspv-ph-row');
+            var shown = 0;
+            rows.forEach(function(row) {
+                var match = !term || (row.dataset.title || '').indexOf(term) !== -1;
+                row.style.display = match ? 'flex' : 'none';
+                if (match) shown++;
+            });
+            if (phNoMatchEl) { phNoMatchEl.remove(); phNoMatchEl = null; }
+            if (rows.length && shown === 0) {
+                phNoMatchEl = document.createElement('div');
+                phNoMatchEl.className = 'cspv-ins-empty-msg';
+                phNoMatchEl.textContent = 'No matching posts.';
+                listBox.appendChild(phNoMatchEl);
+            }
+        });
+
         function escHtml(s) {
             var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
         }
@@ -3716,6 +3740,29 @@ ob_start();
                 loadGeoSection(parseInt(item.dataset.id, 10), item.dataset.title || String(item.dataset.id));
             });
         });
+
+        // Live filter, consistent with every other panel's search box.
+        var geoSearch    = document.getElementById('cspv-geo-search');
+        var geoNoMatchEl = null;
+        if (geoSearch) {
+            geoSearch.addEventListener('input', function() {
+                var term = geoSearch.value.trim().toLowerCase();
+                var items = geoList.querySelectorAll('.cspv-geo-post-item');
+                var shown = 0;
+                items.forEach(function(item) {
+                    var match = !term || (item.dataset.title || '').toLowerCase().indexOf(term) !== -1;
+                    item.style.display = match ? 'flex' : 'none';
+                    if (match) shown++;
+                });
+                if (geoNoMatchEl) { geoNoMatchEl.remove(); geoNoMatchEl = null; }
+                if (items.length && shown === 0) {
+                    geoNoMatchEl = document.createElement('div');
+                    geoNoMatchEl.className = 'cspv-ins-empty-msg';
+                    geoNoMatchEl.textContent = 'No matching posts.';
+                    geoList.appendChild(geoNoMatchEl);
+                }
+            });
+        }
     })();
 
 })();

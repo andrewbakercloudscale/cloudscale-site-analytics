@@ -323,3 +323,83 @@ test('404 Error Log search filters rows client-side', async ({ page }) => {
     const visibleReset = await rows.evaluateAll(trs => trs.filter(tr => tr.style.display !== 'none').length);
     expect(visibleReset).toBe(initialCount);
 });
+
+test('Post Analytics search filters live, without clicking Search', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const rows = page.locator('#cspv-ph-list .cspv-ph-row');
+    const initialCount = await rows.count();
+    if (initialCount < 2) { test.skip(); return; }
+
+    // The full title of the first row, not a short prefix: on a site where many
+    // titles share a common prefix (e.g. every doc page starting "CloudScale…"),
+    // a short prefix like the first 4 characters matches every row and never
+    // actually narrows anything.
+    const term = await rows.first().getAttribute('data-title');
+
+    // Typing alone must filter — no click on "Search Posts" and no Enter.
+    await page.locator('#cspv-ph-search').fill(term);
+    await page.waitForTimeout(200);
+    const visible = await rows.evaluateAll(rs => rs.filter(r => r.style.display !== 'none').length);
+    console.log('Post Analytics rows:', initialCount, ' visible after filter "' + term + '":', visible);
+    expect(visible).toBeGreaterThan(0);
+    expect(visible).toBeLessThan(initialCount);
+
+    await page.locator('#cspv-ph-search').fill('zzzzznomatch');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#cspv-ph-list')).toContainText('No matching posts');
+});
+
+test('Geo Post View has a live search box', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const items = page.locator('#cspv-geo-post-list .cspv-geo-post-item');
+    const initialCount = await items.count();
+    if (initialCount < 2) { test.skip(); return; }
+
+    // Full title, not a short prefix — see the comment in the Post Analytics
+    // search test above for why a short prefix can fail to narrow anything.
+    const term = await items.first().getAttribute('data-title');
+
+    await page.locator('#cspv-geo-search').fill(term);
+    await page.waitForTimeout(200);
+    const visible = await items.evaluateAll(rs => rs.filter(r => r.style.display !== 'none').length);
+    console.log('Geo Post View items:', initialCount, ' visible after filter "' + term + '":', visible);
+    expect(visible).toBeGreaterThan(0);
+    expect(visible).toBeLessThan(initialCount);
+
+    await page.locator('#cspv-geo-search').fill('zzzzznomatch');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#cspv-geo-post-list')).toContainText('No matching posts');
+});
+
+test('Post Analytics panel margins match its sibling panels', async ({ page }) => {
+    // Regression: Post Analytics was missing the cspv-ins-chart-panel-solo class
+    // that every other panel uses for its side margin, so it rendered flush
+    // against the container edge instead of inset like its neighbors.
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const margins = await page.evaluate(() => {
+        const content = document.getElementById('cspv-ins-content');
+        const wanted = ['Top Posts by Views', 'Post Analytics', 'Geo Post View', '404 Error Log'];
+        const out = {};
+        Array.from(content.children).forEach(el => {
+            const label = el.querySelector('div')?.textContent?.trim() || '';
+            wanted.forEach(w => {
+                if (label.indexOf(w) !== -1 && !out[w]) {
+                    const cs = window.getComputedStyle(el);
+                    out[w] = cs.marginLeft + '|' + cs.marginRight;
+                }
+            });
+        });
+        return out;
+    });
+    console.log('Panel margins:', JSON.stringify(margins));
+
+    const values = Object.values(margins);
+    expect(values.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(values).size, 'all panels should share the same left/right margin').toBe(1);
+});

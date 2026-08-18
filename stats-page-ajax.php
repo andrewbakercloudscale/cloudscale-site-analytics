@@ -971,16 +971,9 @@ function cspv_ajax_insights_dashboard() {
     check_ajax_referer( 'cspv_insights_dashboard', 'nonce' );
 
     try {
-        $period = min( 360, max( 7, (int) ( isset( $_POST['period'] ) ? absint( $_POST['period'] ) : 30 ) ) );
-
-        $to   = new DateTime( 'now', wp_timezone() );
-        $from = clone $to;
-        $from->modify( '-' . ( $period - 1 ) . ' days' );
-        $from->setTime( 0, 0, 0 );
-        $to->setTime( 23, 59, 59 );
-
-        $from_str = $from->format( 'Y-m-d H:i:s' );
-        $to_str   = $to->format( 'Y-m-d H:i:s' );
+        list( $from_str, $to_str, $period ) = cspv_insights_period_range(
+            isset( $_POST['period'] ) ? absint( $_POST['period'] ) : 30
+        );
         $own_host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 
         $kpi = cspv_insights_kpi( $from_str, $to_str, $own_host );
@@ -1004,8 +997,8 @@ function cspv_ajax_insights_dashboard() {
 }
 
 /**
- * AJAX: return country breakdown for a single post (all-time).
- * Used by the Post Analytics geo map in the Insights tab.
+ * AJAX: return country breakdown for a single post, scoped to the Insights
+ * period selector (matches the "Views by Country" chart above it in the tab).
  *
  * @since 2.9.318
  * @return void
@@ -1022,6 +1015,10 @@ function cspv_ajax_post_geo_map() {
         $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
         if ( ! $post_id ) { wp_send_json_error( array( 'message' => 'Invalid post ID' ) ); return; }
 
+        list( $from_str, $to_str ) = cspv_insights_period_range(
+            isset( $_POST['period'] ) ? absint( $_POST['period'] ) : 30
+        );
+
         $table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
         $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         if ( ! $table_exists ) { wp_send_json_success( array() ); return; }
@@ -1030,9 +1027,9 @@ function cspv_ajax_post_geo_map() {
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT country_code AS cc, COALESCE(SUM(view_count),0) AS v
              FROM `{$table}`
-             WHERE post_id = %d AND country_code <> ''
+             WHERE post_id = %d AND country_code <> '' AND viewed_at BETWEEN %s AND %s
              GROUP BY country_code ORDER BY v DESC",
-            $post_id
+            $post_id, $from_str, $to_str
         ) );
         // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
@@ -1043,7 +1040,7 @@ function cspv_ajax_post_geo_map() {
             }
         }
 
-        // Top 5 referrers for this post.
+        // Top 5 referrers for this post, same period.
         $ref_table = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
         $ref_rows  = array();
         if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ref_table ) ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -1051,9 +1048,9 @@ function cspv_ajax_post_geo_map() {
             $ref_rows = $wpdb->get_results( $wpdb->prepare(
                 "SELECT SUBSTRING_INDEX(referrer, '?', 1) AS r, SUM(view_count) AS v
                  FROM `{$ref_table}`
-                 WHERE post_id = %d AND referrer <> ''
+                 WHERE post_id = %d AND referrer <> '' AND viewed_at BETWEEN %s AND %s
                  GROUP BY SUBSTRING_INDEX(referrer, '?', 1) ORDER BY v DESC LIMIT 10",
-                $post_id
+                $post_id, $from_str, $to_str
             ) );
             // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         }

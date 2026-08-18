@@ -812,6 +812,37 @@ function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_s
 // ── Insights Dashboard helpers ───────────────────────────────────────────────
 
 /**
+ * Resolve an Insights period selector into a from/to datetime range.
+ *
+ * Shared by the dashboard AJAX handler and the per-post geo map endpoint so
+ * both honour the same period selector consistently, and so the "24 hours"
+ * special case only has to be defined once.
+ *
+ * @since 2.9.485
+ * @param  int $period Days (clamped 1–360). 1 means a rolling last-24-hours
+ *                      window, not "today so far" — the calendar-day snap
+ *                      used for every other value would otherwise show
+ *                      almost nothing in the minutes right after midnight.
+ * @return array{0: string, 1: string, 2: int} from_str, to_str ('Y-m-d H:i:s'), clamped period.
+ */
+function cspv_insights_period_range( $period ) {
+    $period = min( 360, max( 1, (int) $period ) );
+    $to     = new DateTime( 'now', wp_timezone() );
+
+    if ( 1 === $period ) {
+        $from = clone $to;
+        $from->modify( '-24 hours' );
+        return array( $from->format( 'Y-m-d H:i:s' ), $to->format( 'Y-m-d H:i:s' ), $period );
+    }
+
+    $from = clone $to;
+    $from->modify( '-' . ( $period - 1 ) . ' days' );
+    $from->setTime( 0, 0, 0 );
+    $to->setTime( 23, 59, 59 );
+    return array( $from->format( 'Y-m-d H:i:s' ), $to->format( 'Y-m-d H:i:s' ), $period );
+}
+
+/**
  * Return canonical display label for a referrer hostname.
  */
 function cspv_insights_label( $host ) {
@@ -1422,6 +1453,8 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
     $items       = array();
     $views_table = cspv_views_table();
     $total_views = isset( $kpi['total_views'] ) ? (int) $kpi['total_views'] : 0;
+    // "the previous 1 days" reads wrong for the 24-hours period button.
+    $period_label = 1 === (int) $period ? '24 hours' : "{$period} days";
 
     // 1. Overall traffic direction
     if ( isset( $kpi['trend_views_pct'] ) && null !== $kpi['trend_views_pct'] ) {
@@ -1429,11 +1462,11 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
         $abs       = abs( $pct );
         $views_fmt = number_format( $total_views );
         if ( $pct > 0 ) {
-            $items[] = array( 'icon' => '📈', 'text' => "Traffic is up {$abs}% vs the previous {$period} days, {$views_fmt} views", 'type' => 'positive', 'detail' => null );
+            $items[] = array( 'icon' => '📈', 'text' => "Traffic is up {$abs}% vs the previous {$period_label}, {$views_fmt} views", 'type' => 'positive', 'detail' => null );
         } elseif ( $pct < 0 ) {
-            $items[] = array( 'icon' => '📉', 'text' => "Traffic is down {$abs}% vs the previous {$period} days, {$views_fmt} views", 'type' => 'negative', 'detail' => null );
+            $items[] = array( 'icon' => '📉', 'text' => "Traffic is down {$abs}% vs the previous {$period_label}, {$views_fmt} views", 'type' => 'negative', 'detail' => null );
         } else {
-            $items[] = array( 'icon' => '➡️', 'text' => "Traffic is flat vs the previous {$period} days, {$views_fmt} views", 'type' => 'neutral', 'detail' => null );
+            $items[] = array( 'icon' => '➡️', 'text' => "Traffic is flat vs the previous {$period_label}, {$views_fmt} views", 'type' => 'neutral', 'detail' => null );
         }
     }
 
@@ -1559,8 +1592,8 @@ function cspv_insights_smart_summary( $from_str, $to_str, $own_host, $period, $k
         if ( $best_growth >= 0.5 && $best_label ) {
             $mult = round( $best_growth + 1.0, 1 );
             $text = $mult >= 2.0
-                ? "{$best_label} traffic grew {$mult}× vs the previous {$period} days"
-                : "{$best_label} traffic grew " . (int) round( $best_growth * 100 ) . "% vs the previous {$period} days";
+                ? "{$best_label} traffic grew {$mult}× vs the previous {$period_label}"
+                : "{$best_label} traffic grew " . (int) round( $best_growth * 100 ) . "% vs the previous {$period_label}";
             $items[] = array( 'icon' => '🚀', 'text' => $text, 'type' => 'positive', 'detail' => null );
         }
     }

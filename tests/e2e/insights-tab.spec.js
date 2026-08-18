@@ -403,3 +403,58 @@ test('Post Analytics panel margins match its sibling panels', async ({ page }) =
     expect(values.length).toBeGreaterThanOrEqual(3);
     expect(new Set(values).size, 'all panels should share the same left/right margin').toBe(1);
 });
+
+test('Post Analytics has no visible Search button', async ({ page }) => {
+    // Regression: the button was removed once the search box started filtering
+    // live on every keystroke — a visible "Search" button next to an input that
+    // already filters as you type is confusing UI, inconsistent with every
+    // other panel's plain search box.
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#cspv-ph-search-btn')).toHaveCount(0);
+    await expect(page.locator('#cspv-ph-search')).toBeVisible();
+});
+
+test('24 hours period button exists and reloads the dashboard', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const btn24 = page.locator('[data-period="1"]');
+    await expect(btn24).toHaveText('24 hours');
+
+    await btn24.click();
+    await expect(page.locator('#cspv-ins-loading')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 15000 });
+    await expect(btn24).toHaveClass(/active/);
+
+    const kpiViews = await page.locator('#cspv-ins-kpi-views').textContent();
+    expect(kpiViews).toMatch(/[\d,]+/);
+});
+
+test('Geo Post View map request is scoped to the selected period', async ({ page }) => {
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const items = page.locator('#cspv-geo-post-list .cspv-geo-post-item');
+    if (await items.count() < 1) { test.skip(); return; }
+
+    let geoReqBody = null;
+    page.on('request', req => {
+        if (req.url().includes('admin-ajax.php') && (req.postData() || '').includes('cspv_post_geo_map')) {
+            geoReqBody = req.postData();
+        }
+    });
+
+    await items.first().click();
+    await page.waitForTimeout(600);
+    expect(geoReqBody, 'geo map request should have fired').toBeTruthy();
+    expect(geoReqBody).toContain('period=30');
+
+    // Switching period must re-fetch the currently-open map with the new period,
+    // not silently keep showing the stale one.
+    geoReqBody = null;
+    await page.locator('[data-period="7"]').click();
+    await page.waitForTimeout(600);
+    expect(geoReqBody, 'switching period should re-fetch the open geo map').toBeTruthy();
+    expect(geoReqBody).toContain('period=7');
+});

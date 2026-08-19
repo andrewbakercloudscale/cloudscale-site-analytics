@@ -1,8 +1,17 @@
 {
   "_comment": "Config for shared-build-tools/check-wporg-rejection-classes.php. 'cloudscale' is the shared-library prefix (CloudScale_Telegram/CloudScale_Licence come from cloudscale-backup).",
-  "prefixes": ["cspv", "cloudscale"],
+  "prefixes": [
+    "cspv",
+    "cloudscale"
+  ],
   "legacy_prefixes": [],
   "legacy_budget": 0,
   "foreign_hooks": [],
-  "path_exemptions": []
+  "path_exemptions": [],
+  "vendor_exemptions": [
+    {
+      "path": "lib/maxmind-db",
+      "reason": "Vendored third-party library (maxmind/MaxMind-DB-Reader-PHP, Apache-2.0), shipped unmodified so it can be replaced with an upstream release. Its classes live in the MaxMind\\Db namespace and cannot collide; only lib/maxmind-db/autoload.php declares a global, mmdb_autoload(), which is our own shim and is renamed to a plugin prefix if it ever clashes."
+    }
+  ]
 }

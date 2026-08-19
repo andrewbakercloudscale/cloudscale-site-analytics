@@ -449,6 +449,39 @@ if ! php "$_TG_RATE_CHECK" "$REPO_DIR"; then
 fi
 echo ""
 
+# -- The plugin's own PHP tests actually run ----------------------------------
+# tests/ appeared in this script three times before today and every one of them was an
+# EXCLUSION: two -path prunes for the lint walks and an --exclude for the zip. Nothing ever
+# executed a test. So tests/beacon-preview-test.php -- written 2026-08-19 after a draft
+# preview paged the owner with a CRITICAL for working correctly -- would have passed once by
+# hand, been committed, and never run again.
+#
+# Gated on the exit code, and also on the FILE COUNT. A suite renamed out of the glob reports
+# "0 tests, all passed", which is the reassuring-gate-that-covers-nothing that the PHPCS and
+# readme blocks in this same file were both written to stop. Zero files is a failure here.
+echo "Running plugin PHP tests..."
+_TEST_FILES=$(find "$REPO_DIR/tests" -maxdepth 1 -name '*-test.php' 2>/dev/null | sort)
+_TEST_COUNT=$(printf '%s\n' "$_TEST_FILES" | grep -c . || true)
+if [ "$_TEST_COUNT" -eq 0 ]; then
+    echo "ERROR: no tests/*-test.php found -- the test gate is covering nothing."
+    exit 1
+fi
+_TEST_FAILED=0
+while IFS= read -r _tf; do
+    [ -n "$_tf" ] || continue
+    if ! php "$_tf"; then
+        echo "  FAILED: ${_tf#$REPO_DIR/}"
+        _TEST_FAILED=1
+    fi
+done <<< "$_TEST_FILES"
+if [ "$_TEST_FAILED" -ne 0 ]; then
+    echo ""
+    echo "ERROR: plugin PHP tests failed -- build blocked."
+    exit 1
+fi
+echo "  $_TEST_COUNT test file(s) passed"
+echo ""
+
 echo "Running PHPCS (WordPress standard)..."
 # memory_limit: PHP's 128M default is not enough to tokenise the whole tree — the
 # main plugin file alone is several hundred KB and the run dies partway through it.

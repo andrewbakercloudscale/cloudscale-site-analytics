@@ -44,6 +44,35 @@ function cspv_enqueue_beacon() {
     $is_singular = is_singular();
     $is_listing  = is_home() || is_front_page() || is_archive() || is_search();
 
+    // A PREVIEW, OR ANY SINGULAR VIEW OF A POST THAT IS NOT PUBLISHED, CANNOT BE
+    // RECORDED. cspv_record_view() answers 404 {"error":"Post is not published."}
+    // on purpose, so shipping record mode here guarantees a POST that fails --
+    // from the author's own browser, on the one page where the author already
+    // knows the post is a draft.
+    //
+    // That failure is not silent. CS Monitor's editorLogSeverity() ends in
+    // `return 'critical'` for any same-origin fail with a real status, so the
+    // 404 became a Telegram CRITICAL: "Editor request failed, POST
+    // /wp-json/cloudscale-site-analytics/v1/record/11057 -> 404". Post 11057 was
+    // published 16 seconds later (alert 2026-08-19 09:11:18, post_modified
+    // 09:11:34) -- the alert fired because the workflow was working. That is how
+    // CRITICAL stops meaning anything, which is the same reasoning behind the
+    // by_design/403 branch in cs-perf-monitor.js.
+    //
+    // Fixed here rather than in the monitor because the monitor is right: a 404
+    // on a route that should have answered IS critical, and teaching it to
+    // forgive 404s generally would hide real breakage. The request itself is
+    // what should not exist.
+    //
+    // is_preview() also covers a preview of an already-published post, where the
+    // record would succeed -- an author re-reading their own draft revision is
+    // not a view, and counting it inflates the number the plugin exists to report.
+    // 'private' and future-dated posts fall out of the same guard: both are
+    // singular, both 404 at the endpoint, both used to alert.
+    if ( $is_singular && ( is_preview() || 'publish' !== get_post_status() ) ) {
+        $is_singular = false;
+    }
+
     if ( ! $is_singular && ! $is_listing ) {
         return;
     }

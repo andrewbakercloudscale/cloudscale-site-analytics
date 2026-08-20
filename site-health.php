@@ -250,6 +250,52 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
 }
 
 /**
+ * Render the overall RAG badge, plus the tracking-data age when known.
+ *
+ * Split out of cspv_render_site_health_html() so a host that already shows a
+ * "Site Health" heading (the stats page panel header) can hang the badge there
+ * instead of spending another row on it.
+ *
+ * @since 4.1.0
+ * @param array|null $health   Pre-computed metrics, to avoid a second lookup.
+ * @param bool       $compact  Shorten the data-age wording for tight headers.
+ * @return void
+ */
+function cspv_render_site_health_badge( $health = null, $compact = false ) {
+    if ( ! is_array( $health ) ) {
+        $health = cspv_get_site_health();
+    }
+
+    $rag_colors = array( 'green' => '#059669', 'amber' => '#d97706', 'red' => '#e53e3e', 'nodata' => '#6b7280' );
+    $rag_bg     = array(
+        'green'  => 'linear-gradient(135deg,#d1fae5,#a7f3d0)',
+        'amber'  => 'linear-gradient(135deg,#fef3c7,#fde68a)',
+        'red'    => 'linear-gradient(135deg,#fee2e2,#fecaca)',
+        'nodata' => 'linear-gradient(135deg,#f3f4f6,#e5e7eb)',
+    );
+    $rag_emoji  = array( 'green' => '🟢', 'amber' => '🟡', 'red' => '🔴', 'nodata' => '⏳' );
+
+    $key   = $health['overall'];
+    $label = 'nodata' === $key ? 'AWAITING DATA' : strtoupper( $key );
+
+    $badge_style = 'background:' . $rag_bg[ $key ] . ';color:' . $rag_colors[ $key ]
+        . ';font-size:12px;font-weight:800;padding:3px 10px;border-radius:12px;text-transform:uppercase;'
+        . 'white-space:nowrap;letter-spacing:0;box-shadow:0 1px 4px rgba(0,0,0,.08);';
+    ?>
+    <span style="display:inline-flex;align-items:center;gap:8px;">
+        <span style="<?php echo esc_attr( $badge_style ); ?>">
+            <?php echo esc_html( $rag_emoji[ $key ] ); ?> <?php echo esc_html( $label ); ?>
+        </span>
+        <?php if ( $health['data_days'] > 0 ) : ?>
+        <span style="font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:nowrap;opacity:.9;">
+            <?php echo (int) $health['data_days']; ?> days<?php echo $compact ? '' : ' of tracking data'; ?>
+        </span>
+        <?php endif; ?>
+    </span>
+    <?php
+}
+
+/**
  * Render the site health metrics HTML cards.
  *
  * @since 1.0.0
@@ -273,119 +319,90 @@ function cspv_render_site_health_html( $context = 'widget' ) {
         'red'    => '#e53e3e',
         'nodata' => '#6b7280',
     );
-    $rag_bg = array(
-        'green'  => 'linear-gradient(135deg,#d1fae5,#a7f3d0)',
-        'amber'  => 'linear-gradient(135deg,#fef3c7,#fde68a)',
-        'red'    => 'linear-gradient(135deg,#fee2e2,#fecaca)',
-        'nodata' => 'linear-gradient(135deg,#f3f4f6,#e5e7eb)',
-    );
-    $rag_emoji = array(
-        'green'  => '🟢',
-        'amber'  => '🟡',
-        'red'    => '🔴',
-        'nodata' => '⏳',
-    );
-
-    $overall_color = $rag_colors[ $health['overall'] ];
-    $overall_label = $health['overall'] === 'nodata' ? 'AWAITING DATA' : strtoupper( $health['overall'] );
-    $overall_emoji = $rag_emoji[ $health['overall'] ];
-
     $w  = $context === 'widget';
     $gs = $w ? '6'  : '8';
-    $ps = $w ? '8px 6px' : '10px 8px';
-    ?>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:<?php echo (int) ( $w ? '10' : '14' ); ?>px;">
-        <span style="font-size:<?php echo (int) ( $w ? '13' : '15' ); ?>px;font-weight:800;color:#1a2332;">🏥 Site Health</span>
-        <span style="background:<?php echo esc_attr( $rag_bg[ $health['overall'] ] ); ?>;color:<?php echo esc_attr( $overall_color ); ?>;
-            font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;text-transform:uppercase;
-            box-shadow:0 1px 4px rgba(0,0,0,.08);">
-            <?php echo esc_html( $overall_emoji ); ?> <?php echo esc_html( $overall_label ); ?>
-        </span>
-        <?php if ( $health['data_days'] > 0 ) : ?>
-        <span style="font-size:10px;color:#aaa;"><?php echo (int) $health['data_days']; ?> days of tracking data</span>
-        <?php endif; ?>
-    </div>
+    $ps = $w ? '8px 6px' : '9px 10px';
 
-    <?php // ── Traffic Growth ── ?>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
-        Traffic Growth per Time Window
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:<?php echo (int) $gs; ?>px;margin-bottom:<?php echo (int) ( $w ? '12' : '18' ); ?>px;">
-    <?php foreach ( $health['growth'] as $label => $g ) :
-        $pc = $period_colors[ $label ];
-        if ( $g['sufficient'] ) :
-            $arrow     = $g['pct_change'] >= 0 ? '▲' : '▼';
-            $val_color = $rag_colors[ $g['rag'] ];
-    ?>
-        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
-                <?php echo esc_html( $label ); ?>
-            </div>
-            <div style="font-size:<?php echo (int) ( $w ? '16' : '17' ); ?>px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
-                <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
-            </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#374151;margin-top:4px;font-weight:600;font-variant-numeric:tabular-nums;">
-                <?php echo esc_html( number_format( $g['current'] ) ); ?>
-            </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:1px;">
-                vs <?php echo esc_html( number_format( $g['previous'] ) ); ?> prior
-            </div>
-        </div>
-    <?php else : ?>
-        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
-                <?php echo esc_html( $label ); ?>
-            </div>
-            <div style="font-size:<?php echo (int) ( $w ? '11' : '13' ); ?>px;font-weight:700;color:#d97706;padding:2px 0;">
-                Insufficient Data
-            </div>
-            <div style="font-size:<?php echo (int) ( $w ? '9' : '10' ); ?>px;color:#9ca3af;margin-top:2px;">
-                need <?php echo (int) ( $g['days'] * 2 ); ?> days
-            </div>
-        </div>
-    <?php endif; endforeach; ?>
-    </div>
+    /*
+     * Type scale. The widget stays compact because it shares a narrow dashboard
+     * column; the stats page gets legible sizes. The two detail lines are merged
+     * onto one row in both contexts, so the larger type costs no extra height.
+     */
+    $f_sec   = $w ? 10 : 12; // Section heading.
+    $f_lbl   = $w ? 9 : 12;  // Period label inside a card.
+    $f_hero  = $w ? 16 : 20; // Headline percentage.
+    $f_insuf = $w ? 11 : 14; // "Insufficient Data".
+    $f_det   = $w ? 9 : 12;  // Detail line under the headline.
 
-    <?php if ( ! $w ) : // Hot Pages — full stats page only, not the widget ?>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;margin-bottom:8px;">
-        Hot Pages per Time Window
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:<?php echo (int) $gs; ?>px;margin-bottom:14px;">
-    <?php foreach ( $health['hot_pages'] as $label => $h ) :
-        $pc = $period_colors[ $label ];
-        if ( $h['sufficient'] ) :
-				$arrow     = $h['pct_change'] >= 0 ? '▲' : '▼';
-				$val_color = $rag_colors[ $h['rag'] ];
-				?>
-        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
-            <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
-                <?php echo esc_html( $label ); ?>
-            </div>
-            <div style="font-size:17px;font-weight:900;color:<?php echo esc_attr( $val_color ); ?>;font-variant-numeric:tabular-nums;line-height:1.1;">
-                <?php echo esc_html( $arrow ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
-            </div>
-            <div style="font-size:10px;color:#374151;margin-top:4px;font-weight:600;font-variant-numeric:tabular-nums;">
-                <?php echo (int) $h['current_count']; ?> hot pages
-            </div>
-            <div style="font-size:10px;color:#9ca3af;margin-top:1px;">
-                vs <?php echo (int) $h['previous_count']; ?> prior
-            </div>
-        </div>
-				<?php else : ?>
-        <div style="background:#fff;border:1px solid #e5e7eb;border-top:3px solid <?php echo esc_attr( $pc['insuf'] ); ?>;border-radius:8px;padding:<?php echo esc_attr( $ps ); ?>;text-align:center;">
-            <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">
-                <?php echo esc_html( $label ); ?>
-            </div>
-            <div style="font-size:13px;font-weight:700;color:#d97706;padding:2px 0;">
-                Insufficient Data
-            </div>
-            <div style="font-size:10px;color:#9ca3af;margin-top:2px;">
-                need <?php echo (int) ( $h['days'] * 2 ); ?> days
-            </div>
-        </div>
-    <?php endif; endforeach; ?>
+    $card_style  = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:' . $ps . ';text-align:center;border-top:3px solid ';
+    $sec_style   = 'font-size:' . $f_sec . 'px;font-weight:700;text-transform:uppercase;color:#6b7280;letter-spacing:.05em;';
+    $lbl_style   = 'font-size:' . $f_lbl . 'px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;';
+    $hero_style  = 'font-size:' . $f_hero . 'px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.15;color:';
+    $det_style   = 'font-size:' . $f_det . 'px;color:#4b5563;margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums;';
+    $insuf_style = 'font-size:' . $f_insuf . 'px;font-weight:700;color:#d97706;line-height:1.2;';
+    $muted_style = 'color:#9ca3af;font-weight:500;';
+    $grid_style  = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:' . (int) $gs . 'px;';
+    ?>
+    <?php // The stats page already carries a "Site Health" panel header, so the title row is widget-only. ?>
+    <?php if ( $w ) : ?>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;color:#6b7280;">
+        <span style="font-size:14px;font-weight:800;color:#1a2332;">🏥 Site Health</span>
+        <?php cspv_render_site_health_badge( $health ); ?>
     </div>
     <?php endif; ?>
+
+    <?php // Growth and hot pages sit side by side on the stats page and stack below ~900px. ?>
+    <div style="display:flex;flex-wrap:wrap;gap:<?php echo (int) ( $w ? 0 : 20 ); ?>px;margin-bottom:<?php echo (int) ( $w ? 10 : 12 ); ?>px;">
+
+        <div style="flex:1 1 460px;min-width:0;">
+            <div style="<?php echo esc_attr( $sec_style ); ?>margin-bottom:5px;">Traffic Growth per Time Window</div>
+            <div style="<?php echo esc_attr( $grid_style ); ?>">
+            <?php foreach ( $health['growth'] as $label => $g ) : ?>
+                <div style="<?php echo esc_attr( $card_style . $period_colors[ $label ]['insuf'] ); ?>">
+                    <div style="<?php echo esc_attr( $lbl_style ); ?>"><?php echo esc_html( $label ); ?></div>
+                    <?php if ( $g['sufficient'] ) : ?>
+                    <div style="<?php echo esc_attr( $hero_style . $rag_colors[ $g['rag'] ] ); ?>">
+                        <?php echo esc_html( $g['pct_change'] >= 0 ? '▲' : '▼' ); ?> <?php echo esc_html( abs( $g['pct_change'] ) ); ?>%
+                    </div>
+                    <div style="<?php echo esc_attr( $det_style ); ?>">
+                        <?php echo esc_html( number_format( $g['current'] ) ); ?>
+                        <span style="<?php echo esc_attr( $muted_style ); ?>">vs <?php echo esc_html( number_format( $g['previous'] ) ); ?></span>
+                    </div>
+                    <?php else : ?>
+                    <div style="<?php echo esc_attr( $insuf_style ); ?>">Insufficient Data</div>
+                    <div style="<?php echo esc_attr( $det_style . $muted_style ); ?>">need <?php echo (int) ( $g['days'] * 2 ); ?> days</div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+            </div>
+        </div>
+
+        <?php if ( ! $w ) : // Hot Pages - full stats page only, not the widget. ?>
+        <div style="flex:1 1 460px;min-width:0;">
+            <div style="<?php echo esc_attr( $sec_style ); ?>margin-bottom:5px;">Hot Pages per Time Window</div>
+            <div style="<?php echo esc_attr( $grid_style ); ?>">
+            <?php foreach ( $health['hot_pages'] as $label => $h ) : ?>
+                <div style="<?php echo esc_attr( $card_style . $period_colors[ $label ]['insuf'] ); ?>">
+                    <div style="<?php echo esc_attr( $lbl_style ); ?>"><?php echo esc_html( $label ); ?></div>
+                    <?php if ( $h['sufficient'] ) : ?>
+                    <div style="<?php echo esc_attr( $hero_style . $rag_colors[ $h['rag'] ] ); ?>">
+                        <?php echo esc_html( $h['pct_change'] >= 0 ? '▲' : '▼' ); ?> <?php echo esc_html( abs( $h['pct_change'] ) ); ?>%
+                    </div>
+                    <div style="<?php echo esc_attr( $det_style ); ?>">
+                        <?php echo (int) $h['current_count']; ?> hot pages
+                        <span style="<?php echo esc_attr( $muted_style ); ?>">vs <?php echo (int) $h['previous_count']; ?></span>
+                    </div>
+                    <?php else : ?>
+                    <div style="<?php echo esc_attr( $insuf_style ); ?>">Insufficient Data</div>
+                    <div style="<?php echo esc_attr( $det_style . $muted_style ); ?>">need <?php echo (int) ( $h['days'] * 2 ); ?> days</div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+    </div>
 
     <?php
 }

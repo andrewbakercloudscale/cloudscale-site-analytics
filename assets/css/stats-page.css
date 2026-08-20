@@ -168,7 +168,7 @@
 /* ── Summary cards ───────────────────────────────── */
 #cspv-cards {
     display: flex;
-    gap: 14px;
+    gap: 10px;
     margin-bottom: 18px;
     flex-wrap: wrap;
 }
@@ -178,7 +178,7 @@
     background: #fff;
     border: 1.5px solid #dce3ef;
     border-radius: 8px;
-    padding: 18px 22px;
+    padding: 12px 16px;
     position: relative;
     overflow: hidden;
 }
@@ -193,9 +193,9 @@
 #cspv-card-visitors::before { background: linear-gradient(90deg,var(--csds-warn, #f59e0b),#ef4444); }
 #cspv-card-avg::before      { background: linear-gradient(90deg,#f47c20,#f7b733); }
 #cspv-card-hotpages::before { background: linear-gradient(90deg,#ef4444,#f97316); }
-.cspv-card-icon  { font-size: 18px; margin-bottom: 6px; }
-.cspv-card-value { font-size: 34px; font-weight: 800; line-height: 1; color: var(--csds-navy, #1a2332); }
-.cspv-card-label { font-size: 12px; color: #7a8aaa; margin-top: 4px; font-weight: 500; }
+.cspv-card-icon  { font-size: 17px; margin-bottom: 6px; }
+.cspv-card-value { font-size: 32px; font-weight: 800; line-height: 1.05; margin-top: 2px; color: var(--csds-navy, #1a2332); }
+.cspv-card-label { font-size: 14px; color: #55637d; margin-top: 4px; font-weight: 500; }
 .cspv-card-delta { font-size: 11px; margin-top: 6px; font-weight: 700; }
 .cspv-delta-up   { color: #059669; }
 .cspv-delta-down { color: var(--csds-danger, #e53e3e); }

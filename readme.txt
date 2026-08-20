@@ -2,7 +2,7 @@
 Contributors: cloudscale, andrewjbaker
 Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 2.9.487
 License: GPL-2.0-or-later

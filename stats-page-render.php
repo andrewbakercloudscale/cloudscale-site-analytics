@@ -38,11 +38,12 @@ function cspv_render_stats_tab( $vars ) {
         <div class="cspv-panel" style="margin-bottom:18px;">
             <div class="cspv-section-header" style="background:linear-gradient(135deg,#78350f,#f59e0b);">
                 <span>🏥 Site Health</span>
+                <span><?php cspv_render_site_health_badge(); ?></span>
             </div>
-            <div style="padding:20px 24px 0;">
+            <div style="padding:14px 18px 0;">
                 <?php cspv_render_site_health_html( 'full' ); ?>
             </div>
-            <div style="padding:16px 24px 4px;">
+            <div style="padding:4px 18px 14px;">
                 <div id="cspv-cards" style="margin-bottom:0;">
                     <div class="cspv-card" id="cspv-card-views">
                         <div style="display:flex;align-items:center;gap:8px;">
@@ -81,9 +82,9 @@ function cspv_render_stats_tab( $vars ) {
                             <div class="cspv-card-icon" style="margin:0;">📊</div>
                             <div class="cspv-card-label" style="margin:0;font-weight:700;">Pages per Session</div>
                         </div>
-                        <div class="cspv-card-value" id="stat-depth-avg" style="font-size:20px;margin-top:6px;"></div>
-                        <div class="cspv-card-value" id="stat-depth-max" style="font-size:20px;margin-top:2px;"></div>
-                        <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:6px;"></div>
+                        <div class="cspv-card-value" id="stat-depth-avg" style="font-size:22px;margin-top:4px;"></div>
+                        <div class="cspv-card-value" id="stat-depth-max" style="font-size:22px;margin-top:1px;"></div>
+                        <div class="cspv-card-sub" id="stat-depth-sessions" style="font-size:13px;color:#6b7280;margin-top:4px;"></div>
                     </div>
                 </div>
             </div>

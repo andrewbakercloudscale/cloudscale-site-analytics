@@ -211,7 +211,7 @@ When you configure Telegram alerts in the plugin settings, the plugin communicat
 = DB-IP Lite (optional, geolocation only) =
 IP geolocation is optional. To enable it you click "Download DB-IP Lite" on the plugin's statistics page, which fetches the free DB-IP City Lite database directly from DB-IP's servers:
 * Service URL: https://download.db-ip.com/
-* The first download happens only when you explicitly trigger it from the admin panel. After that, while the auto-update option is enabled (it can be turned off on the statistics page), the plugin checks once per month via WP-Cron and downloads a fresh monthly database to keep geolocation accurate. No automatic download ever occurs until you have performed the first download yourself.
+* The first download happens only when you explicitly trigger it from the admin panel. After that, while the auto-update option is enabled (it can be turned off on the statistics page), a daily WP-Cron event checks the calendar month and downloads a fresh database once per month to keep geolocation accurate. No automatic download ever occurs until you have performed the first download yourself.
 * What is sent: only the standard HTTP GET request required to fetch the database file. No site, post, or visitor data is transmitted to DB-IP.
 * DB-IP Privacy Policy: https://db-ip.com/privacy.php
 * DB-IP Terms of Use: https://db-ip.com/tos.php

@@ -2397,10 +2397,15 @@ ob_start();
             // CARTO's basemaps.cartocdn.com stopped serving anonymous/keyless tiles,
             // returning "API KEY REQUIRED" watermark tiles instead. OSM's standard tile
             // server needs no key.
+            // `bounds` clamps requested tiles to real coordinates. Without it, at zoom 1 in
+            // a wide container Leaflet asks for x = -1 and x = 2 (not merely wrapped copies,
+            // which `noWrap` already stops) — invalid tile coordinates the CDN 400s on, four
+            // times per page load.
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 subdomains: 'abc',
                 maxZoom: 19,
                 noWrap: true,
+                bounds: [ [ -85.0511, -180 ], [ 85.0511, 180 ] ],
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(geoMap);
             L.control.attribution({ prefix: false }).addTo(geoMap);
@@ -3683,8 +3688,11 @@ ob_start();
                 // CARTO's basemaps.cartocdn.com stopped serving anonymous/keyless tiles,
                 // returning "API KEY REQUIRED" watermark tiles instead. OSM's standard tile
                 // server needs no key.
+                // bounds clamps requested tiles to real coordinates — see the comment on the
+                // Geography map's tileLayer call above for why this matters at zoom 1.
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     subdomains: 'abc', maxZoom: 19, noWrap: true,
+                    bounds: [ [ -85.0511, -180 ], [ 85.0511, 180 ] ],
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(geoMap);
                 L.control.attribution({ prefix: false }).addTo(geoMap);

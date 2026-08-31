@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.489
+Stable tag: 2.9.490
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,22 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.490 =
+* Add: Audio narration engagement tracking (play/complete events from the site's audio-narration player), reported per post in the Insights table
+* Add: Insights tab 24-hour filter, plus live search on the Post Analytics and Geo Post View panels
+* Add: Telegram alerts now include the site's local time (with a real timezone abbreviation, or a numeric offset when no named zone is set) and host/IP attribution
+* Add: `cloudscale_alerts_muted` switch so a DR/QA copy of the site can be silenced without disarming the real site's Telegram token
+* Fix: A draft preview's beacon request — which the endpoint deliberately 404s — was reported as a Telegram CRITICAL even though the workflow was working correctly; previews, private posts, and future-dated posts no longer enqueue the beacon
+* Fix: Emoji resource-hint filter matched the CDN host as a substring, over-matching real WordPress hosts like ps.w.org; now compares the parsed host exactly
+* Fix: Site Health panel was 30% taller than it needed to be at 10px type; metrics now sit side by side with larger type and a shared RAG-badge renderer
+* Fix: All ten Insights Playwright specs were failing because the tab's JS assets were only enqueued for one of the two hook suffixes WordPress can register the page under; now enqueued under both
+* Fix: WP_Error durations (e.g. a 120-second timeout) were shown to site owners in raw milliseconds; now rendered in seconds
+* Fix: Alert rate limiting consolidated into one cap in the Telegram sender (dedupes repeats, caps at 6/hour and 24/day), replacing a per-call-site throttle that lost its state on every cache flush
+* Fix: Dashboard widget's Top Pages list now shows 4 rows to match Top Referrers' taller header
+* Fix: Views-by-country chart labels now show flag + 2-letter code with a wider axis; countries-over-time legend centered and spread out
+* Fix: First WordPress.org submission review found 14 findings, all theme-supplied widget markup that cannot be escaped without breaking page structure; now allowlisted correctly instead of flagged
+* Fix: DB-IP auto-update description corrected — the cron event fires daily and enforces the monthly download cadence inside its callback, not "once per month" as previously worded
 
 = 2.9.421 =
 * Fix: search-result thumbnails were forced to 150x150 on every search page even when the active theme requested a larger size; now only applied when no explicit size was requested
@@ -217,13 +233,13 @@ IP geolocation is optional. To enable it you click "Download DB-IP Lite" on the 
 * DB-IP Terms of Use: https://db-ip.com/tos.php
 * The database file is stored locally in your site's uploads directory after download.
 
-= CartoCDN (optional, geography map tiles only) =
-When the optional DB-IP geolocation feature is enabled and you view the Statistics page, the geography heat-map (powered by Leaflet.js) loads map tile images from CartoCDN:
-* Service URL: https://basemaps.cartocdn.com/
+= OpenStreetMap (optional, geography map tiles only) =
+When the optional DB-IP geolocation feature is enabled and you view the Statistics page, the geography heat-map (powered by Leaflet.js) loads map tile images from OpenStreetMap:
+* Service URL: https://tile.openstreetmap.org/
 * When it fires: only when an admin user views the Geography section of the Statistics page and a DB-IP database has been downloaded. Never fires on the public-facing site.
 * What is sent: standard tile requests (HTTP GET for map image tiles). The request URL includes zoom level and tile coordinates; no site data, post data, or visitor data is transmitted.
-* CartoCDN Privacy Policy: https://carto.com/privacy/
-* CartoCDN Terms of Service: https://carto.com/legal/
+* OpenStreetMap Copyright and Licence: https://www.openstreetmap.org/copyright
+* Tile Usage Policy: https://operations.osmfoundation.org/policies/tiles/
 
 No visitor or site data is transmitted to any external service during page view tracking. The JavaScript beacon communicates only with your own site's REST API endpoint, and view counts never leave your server.
 

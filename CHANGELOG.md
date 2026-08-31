@@ -3,6 +3,49 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.490] - 2026-08-25
+
+### Fixed
+- readme.txt's DB-IP auto-update description said the plugin "checks once per month via WP-Cron"; the cron event actually fires daily and enforces the monthly cadence inside its callback. Wording corrected to describe the real mechanism.
+
+## [2.9.486] - 2026-08-19 to 2026-08-21
+
+### Fixed
+- Emoji resource-hint filter matched the CDN host as a substring (`strpos($u, 's.w.org')`) instead of exactly, over-matching real WordPress hosts such as `ps.w.org`. Now compares the parsed host exactly, case-insensitively, across full URLs, scheme-relative hosts, bare hosts, and attribute-array preconnect entries.
+- A draft preview's beacon POST — which the record endpoint deliberately 404s for an unpublished post — was reported as a Telegram CRITICAL by CS Monitor even though the workflow was working correctly. Previews, private posts, and future-dated posts are now excluded from beacon enqueue; `tests/beacon-preview-test.php` pins all eight cases.
+- Site Health panel was 30% taller than necessary at 10px type. Growth and Hot Pages metrics now sit side by side (wrapping below ~940px), duplicate detail lines were collapsed, label/detail/headline type sizes increased, and the duplicate "Site Health" title was removed in favor of a shared RAG-badge renderer (`cspv_render_site_health_badge()`) used by both the stats-page panel and the dashboard widget.
+- Telegram alert timestamps now show the real timezone abbreviation, or a numeric offset (e.g. "+02:00") when the site uses a bare UTC offset with no named zone, instead of a misleading "GMT+0200"-style label.
+- Synced the shared Telegram class's transport-failure logging fix (a failed send now logs the reason instead of silently returning false) and its error-text-in-seconds fix from the canonical source. This plugin's own copy of the class is inert at runtime (only cloudscale-backup's copy loads via `class_exists()`), so this is a source-tree consistency fix, not a behavior change here.
+
+## [2.9.480] - 2026-08-13 to 2026-08-18
+
+### Added
+- Insights tab: 24-hour filter, live search on the Post Analytics panel, and search on the Geo Post View panel.
+
+### Fixed
+- Dashboard widget's Top Pages list now shows 4 rows instead of 3, matching Top Referrers' taller header (which carries the Sites/Pages toggle) so both columns end at the same height.
+- All ten Insights Playwright specs were failing because the tab's JS assets were only enqueued for the `tools_page_*` hook suffix; WordPress registers the page under `admin_page_*` instead when the Tools menu is hidden from the current user. Assets are now enqueued under both hook suffixes.
+- WP_Error durations (e.g. a 120-second timeout) were rendered to site owners in raw milliseconds ("120000 milliseconds"); all messages now go through a shared seconds-formatter.
+- Alert rate limiting consolidated into one gate in `CloudScale_Telegram::send()`: repeat alerts are deduped (1h critical / 6h error-warning / 24h info) and capped at 6/hour and 24/day, replacing a per-call-site transient throttle that lost its state on every cache flush (this install runs a persistent Redis object cache) and only covered a fraction of the plugin's alert call sites.
+
+## [2.9.469] - 2026-08-05 to 2026-08-09
+
+### Added
+- Telegram alerts now include the site's local time (with a real timezone abbreviation) and host/IP attribution on every message.
+- A `cloudscale_alerts_muted` switch lets a DR/QA copy of the site (which carries production's Telegram token) be silenced without disarming the real site.
+
+### Fixed
+- First WordPress.org submission review found 14 findings, all the same cause: theme-supplied `before_widget`/`before_title`/`after_title`/`after_widget` widget markup — which cannot be escaped without breaking page structure — was flagged. Now allowlisted by array key rather than escaped or ignored wholesale.
+- Alert severity marker map fell back to the info tick for unrecognized levels; fixed via the shared marker map (this plugin only ever sends 'error', so no visible change here).
+
+## [2.9.423] - 2026-07-25
+
+### Added
+- Audio narration engagement tracking: new `cs_analytics_audio_v2` table records play/complete events from the site's audio-narration player (beacon on `<audio>` play/ended, deduped per 24h), exposed per post in the Insights table.
+
+### Fixed
+- Views-by-country chart labels now show flag + 2-letter code with a wider, left-aligned axis; countries-over-time legend centered and spread out; search widget button widened with a right gutter so it no longer sits on the page edge.
+
 ## [2.9.435] - 2026-07-21
 
 ### Fixed

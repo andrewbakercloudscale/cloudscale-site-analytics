@@ -2394,10 +2394,14 @@ ob_start();
             // click/scroll outside to release) so two-finger page scrolling still works.
             geoMap.on('click', function() { geoMap.scrollWheelZoom.enable(); });
             mapEl.addEventListener('mouseleave', function() { geoMap.scrollWheelZoom.disable(); });
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-                subdomains: 'abcd',
+            // CARTO's basemaps.cartocdn.com stopped serving anonymous/keyless tiles,
+            // returning "API KEY REQUIRED" watermark tiles instead. OSM's standard tile
+            // server needs no key.
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                subdomains: 'abc',
                 maxZoom: 19,
-                noWrap: true
+                noWrap: true,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(geoMap);
             L.control.attribution({ prefix: false }).addTo(geoMap);
             setTimeout(function() { if (geoMap) geoMap.invalidateSize(); }, 200);
@@ -3676,9 +3680,14 @@ ob_start();
                 });
                 geoMap.on('click', function() { geoMap.scrollWheelZoom.enable(); });
                 mapEl.addEventListener('mouseleave', function() { if (geoMap) geoMap.scrollWheelZoom.disable(); });
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-                    subdomains: 'abcd', maxZoom: 19, noWrap: true
+                // CARTO's basemaps.cartocdn.com stopped serving anonymous/keyless tiles,
+                // returning "API KEY REQUIRED" watermark tiles instead. OSM's standard tile
+                // server needs no key.
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    subdomains: 'abc', maxZoom: 19, noWrap: true,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(geoMap);
+                L.control.attribution({ prefix: false }).addTo(geoMap);
 
                 var maxV = 1;
                 geoData.forEach(function(d) { if (d.v > maxV) maxV = d.v; });

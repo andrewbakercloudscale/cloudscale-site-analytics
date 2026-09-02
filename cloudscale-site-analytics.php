@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.494
+ * Version:      2.9.496
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
@@ -19,8 +19,13 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.494' );
+define( 'CSPV_VERSION',    '2.9.496' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
+// Denormalised narration play counter, the audio equivalent of CSPV_META_KEY.
+// The hourly buckets in cs_analytics_audio_v2 stay the record of truth; this is
+// the one number a public template can print without a GROUP BY per player on a
+// page that may carry a dozen of them. Backfilled from that table on first read.
+define( 'CSPV_AUDIO_META_KEY', '_cspv_audio_play_count' );
 define( 'CSPV_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CSPV_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

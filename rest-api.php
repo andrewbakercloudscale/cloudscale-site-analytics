@@ -604,7 +604,32 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
         $post_id, $hour_bucket
     ) );
 
-    return new WP_REST_Response( array( 'logged' => true, 'event' => $event ), 200 );
+    /*
+     * Keep the denormalised play counter in step with the bucket write.
+     *
+     * The public counter on the player reads meta, not this table (see
+     * cspv_get_audio_play_count) — a listing page renders a player per result and
+     * cannot afford a SUM each. Incremented only for 'play': the counter answers
+     * "how many people pressed play", and a completion is the same listener again.
+     *
+     * Read through the getter rather than get_post_meta so a post narrated before the
+     * counter existed is backfilled from the bucket table here too. Without that, the
+     * first play on an old post would store 1 and erase a real history of listens.
+     */
+    $plays = null;
+    if ( 'play' === $event && function_exists( 'cspv_get_audio_play_count' ) ) {
+        $plays = cspv_get_audio_play_count( $post_id ) + 1;
+        update_post_meta( $post_id, CSPV_AUDIO_META_KEY, $plays );
+    }
+
+    // The new total travels back with the response so the beacon can update the number
+    // in place. It matters more here than for views: this page is very likely CDN
+    // cached, so the printed figure is as old as the cached HTML.
+    $out = array( 'logged' => true, 'event' => $event );
+    if ( null !== $plays ) {
+        $out['plays'] = (int) $plays;
+    }
+    return new WP_REST_Response( $out, 200 );
 }
 
 /**

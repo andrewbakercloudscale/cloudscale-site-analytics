@@ -264,8 +264,33 @@
         .then( function ( d ) {
             log( 'audio ' + event + ' recorded for', pid, d );
             try { localStorage.setItem( key, String( Date.now() ) ); } catch ( e ) {}
+            if ( d && typeof d.plays === 'number' ) { updatePlayCounts( pid, d.plays ); }
         } )
         .catch( function ( err ) { log( 'audio ' + event + ' error:', err ); } );
+    }
+
+    // Paint the new total onto every play counter for this post on the page.
+    //
+    // Why this is not optional polish: these pages are served from a CDN, so the number
+    // rendered into the HTML is as old as the cached copy. Without this the listener
+    // presses play, their play IS counted, and the counter they are looking at does not
+    // move — which reads as a broken counter rather than a cached one.
+    //
+    // Suffix pluralisation is carried on the element (both forms) rather than decided
+    // here, so this stays translation-agnostic and 0 -> 1 never prints "1 plays".
+    function updatePlayCounts( pid, total ) {
+        var nodes = document.querySelectorAll( '.cspv-plays-count[data-cspv-audio-id="' + pid + '"]' );
+        nodes.forEach( function ( el ) {
+            var num = el.querySelector( '.cspv-plays-number' );
+            if ( num ) { num.textContent = total.toLocaleString(); }
+            var suf = el.querySelector( '.cspv-plays-suffix' );
+            if ( suf ) {
+                var one   = el.getAttribute( 'data-cspv-audio-suffix-one' );
+                var many  = el.getAttribute( 'data-cspv-audio-suffix' );
+                if ( one !== null && many !== null ) { suf.textContent = ( total === 1 ) ? one : many; }
+            }
+        } );
+        log( 'play count painted for', pid, total, nodes.length + ' node(s)' );
     }
 
     function trackAudioEngagement() {

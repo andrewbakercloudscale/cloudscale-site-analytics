@@ -704,6 +704,44 @@ function cspv_render_display_tab( $vars ) {
                     </div>
                     <div id="cspv-dbip-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>
+
+                <!-- Unknown location diagnostics -->
+                <?php $cspv_unknown = cspv_geo_unknown_reason_report(); ?>
+                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px 16px;margin-top:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+                        <strong style="font-size:13px;color:#0f172a;">Why views are "Unknown"</strong>
+                        <a class="cspv-info-btn cspv-info-btn-dark" data-info="geo-unknown" title="Info">i</a>
+                    </div>
+                    <?php if ( empty( $cspv_unknown['rows'] ) ) : ?>
+                        <p style="font-size:12px;color:#374151;margin:0;">No unresolved views recorded yet. Counting starts with the next view that cannot be geolocated.</p>
+                    <?php else : ?>
+                        <p style="font-size:11px;color:#6b7280;margin:0 0 10px;">
+                            <?php echo esc_html( number_format( $cspv_unknown['total'] ) ); ?> unresolved
+                            <?php echo esc_html( 1 === $cspv_unknown['total'] ? 'view' : 'views' ); ?>
+                            <?php if ( $cspv_unknown['since'] ) : ?>
+                                since <?php echo esc_html( wp_date( 'j M Y', strtotime( $cspv_unknown['since'] ) ) ); ?>
+                            <?php endif; ?>
+                        </p>
+                        <?php
+                        $cspv_unknown_max = max( 1, (int) $cspv_unknown['rows'][0]['count'] );
+                        foreach ( $cspv_unknown['rows'] as $cspv_ur ) :
+                            ?>
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                            <span style="flex:0 0 300px;font-size:12px;color:#374151;"><?php echo esc_html( $cspv_ur['label'] ); ?></span>
+                            <span style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;">
+                                <span style="display:block;height:100%;width:<?php echo (int) round( ( $cspv_ur['count'] / $cspv_unknown_max ) * 100 ); ?>%;background:linear-gradient(90deg,#9d174d,#ec4899);"></span>
+                            </span>
+                            <span style="flex:0 0 90px;text-align:right;font-size:12px;color:#0f172a;font-weight:600;">
+                                <?php echo esc_html( number_format( $cspv_ur['count'] ) ); ?>
+                                <span style="color:#6b7280;font-weight:400;">(<?php echo esc_html( $cspv_ur['pct'] ); ?>%)</span>
+                            </span>
+                        </div>
+                        <?php endforeach; ?>
+                        <button type="button" id="cspv-reset-geo-unknown" style="background:#fff;color:#374151;border:1px solid #d1d5db;padding:5px 12px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;margin-top:6px;">Reset counters</button>
+                    <?php endif; ?>
+                    <div id="cspv-geo-unknown-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
+                </div>
+
                 <p style="margin:16px 0 0;display:flex;align-items:center;gap:12px;">
                     <button type="button" id="cspv-save-display" style="background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button>
                     <span id="cspv-display-saved" style="display:none;color:#059669;font-weight:600;font-size:14px;">✓ Saved</span>
@@ -2660,6 +2698,37 @@ ob_start();
     });
 
     // DB-IP download button
+    var geoUnknownReset = document.getElementById('cspv-reset-geo-unknown');
+    if (geoUnknownReset) {
+        geoUnknownReset.addEventListener('click', function() {
+            var statusEl = document.getElementById('cspv-geo-unknown-status');
+            geoUnknownReset.disabled = true;
+            statusEl.style.color = '#666';
+            statusEl.textContent = 'Resetting...';
+            var fd = new FormData();
+            fd.append('action', 'cspv_reset_geo_unknown');
+            fd.append('nonce', nonce);
+            fetch(ajaxurl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.success) {
+                        statusEl.style.color = '#059669';
+                        statusEl.textContent = 'Counters reset. Page will reload...';
+                        setTimeout(function() { location.href = location.pathname + location.search + '#display'; }, 1200);
+                    } else {
+                        statusEl.style.color = '#dc2626';
+                        statusEl.textContent = 'Error: ' + (resp.data || 'Unknown error');
+                        geoUnknownReset.disabled = false;
+                    }
+                })
+                .catch(function(err) {
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = 'Network error: ' + err.message;
+                    geoUnknownReset.disabled = false;
+                });
+        });
+    }
+
     var dbipBtn = document.getElementById('cspv-download-dbip');
     if (dbipBtn) {
         dbipBtn.addEventListener('click', function() {
@@ -3342,6 +3411,18 @@ ob_start();
         'geo-source': {
             title: '🌍 Geography Source',
             body: '<p>Controls how visitor country is resolved for the geography map and country breakdown.</p><p><strong>Auto</strong> tries CloudFlare first (zero performance cost), then falls back to DB-IP if the CF-IPCountry header is absent. Recommended for most sites.</p><p><strong>CloudFlare Only</strong> uses only the <code>CF-IPCountry</code> header, fast and accurate but requires your site to be proxied through CloudFlare.</p><p><strong>DB-IP Only</strong> always uses the local database file, works without CloudFlare but adds a small lookup overhead per request.</p><p><strong>Disabled</strong> skips geography tracking entirely. The map and country stats will show no data.</p><p>The DB-IP Lite database (~30 MB) is stored in your uploads folder and auto-updates monthly.</p>'
+        },
+        'geo-unknown': {
+            title: '❓ Why views are "Unknown"',
+            body: '<p>Every view that cannot be resolved to a country is stored as <code>ZZ</code> and shows as <strong>Unknown</strong> in the map and country lists. This panel records <em>why</em>, so Unknown stops being a black box.</p>'
+                + '<p><strong>Private / LAN address</strong>, the request came from an internal address (your own testing over the LAN, a container, a reverse proxy on the same host). No database can geolocate these and none should. This is usually the largest bucket and is not a fault.</p>'
+                + '<p><strong>No usable IP address</strong>, the request arrived with no valid client address at all.</p>'
+                + '<p><strong>Cloudflare returned XX</strong>, the Cloudflare edge itself could not determine a country.</p>'
+                + '<p><strong>Tor exit node</strong>, Cloudflare returned <code>T1</code>. Deliberately anonymous traffic.</p>'
+                + '<p><strong>Cloudflare-only mode, no header</strong>, the source is set to CloudFlare Only and the <code>CF-IPCountry</code> header was absent, so no fallback was allowed. Switching to Auto would resolve these.</p>'
+                + '<p><strong>DB-IP database not installed</strong>, no local database file exists to fall back to. Download it above.</p>'
+                + '<p><strong>Public IP genuinely absent from DB-IP</strong>, a real, routable visitor address that the free DB-IP Lite database has no record for. This is the only bucket that represents lost data, and the only one worth acting on.</p>'
+                + '<p>Counters only, no IP address is stored. They are site-wide, not per post, and accumulate until you reset them.</p>'
         },
         'throttle': {
             title: '🛡 IP Throttle Protection',

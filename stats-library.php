@@ -636,6 +636,148 @@ function cspv_geo_lookup_dbip( $ip ) {
 }
 
 /**
+ * Human readable labels for each unknown-location reason code.
+ *
+ * The keys are the only reason codes cspv_geo_record_unknown_reason()
+ * will store; anything else is discarded so a typo cannot silently
+ * create a phantom bucket that reads as real data.
+ *
+ * @since 2.9.495
+ * @return array<string,string>  reason code => label.
+ */
+function cspv_geo_unknown_reason_labels() {
+    return array(
+        'private_ip'             => 'Private / LAN address (own testing, internal traffic)',
+        'no_ip'                  => 'No usable IP address on the request',
+        'cf_xx'                  => 'Cloudflare returned XX (edge could not geolocate)',
+        'cf_tor'                 => 'Tor exit node (Cloudflare returned T1)',
+        'cf_only_no_header'      => 'Cloudflare-only mode, but no CF-IPCountry header',
+        'dbip_missing'           => 'DB-IP database not installed',
+        'cf_no_header_dbip_miss' => 'Cloudflare connection with no header, and DB-IP had no record',
+        'dbip_miss'              => 'Public IP genuinely absent from the DB-IP database',
+    );
+}
+
+/**
+ * Classify why a view could not be resolved to a country.
+ *
+ * Called only when the resolved country is about to be stored as ZZ, so
+ * it runs on a few percent of views. Diagnostic only: it never changes
+ * which country is recorded, and no IP is stored anywhere.
+ *
+ * Order matters. The first condition that holds is the root cause worth
+ * reporting: an unusable IP explains itself, a private address explains
+ * itself, and only after those are excluded is a DB-IP miss meaningful.
+ *
+ * @since 2.9.495
+ * @param  string $raw_ip      Client IP as resolved by cspv_get_client_ip().
+ * @param  bool   $is_cf       Whether the connection came from a Cloudflare IP.
+ * @param  string $geo_source  Configured geo source option value.
+ * @return string              Reason code from cspv_geo_unknown_reason_labels().
+ */
+function cspv_geo_classify_unknown( $raw_ip, $is_cf, $geo_source ) {
+    // Mirror the normalisation cspv_geo_lookup_dbip() applies, so the
+    // classification describes the address the lookup actually saw.
+    $ip = trim( explode( ',', (string) $raw_ip )[0] );
+    $ip = preg_replace( '/:\d+$/', '', $ip );
+
+    if ( '' === $ip || false === filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+        return 'no_ip';
+    }
+    if ( false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+        return 'private_ip';
+    }
+    if ( 'cloudflare' === $geo_source ) {
+        return 'cf_only_no_header';
+    }
+
+    $upload = wp_upload_dir();
+    if ( ! file_exists( $upload['basedir'] . '/cspv-geo/dbip-city-lite.mmdb' ) ) {
+        return 'dbip_missing';
+    }
+
+    return $is_cf ? 'cf_no_header_dbip_miss' : 'dbip_miss';
+}
+
+/**
+ * Increment the counter for one unknown-location reason.
+ *
+ * Stored in a single non-autoloaded option as { since, counts }. This is a
+ * read-modify-write, so simultaneous unknown views can lose an increment;
+ * at the few-per-day rate these reasons occur that is acceptable for a
+ * diagnostic whose purpose is proportions, not exact totals.
+ *
+ * @since 2.9.495
+ * @param  string $reason  Reason code.
+ * @return void
+ */
+function cspv_geo_record_unknown_reason( $reason ) {
+    if ( ! isset( cspv_geo_unknown_reason_labels()[ $reason ] ) ) {
+        return;
+    }
+
+    $data = get_option( 'cspv_geo_unknown_reasons', array() );
+    if ( ! is_array( $data ) ) {
+        $data = array();
+    }
+    if ( empty( $data['since'] ) ) {
+        $data['since'] = current_time( 'mysql' );
+    }
+    if ( ! isset( $data['counts'] ) || ! is_array( $data['counts'] ) ) {
+        $data['counts'] = array();
+    }
+    $data['counts'][ $reason ] = isset( $data['counts'][ $reason ] ) ? (int) $data['counts'][ $reason ] + 1 : 1;
+
+    update_option( 'cspv_geo_unknown_reasons', $data, false );
+}
+
+/**
+ * Return the unknown-location reason breakdown, highest count first.
+ *
+ * @since 2.9.495
+ * @return array  { since, total, rows[] } where each row is
+ *                { reason, label, count, pct }.
+ */
+function cspv_geo_unknown_reason_report() {
+    $data   = get_option( 'cspv_geo_unknown_reasons', array() );
+    $labels = cspv_geo_unknown_reason_labels();
+    $counts = ( is_array( $data ) && isset( $data['counts'] ) && is_array( $data['counts'] ) ) ? $data['counts'] : array();
+
+    $total = 0;
+    foreach ( $counts as $reason => $count ) {
+        if ( isset( $labels[ $reason ] ) ) {
+            $total += (int) $count;
+        }
+    }
+
+    $rows = array();
+    foreach ( $counts as $reason => $count ) {
+        if ( ! isset( $labels[ $reason ] ) ) {
+            continue;
+        }
+        $count  = (int) $count;
+        $rows[] = array(
+            'reason' => $reason,
+            'label'  => $labels[ $reason ],
+            'count'  => $count,
+            'pct'    => $total > 0 ? round( ( $count / $total ) * 100, 1 ) : 0,
+        );
+    }
+    usort(
+        $rows,
+        static function ( $a, $b ) {
+            return $b['count'] <=> $a['count'];
+        }
+    );
+
+    return array(
+        'since' => ( is_array( $data ) && ! empty( $data['since'] ) ) ? $data['since'] : '',
+        'total' => $total,
+        'rows'  => $rows,
+    );
+}
+
+/**
  * Return unique visitor count for a date range.
  *
  * Counts distinct visitor hashes (SHA256 of IP) from the visitors table.

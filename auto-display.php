@@ -260,11 +260,11 @@ function cspv_auto_display_style() {
 
     $color = get_option( 'cspv_display_color', 'red' );
     $colors = array(
-        'blue'   => array( 'grad' => '#1a3a8f, #1e6fd9', 'solid' => '#1a3a8f', 'light_bg' => '#f0f6ff', 'light_border' => '#d0dfff', 'light_text' => '#1a3a8f', 'light_suffix' => '#5a7abf' ),
-        'pink'   => array( 'grad' => '#db2777, #f472b6', 'solid' => '#db2777', 'light_bg' => '#fdf2f8', 'light_border' => '#fbcfe8', 'light_text' => '#be185d', 'light_suffix' => '#db2777' ),
-        'red'    => array( 'grad' => '#b91c1c, #ef4444', 'solid' => '#b91c1c', 'light_bg' => '#fef2f2', 'light_border' => '#fecaca', 'light_text' => '#991b1b', 'light_suffix' => '#b91c1c' ),
-        'purple' => array( 'grad' => '#6b21a8, #a855f7', 'solid' => '#6b21a8', 'light_bg' => '#faf5ff', 'light_border' => '#e9d5ff', 'light_text' => '#6b21a8', 'light_suffix' => '#7c3aed' ),
-        'grey'   => array( 'grad' => '#4b5563, #9ca3af', 'solid' => '#4b5563', 'light_bg' => '#f9fafb', 'light_border' => '#e5e7eb', 'light_text' => '#374151', 'light_suffix' => '#6b7280' ),
+        'blue'   => array( 'grad' => '#1a3a8f, #1a56b0', 'solid' => '#1a3a8f', 'light_bg' => '#f0f6ff', 'light_border' => '#d0dfff', 'light_text' => '#1a3a8f', 'light_suffix' => '#5a7abf' ),
+        'pink'   => array( 'grad' => '#a81a5a, #b81f63', 'solid' => '#db2777', 'light_bg' => '#fdf2f8', 'light_border' => '#fbcfe8', 'light_text' => '#be185d', 'light_suffix' => '#db2777' ),
+        'red'    => array( 'grad' => '#8f1616, #c62828', 'solid' => '#b91c1c', 'light_bg' => '#fef2f2', 'light_border' => '#fecaca', 'light_text' => '#991b1b', 'light_suffix' => '#b91c1c' ),
+        'purple' => array( 'grad' => '#5b1b90, #7b2fbf', 'solid' => '#6b21a8', 'light_bg' => '#faf5ff', 'light_border' => '#e9d5ff', 'light_text' => '#6b21a8', 'light_suffix' => '#7c3aed' ),
+        'grey'   => array( 'grad' => '#3f4855, #5c6673', 'solid' => '#4b5563', 'light_bg' => '#f9fafb', 'light_border' => '#e5e7eb', 'light_text' => '#374151', 'light_suffix' => '#6b7280' ),
     );
     $c = isset( $colors[ $color ] ) ? $colors[ $color ] : $colors['blue'];
 

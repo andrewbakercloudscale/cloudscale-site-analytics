@@ -838,7 +838,19 @@ function cspv_record_view( WP_REST_Request $request ) {
             }
         }
         // Tor/anonymous exits map to ZZ (unknown) rather than being dropped.
+        // Before collapsing them, record WHY the view is unknown. Without this
+        // the ZZ bucket is a black box: it says a country is missing but not
+        // whether that is our own LAN traffic, a Tor exit, or a genuine gap in
+        // the DB-IP database. Counters only, no IP is stored.
         if ( $country === 'XX' || $country === 'T1' || $country === '' ) {
+            if ( $country === 'XX' ) {
+                $unknown_reason = 'cf_xx';
+            } elseif ( $country === 'T1' ) {
+                $unknown_reason = 'cf_tor';
+            } else {
+                $unknown_reason = cspv_geo_classify_unknown( $raw_ip, $is_cf, $geo_source );
+            }
+            cspv_geo_record_unknown_reason( $unknown_reason );
             $country = 'ZZ';
         }
         // Write to geo table, every view is recorded, ZZ = unknown/unresolved.

@@ -17,6 +17,7 @@ add_action( 'wp_ajax_cspv_resync_meta', 'cspv_ajax_resync_meta_from_stats' );
 add_action( 'wp_ajax_cspv_country_drill',   'cspv_ajax_country_drill' );
 add_action( 'wp_ajax_cspv_referrer_drill', 'cspv_ajax_referrer_drill' );
 add_action( 'wp_ajax_cspv_download_dbip', 'cspv_ajax_download_dbip' );
+add_action( 'wp_ajax_cspv_reset_geo_unknown', 'cspv_ajax_reset_geo_unknown' );
 add_action( 'wp_ajax_cspv_purge_visitors',           'cspv_ajax_purge_visitors' );
 add_action( 'wp_ajax_cspv_save_display_settings',   'cspv_ajax_save_display_settings' );
 add_action( 'wp_ajax_cspv_insights',               'cspv_ajax_insights' );
@@ -803,6 +804,30 @@ function cspv_dbip_auto_update_run() {
     }
 
     cspv_download_dbip_file();
+}
+
+/**
+ * AJAX handler: reset the unknown-location reason counters.
+ *
+ * Diagnostic counters only, no view data is touched: the geo table keeps
+ * every ZZ row, this just clears the tally of why they were unresolved so
+ * a fresh sample can be taken after a configuration change.
+ *
+ * @since 2.9.495
+ * @return void
+ */
+function cspv_ajax_reset_geo_unknown() {
+    if ( ! check_ajax_referer( 'cspv_chart_data', 'nonce', false ) ) {
+        wp_send_json_error( 'Security check failed. Please refresh the page.', 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+        return;
+    }
+
+    delete_option( 'cspv_geo_unknown_reasons' );
+    wp_send_json_success( array( 'reset' => true ) );
 }
 
 /**

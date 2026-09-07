@@ -3,6 +3,11 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.498] - 2026-09-07
+
+### Added
+- Unknown-location diagnostics. Views that cannot be geolocated are stored as `ZZ` and shown as "Unknown", but nothing recorded *why* — the bucket said a country was missing without saying whether it was our own LAN traffic, a Tor exit, or a real gap in DB-IP. Each unresolved view now increments a reason counter (`private_ip`, `no_ip`, `cf_xx`, `cf_tor`, `cf_only_no_header`, `dbip_missing`, `cf_no_header_dbip_miss`, `dbip_miss`), shown as a ranked breakdown with an Explain button in Settings → Geography Source, resettable from there. Counters only; no IP is stored and country resolution is unchanged — this observes the existing behaviour rather than altering it. Only the `dbip_miss` bucket represents genuinely lost data.
+
 ## [2.9.490] - 2026-08-25
 
 ### Fixed

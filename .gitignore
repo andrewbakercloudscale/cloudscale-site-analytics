@@ -42,3 +42,7 @@ tests/playwright-report/data/
 
 # Playwright MCP scratch output (page snapshots, console logs, downloaded fixtures).
 .playwright-mcp/
+
+# oh-my-claudecode session state (project-memory.json, state/). Tooling scratch,
+# not project work, and untracked-but-unignored is how it lands in a `git add -A`.
+.omc/

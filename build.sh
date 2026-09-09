@@ -39,84 +39,15 @@ ZIP_FILE="$SCRIPT_DIR/$PLUGIN_NAME.zip"
 TEMP_DIR=$(mktemp -d)
 
 echo "Building plugin zip from $REPO_DIR..."
-# ── Auto-increment patch version ─────────────────────────────────────────────
-# Pin the main file rather than taking the first `grep -rl` hit: that ordering is
-# filesystem-dependent, and line 41 below already hardcodes this same file, so a
-# `head -1` that ever resolved elsewhere would bump two different files' versions.
-MAIN_PHP="$REPO_DIR/cloudscale-site-analytics.php"
-if [ ! -f "$MAIN_PHP" ]; then
-  echo "ERROR: main plugin file not found: $MAIN_PHP"
-  exit 1
-fi
-
-# Take the HIGHEST of the three version strings as the base, not the header alone.
-# The header froze at 2.9.457 while the other two reached 2.9.463; bumping from the
-# header would have shipped 2.9.458 — a version LOWER than what is already live,
-# which WordPress would refuse to treat as an update. sort -V picks the real
-# high-water mark so a drifted tree converges on the next build instead of
-# regressing.
-HDR_NOW=$(grep -m1 "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-CSPV_NOW=$(grep -m1 "CSPV_VERSION" "$MAIN_PHP" | grep -o "'[^']*'" | tail -1 | tr -d "'")
-TAG_NOW=$(grep -m1 "^Stable tag:" "$REPO_DIR/readme.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-CURRENT_VER=$(printf '%s\n' "$HDR_NOW" "$CSPV_NOW" "$TAG_NOW" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-if [ -z "$CURRENT_VER" ]; then
-  echo "ERROR: Could not extract a version from $MAIN_PHP or readme.txt"
-  exit 1
-fi
-if [ "$HDR_NOW" != "$CSPV_NOW" ] || [ "$CSPV_NOW" != "$TAG_NOW" ]; then
-  echo "NOTE: version strings had drifted (header=$HDR_NOW CSPV=$CSPV_NOW tag=$TAG_NOW);"
-  echo "      converging all three on the bump from $CURRENT_VER."
-fi
-VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
-VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
-VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
-NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
-ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
-echo "Version bump: $CURRENT_VER → $NEW_VER"
-# Targeted bump ONLY. The old blanket replace-everywhere sed rewrote EVERY
-# occurrence of the previous version — historical @since/@deprecated docblock
-# tags and past readme.txt changelog headings included — so release history
-# was silently rewritten on every build.
-#
-# These three seds match on the FIELD, not on the old value. They used to require
-# the line to already equal $ESC_VER, which is precisely how the drift became
-# permanent: once CSPV_VERSION and Stable tag moved past the header, every
-# subsequent bump silently matched nothing and changed nothing, with no error.
-# Matching the field keeps the bump targeted (history and @since tags are still
-# never touched) while guaranteeing all three converge.
-sed -i '' "s/^\( \* Version:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$MAIN_PHP"
-sed -i '' "s/\(define([[:space:]]*'CSPV_VERSION',[[:space:]]*'\)[0-9][0-9.]*'/\1${NEW_VER}'/" "$MAIN_PHP"
-sed -i '' "s/^\(Stable tag:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
-# Promote ONLY the topmost changelog heading written for the pre-bump version;
-# headings for past releases are never dragged forward.
-# A new changelog entry is written as "= Unreleased =" and this stamps it with the
-# version the build produces. No other heading is ever relabelled.
-#
-# This used to promote the topmost heading matching the PRE-bump version, assuming
-# such a heading could only be a freshly written entry. It cannot tell that apart
-# from the previous release's own heading, which is legitimately labelled with that
-# version, so every build that added no entry dragged the last release's heading
-# forward by one. In the SEO plugin a narration entry travelled 4.21.459 -> .460 ->
-# .461 -> .462 that way, and the published changelog credited the current release
-# with a change that had shipped three releases earlier.
-if grep -q '^= Unreleased =$' "$REPO_DIR/readme.txt"; then
-  sed -i '' "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
-  echo "  readme.txt changelog: promoted '= Unreleased =' to '= ${NEW_VER} ='"
-else
-  echo "  readme.txt changelog: no '= Unreleased =' entry, headings left untouched"
-fi
-# JS @version headers.
-while IFS= read -r vfile; do
-  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
-done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/" | grep -v "/node_modules/")
-# ─────────────────────────────────────────────────────────────────────────────
 
 # PHP syntax check — abort before packaging if any file has a parse error
 echo "Checking PHP syntax..."
 LINT_ERRORS=0
 while IFS= read -r -d '' phpfile; do
-  result=$(php -l "$phpfile" 2>&1)
-  if [ $? -ne 0 ]; then
+  # `if !` rather than a bare assignment: under set -e a failing command substitution
+  # aborts the script (exit 255) before $? is ever tested, which made the error message
+  # and the exit 1 below unreachable. A broken file killed the build with no diagnostic.
+  if ! result=$(php -l "$phpfile" 2>&1); then
     echo "$result"
     LINT_ERRORS=1
   fi
@@ -604,6 +535,83 @@ else
     echo "PHPCS: OK — 0 errors, 0 warnings"
 fi
 echo ""
+
+# ── Auto-increment patch version ─────────────────────────────────────────────
+# MOVED BELOW THE GATES on 09Sep26. It used to run before every check, so any gate that
+# failed left a bumped version in the working tree. build.sh rsyncs the working tree, so
+# that stray version is what reaches the next deploy — the hazard the deployment-archive
+# section of CLAUDE.md describes, reachable through an ordinary failed build. Nothing
+# below the gates needs the version. The SEO optimizer already bumped here.
+# Pin the main file rather than taking the first `grep -rl` hit: that ordering is
+# filesystem-dependent, and line 41 below already hardcodes this same file, so a
+# `head -1` that ever resolved elsewhere would bump two different files' versions.
+MAIN_PHP="$REPO_DIR/cloudscale-site-analytics.php"
+if [ ! -f "$MAIN_PHP" ]; then
+  echo "ERROR: main plugin file not found: $MAIN_PHP"
+  exit 1
+fi
+
+# Take the HIGHEST of the three version strings as the base, not the header alone.
+# The header froze at 2.9.457 while the other two reached 2.9.463; bumping from the
+# header would have shipped 2.9.458 — a version LOWER than what is already live,
+# which WordPress would refuse to treat as an update. sort -V picks the real
+# high-water mark so a drifted tree converges on the next build instead of
+# regressing.
+HDR_NOW=$(grep -m1 "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+CSPV_NOW=$(grep -m1 "CSPV_VERSION" "$MAIN_PHP" | grep -o "'[^']*'" | tail -1 | tr -d "'")
+TAG_NOW=$(grep -m1 "^Stable tag:" "$REPO_DIR/readme.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+CURRENT_VER=$(printf '%s\n' "$HDR_NOW" "$CSPV_NOW" "$TAG_NOW" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+if [ -z "$CURRENT_VER" ]; then
+  echo "ERROR: Could not extract a version from $MAIN_PHP or readme.txt"
+  exit 1
+fi
+if [ "$HDR_NOW" != "$CSPV_NOW" ] || [ "$CSPV_NOW" != "$TAG_NOW" ]; then
+  echo "NOTE: version strings had drifted (header=$HDR_NOW CSPV=$CSPV_NOW tag=$TAG_NOW);"
+  echo "      converging all three on the bump from $CURRENT_VER."
+fi
+VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
+VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
+VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
+NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
+ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
+echo "Version bump: $CURRENT_VER → $NEW_VER"
+# Targeted bump ONLY. The old blanket replace-everywhere sed rewrote EVERY
+# occurrence of the previous version — historical @since/@deprecated docblock
+# tags and past readme.txt changelog headings included — so release history
+# was silently rewritten on every build.
+#
+# These three seds match on the FIELD, not on the old value. They used to require
+# the line to already equal $ESC_VER, which is precisely how the drift became
+# permanent: once CSPV_VERSION and Stable tag moved past the header, every
+# subsequent bump silently matched nothing and changed nothing, with no error.
+# Matching the field keeps the bump targeted (history and @since tags are still
+# never touched) while guaranteeing all three converge.
+sed -i '' "s/^\( \* Version:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$MAIN_PHP"
+sed -i '' "s/\(define([[:space:]]*'CSPV_VERSION',[[:space:]]*'\)[0-9][0-9.]*'/\1${NEW_VER}'/" "$MAIN_PHP"
+sed -i '' "s/^\(Stable tag:[[:space:]]*\)[0-9][0-9.]*[[:space:]]*\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
+# Promote ONLY the topmost changelog heading written for the pre-bump version;
+# headings for past releases are never dragged forward.
+# A new changelog entry is written as "= Unreleased =" and this stamps it with the
+# version the build produces. No other heading is ever relabelled.
+#
+# This used to promote the topmost heading matching the PRE-bump version, assuming
+# such a heading could only be a freshly written entry. It cannot tell that apart
+# from the previous release's own heading, which is legitimately labelled with that
+# version, so every build that added no entry dragged the last release's heading
+# forward by one. In the SEO plugin a narration entry travelled 4.21.459 -> .460 ->
+# .461 -> .462 that way, and the published changelog credited the current release
+# with a change that had shipped three releases earlier.
+if grep -q '^= Unreleased =$' "$REPO_DIR/readme.txt"; then
+  sed -i '' "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
+  echo "  readme.txt changelog: promoted '= Unreleased =' to '= ${NEW_VER} ='"
+else
+  echo "  readme.txt changelog: no '= Unreleased =' entry, headings left untouched"
+fi
+# JS @version headers.
+while IFS= read -r vfile; do
+  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
+done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/" | grep -v "/node_modules/")
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Create temp directory with plugin name as wrapper
 mkdir -p "$TEMP_DIR/$PLUGIN_NAME"

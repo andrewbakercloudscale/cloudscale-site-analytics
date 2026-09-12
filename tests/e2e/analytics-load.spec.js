@@ -62,7 +62,7 @@ test('referrer Details button opens drill-down panel', async ({ page }) => {
     console.log('Details buttons found:', count);
 
     if (count === 0) {
-        console.log('No referrers in this period — skipping drill-down test');
+        console.log('No referrers in this period, skipping drill-down test');
         test.skip();
         return;
     }

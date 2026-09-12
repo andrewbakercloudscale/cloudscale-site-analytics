@@ -1,7 +1,7 @@
 /**
- * Insights tab — layout, CSS, and data verification
+ * Insights tab, layout, CSS, and data verification
  * Verifies: KPI cards load real data, all chart canvases render, CSS grid applies,
- * legend dots are colored, period buttons reload data (including Your Content —
+ * legend dots are colored, period buttons reload data (including Your Content,
  * regression coverage for the bug where it kept showing the previous period),
  * country flags appear, Your Content uses the Insights period (not Stats tab
  * dates), and the per-panel search boxes filter their panel without going stale.
@@ -48,8 +48,8 @@ test('KPI cards show real numeric values', async ({ page }) => {
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
 
     // Views and visitors should be numbers
-    await expect(page.locator('#cspv-ins-kpi-views')).not.toHaveText('—', { timeout: 10000 });
-    await expect(page.locator('#cspv-ins-kpi-visitors')).not.toHaveText('—', { timeout: 10000 });
+    await expect(page.locator('#cspv-ins-kpi-views')).not.toHaveText('-', { timeout: 10000 });
+    await expect(page.locator('#cspv-ins-kpi-visitors')).not.toHaveText('-', { timeout: 10000 });
 
     const viewsText = await page.locator('#cspv-ins-kpi-views').textContent();
     const visitorsText = await page.locator('#cspv-ins-kpi-visitors').textContent();
@@ -99,8 +99,8 @@ test('All chart canvases render with non-zero dimensions', async ({ page }) => {
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
     await page.waitForTimeout(1500); // allow charts to paint
 
-    // Derived from the page, not hardcoded. This listed six ids and one of them —
-    // cspv-ins-posts-chart — does not exist anywhere in the plugin, so the test hung for its full
+    // Derived from the page, not hardcoded. This listed six ids and one of them,
+    // cspv-ins-posts-chart, does not exist anywhere in the plugin, so the test hung for its full
     // 60-second timeout waiting for a canvas that was renamed or removed long ago, and reported it
     // as "chart canvases render with non-zero dimensions" failing. A hardcoded list of element ids
     // in a test is a second copy of the markup, and it was the copy nobody was reading.
@@ -170,7 +170,7 @@ test('Your Content shows "Last N days" not a calendar date range', async ({ page
     const rangeText = await page.locator('#cspv-insights-range').textContent();
     console.log('Your Content range label:', rangeText);
     expect(rangeText).toContain('Last');
-    // Should NOT look like a calendar range (e.g. "1 Nov 2025 – 29 Apr 2026")
+    // Should NOT look like a calendar range (e.g. "1 Nov 2025, 29 Apr 2026")
     expect(rangeText).not.toMatch(/\d{1,2} \w+ \d{4}/);
 });
 
@@ -182,17 +182,17 @@ test('Country time chart legend contains flag emojis', async ({ page }) => {
     const legendText = await page.locator('#cspv-ins-country-time-legend').textContent();
     console.log('Country time legend text:', legendText);
 
-    // ZZ ("unknown country") renders a globe placeholder, not a flag — a site with
+    // ZZ ("unknown country") renders a globe placeholder, not a flag, a site with
     // too little traffic to have resolved geo data shows only that globe, which is
     // correct behavior, not a bug. Only assert a flag exists once the legend names
     // at least one real (non-ZZ) country code.
     const hasRealCountry = /\b(?!ZZ\b)[A-Z]{2}\b/.test(legendText);
     if (hasRealCountry) {
-        // Flag emoji characters are in the range U+1F1E6–U+1F1FF
+        // Flag emoji characters are in the range U+1F1E6-U+1F1FF
         const hasFlag = /[\u{1F1E6}-\u{1F1FF}]/u.test(legendText);
         expect(hasFlag, 'Country legend should contain flag emoji').toBe(true);
     } else {
-        console.log('No resolved country data (only ZZ/unknown, or none) — skipping flag check');
+        console.log('No resolved country data (only ZZ/unknown, or none), skipping flag check');
         test.skip();
     }
 });
@@ -205,7 +205,7 @@ test('Insights tab takes a full-page screenshot', async ({ page }) => {
 });
 
 // Regression test for the bug where clicking a period button (7/30/90/180/360 days)
-// only reloaded the dashboard charts/KPIs above — "Your Content" kept showing the
+// only reloaded the dashboard charts/KPIs above, "Your Content" kept showing the
 // previous period's posts and range label until the tab was closed and reopened.
 test('Switching period also reloads Your Content, not just the dashboard', async ({ page }) => {
     await openInsightsTab(page);
@@ -215,7 +215,7 @@ test('Switching period also reloads Your Content, not just the dashboard', async
     const rangeBefore = await page.locator('#cspv-insights-range').textContent();
     expect(rangeBefore).toContain('Last 30 days');
 
-    // Switch to 7 days — both the dashboard AND Your Content must reload.
+    // Switch to 7 days, both the dashboard AND Your Content must reload.
     await page.locator('[data-period="7"]').click();
     await expect(page.locator('#cspv-ins-loading')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 15000 });
@@ -298,13 +298,13 @@ test('404 Error Log search filters rows client-side', async ({ page }) => {
     await openInsightsTab(page);
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
 
-    // The panel is collapsed by default — expand it.
+    // The panel is collapsed by default, expand it.
     await page.locator('#cspv-404-header').click();
     await page.waitForTimeout(300);
 
     const searchBox = page.locator('#cspv-404-search');
     if (await searchBox.count() === 0) {
-        console.log('No 404 rows recorded — skipping search test');
+        console.log('No 404 rows recorded, skipping search test');
         test.skip();
         return;
     }
@@ -338,7 +338,7 @@ test('Post Analytics search filters live, without clicking Search', async ({ pag
     // actually narrows anything.
     const term = await rows.first().getAttribute('data-title');
 
-    // Typing alone must filter — no click on "Search Posts" and no Enter.
+    // Typing alone must filter, no click on "Search Posts" and no Enter.
     await page.locator('#cspv-ph-search').fill(term);
     await page.waitForTimeout(200);
     const visible = await rows.evaluateAll(rs => rs.filter(r => r.style.display !== 'none').length);
@@ -359,7 +359,7 @@ test('Geo Post View has a live search box', async ({ page }) => {
     const initialCount = await items.count();
     if (initialCount < 2) { test.skip(); return; }
 
-    // Full title, not a short prefix — see the comment in the Post Analytics
+    // Full title, not a short prefix, see the comment in the Post Analytics
     // search test above for why a short prefix can fail to narrow anything.
     const term = await items.first().getAttribute('data-title');
 
@@ -406,7 +406,7 @@ test('Post Analytics panel margins match its sibling panels', async ({ page }) =
 
 test('Post Analytics has no visible Search button', async ({ page }) => {
     // Regression: the button was removed once the search box started filtering
-    // live on every keystroke — a visible "Search" button next to an input that
+    // live on every keystroke, a visible "Search" button next to an input that
     // already filters as you type is confusing UI, inconsistent with every
     // other panel's plain search box.
     await openInsightsTab(page);

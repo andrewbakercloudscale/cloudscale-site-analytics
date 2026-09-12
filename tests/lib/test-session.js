@@ -1,5 +1,5 @@
 /**
- * CloudScale shared Playwright auth helper — Test Account Manager sessions.
+ * CloudScale shared Playwright auth helper, Test Account Manager sessions.
  *
  * SINGLE SOURCE OF TRUTH. Do not copy this logic into a spec: every spec that
  * needs an authenticated browser or API context requires this module instead.
@@ -10,7 +10,7 @@
  * server-side WP session cookies for a persistent test user, so Playwright never
  * touches the login form and never needs 2FA or the hidden-login slug.
  *
- * IMPORTANT — role policy (CSDT_Test_Accounts::ALLOWED_ROLES):
+ * IMPORTANT, role policy (CSDT_Test_Accounts::ALLOWED_ROLES):
  *   Permitted WP roles are 'author', 'contributor', 'subscriber' and the scoped
  *   'csdt_test_settings'. Administrator and editor are refused by design, because
  *   this endpoint bypasses login+2FA and the blast radius of a leaked secret must
@@ -20,17 +20,17 @@
  *   subscriber sessions get HTTP 403 there (licence-card and settings specs
  *   cannot pass with those roles). For those, create the test user with the
  *   "Settings-only" role in the Test Account Manager: it grants exactly
- *   `read` + `manage_options` — no user management, no plugin/theme install or
- *   edit, no file editing — and is hard-blocked from writing any
+ *   `read` + `manage_options`, no user management, no plugin/theme install or
+ *   edit, no file editing, and is hard-blocked from writing any
  *   csdt_devtools_2fa_* / _login_* option, so it can never weaken 2FA or the
  *   hidden login page.
  *
  *   NOTE: a test account created before role tracking existed has an empty
  *   wp_role and mints as SUBSCRIBER (the UI used to mislabel that as
- *   "Administrator"). If settings specs 403, that is why — create a new
+ *   "Administrator"). If settings specs 403, that is why, create a new
  *   Settings-only account and point CSDT_TEST_ROLE at it.
  *
- * CREDENTIAL — a passkey-minted CI token, not a shared secret.
+ * CREDENTIAL, a passkey-minted CI token, not a shared secret.
  *   The endpoint used to accept a long random string from a .env file: no expiry, and a copy
  *   on every machine that had ever run the suite. It now takes a CSDT_CI_TOKEN, minted by an
  *   administrator completing a WebAuthn ceremony in the Test Account Manager ("Authorise a
@@ -39,17 +39,17 @@
  *
  *   Sent as the X-CSDT-CI-Token header rather than in the body, so it stays out of request
  *   logs. CSDT_TEST_SECRET is still read, and still works on a site where no device has been
- *   authorised yet — once one has, that site refuses it and says so.
+ *   authorised yet, once one has, that site refuses it and says so.
  *
  * Required env (see each plugin's .env.test / .env.cloudscale):
- *   WP_SITE                or WP_BASE_URL   — e.g. https://example.com
- *   CSDT_CI_TOKEN          — passkey-minted token (csdtci_…); preferred
- *   CSDT_TEST_SECRET       — legacy shared secret; only for a site with no authorised device
- *   CSDT_TEST_ROLE         — test role name (the "Name" column, not the WP role)
- *   CSDT_TEST_SESSION_URL  — full REST URL incl. path token
- *   CSDT_TEST_LOGOUT_URL   — optional, used by killSession()
+ *   WP_SITE                or WP_BASE_URL  , e.g. https://example.com
+ *   CSDT_CI_TOKEN         , passkey-minted token (csdtci_…); preferred
+ *   CSDT_TEST_SECRET      , legacy shared secret; only for a site with no authorised device
+ *   CSDT_TEST_ROLE        , test role name (the "Name" column, not the WP role)
+ *   CSDT_TEST_SESSION_URL , full REST URL incl. path token
+ *   CSDT_TEST_LOGOUT_URL  , optional, used by killSession()
  *
- * CSDT_CI_TOKEN may also be left unset and stored in the macOS login keychain instead — see
+ * CSDT_CI_TOKEN may also be left unset and stored in the macOS login keychain instead, see
  * scripts/ci-token-keychain.sh. If the environment carries no token, this file looks there on
  * its own, keyed by WP_SITE's hostname. A no-op on Linux CI (no Keychain, and a runner that
  * sets the env var explicitly never reaches the lookup).
@@ -63,7 +63,7 @@ const path = require('path');
  * Without this, globalSetup (which runs before any spec's own dotenv call) has
  * no credentials and auth.json silently fails unless the caller exported them
  * in the shell. Existing env always wins, so CI overrides still work.
- * Minimal parser — avoids adding a dotenv dependency to three plugins.
+ * Minimal parser, avoids adding a dotenv dependency to three plugins.
  */
 function loadEnvFiles() {
     const here  = __dirname;                       // <plugin>/tests/lib
@@ -108,7 +108,7 @@ function loadEnvFiles() {
  * that has no Keychain and no CSDT_CI_TOKEN should fall through to CSDT_TEST_SECRET exactly as
  * it did before this existed, not fail on a missing binary.
  *
- * execFileSync rather than exec/execSync with a template string — the account name below comes
+ * execFileSync rather than exec/execSync with a template string, the account name below comes
  * from a URL hostname (site config, not request input), but there is no reason to build a
  * shell command out of it when passing it as an argv element is just as easy and closes off
  * shell-injection as a category rather than trusting the input to stay clean.
@@ -118,7 +118,7 @@ function readCiTokenFromKeychain(site) {
     let account = 'default';
     try {
         if (site) { account = new URL(site).hostname; }
-    } catch { /* keep 'default' — matches scripts/ci-token-keychain.sh's own fallback */ }
+    } catch { /* keep 'default', matches scripts/ci-token-keychain.sh's own fallback */ }
     try {
         const { execFileSync } = require('child_process');
         return execFileSync(
@@ -127,7 +127,7 @@ function readCiTokenFromKeychain(site) {
             { stdio: [ 'ignore', 'pipe', 'ignore' ] }
         ).toString().trim();
     } catch {
-        return ''; // No item for this account — not an error, just nothing stored yet.
+        return ''; // No item for this account, not an error, just nothing stored yet.
     }
 }
 
@@ -142,7 +142,7 @@ const ROLE        = process.env.CSDT_TEST_ROLE || '';
  * Optional network override so a run can be aimed at a specific host.
  *
  * WP_HOME pins the canonical domain, so a restored or QA copy redirects any other hostname to
- * production — tests must keep using the production URL and have it land elsewhere. Chromium can
+ * production, tests must keep using the production URL and have it land elsewhere. Chromium can
  * be redirected on its own, but these session mints happen in NODE, which resolves through real
  * DNS; without this the browser would talk to the copy while the login talked to production.
  *
@@ -181,7 +181,7 @@ function assertEnv() {
  * How a request carries its credential.
  *
  * The token goes in a header and the legacy secret in the body, because that is where each
- * belongs — and sending both when both are present is deliberate: it lets one .env work
+ * belongs, and sending both when both are present is deliberate: it lets one .env work
  * against a site that has authorised a device and one that has not, without the caller
  * having to know which is which. The server prefers the token and refuses the secret once a
  * device exists.
@@ -201,7 +201,7 @@ function credentialOpts(data) {
  *                      Needed because CSDT_TEST_ROLE names the default
  *                      (subscriber) account, and any spec that opens a plugin
  *                      settings/tools page needs the Settings-only account
- *                      instead — see the role policy above. Specs used to
+ *                      instead, see the role policy above. Specs used to
  *                      hand-roll their own mint to get at this, which is how
  *                      ~60 copies of this function came to exist.
  * @returns {Promise<object>} raw session payload (cookie names/values/domain/expiry)
@@ -295,13 +295,13 @@ async function newAuthedPage(browser, opts = {}) {
  * Authenticated APIRequestContext, for REST / admin-ajax calls.
  *
  * Cookies go in via storageState at construction, NOT addCookies(): that method exists on
- * BrowserContext but not on APIRequestContext (verified against Playwright 1.62 — its prototype
+ * BrowserContext but not on APIRequestContext (verified against Playwright 1.62, its prototype
  * offers storageState alone), so the previous version threw "ctx.addCookies is not a function"
  * on its first line. Nothing had called it yet, which is why an exported helper in the file
  * declared to be the single source of truth had never once run.
  *
  * storageState requires expires as a number on every cookie, so a session cookie is -1 rather
- * than absent — omitting it drops the cookie silently and the request arrives logged out.
+ * than absent, omitting it drops the cookie silently and the request arrives logged out.
  */
 async function newAuthedRequest({ ttl = 900, role = ROLE } = {}) {
     const sess    = await getSession(ttl, role);
@@ -338,7 +338,7 @@ async function killSession() {
  * Can a session minted for this role write to a post?
  *
  * Test roles are capped below Administrator on purpose, and the cap is real: a "settings only"
- * role holds `manage_options` — enough to open every plugin settings screen — and no rights over
+ * role holds `manage_options`, enough to open every plugin settings screen, and no rights over
  * posts at all. Specs that drive the block editor, upload an image, or use the frontend editor bar
  * need a role that can, and there is exactly one: "Admin journeys" (`csdt_test_admin`).
  *
@@ -361,14 +361,14 @@ function sessionCanEditPosts(sess) {
  *
  * A stricter question than sessionCanEditPosts(), and the distinction is load-bearing. The frontend
  * editor bar and the block editor's "Generate with AI" button both require `manage_options` AND
- * `edit_post` on the post — the first to be offered at all, the second because that is what the
+ * `edit_post` on the post, the first to be offered at all, the second because that is what the
  * ai_image_* handlers ask. Of the scoped test roles only `csdt_test_admin` ("Admin journeys") has
  * both: TEST_ADMIN_CAPS grants manage_options, edit_posts, edit_others_posts and upload_files,
  * while plain `author` has the post capabilities and no manage_options at all.
  *
  * Without this split, pointing CSDT_TEST_ADMIN_ROLE at an author-role user would satisfy
  * sessionCanEditPosts(), un-skip those specs, and hand them back the twenty-second locator timeout
- * this whole mechanism exists to replace — a failure saying nothing about the cause.
+ * this whole mechanism exists to replace, a failure saying nothing about the cause.
  *
  * @param {object} sess Session payload from getSession().
  * @returns {boolean}
@@ -381,13 +381,13 @@ function sessionCanUseAdminTools(sess) {
 
 /** The message to skip with, naming the fix rather than the symptom. */
 const NEEDS_EDITOR_ROLE =
-    'this spec writes to a post, so it needs a Test Account Manager user that can — "Admin journeys" '
+    'this spec writes to a post, so it needs a Test Account Manager user that can, "Admin journeys" '
     + '(or Author for own-post work); create one in the panel and set CSDT_TEST_ADMIN_ROLE to its name';
 
 /** Same, for the specs that also need manage_options. */
 const NEEDS_ADMIN_TOOLS_ROLE =
     'this spec uses an admin-gated tool on a post, so it needs the "Admin journeys" role '
-    + 'specifically (manage_options AND post editing — Author has only the latter); create one in '
+    + 'specifically (manage_options AND post editing, Author has only the latter); create one in '
     + 'the Test Account Manager and set CSDT_TEST_ADMIN_ROLE to its name';
 
 module.exports = {

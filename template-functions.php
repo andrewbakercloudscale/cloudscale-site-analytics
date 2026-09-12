@@ -98,7 +98,7 @@ function cspv_get_view_count( $post_id = null ) {
  * editor line both aggregate it). A public template cannot afford that: a listing page
  * renders a player per result, and one SUM per player is a query per player on a page
  * a reader is waiting for. So the REST callback increments a denormalised meta counter
- * alongside the bucket write, and this reads it — the same trade views already make.
+ * alongside the bucket write, and this reads it, the same trade views already make.
  *
  * BACKFILL. Posts narrated before the counter existed have no meta, which would print a
  * confident 0 under an article with real listeners. The first read sums the bucket table
@@ -126,8 +126,8 @@ function cspv_get_audio_play_count( $post_id = null ) {
     global $wpdb;
     $table = $wpdb->prefix . 'cs_analytics_audio_v2';
     if ( function_exists( 'cspv_table_exists' ) && cspv_table_exists( $table ) ) {
-        // The table name comes from $wpdb->prefix and a literal — it cannot be a
-        // placeholder — and post_id IS bound. One indexed aggregate that runs at most
+        // The table name comes from $wpdb->prefix and a literal, it cannot be a
+        // placeholder, and post_id IS bound. One indexed aggregate that runs at most
         // once per post, after which the meta counter answers, so there is nothing to
         // cache. A disable/enable pair rather than a phpcs:ignore because the offending
         // token is the string on its own line INSIDE the call: an ignore on the line
@@ -163,7 +163,7 @@ function cspv_get_audio_play_count( $post_id = null ) {
 function cspv_the_audio_plays( $args = array() ) {
     // NOT run through wp_kses_post(). KSES strips data-* attributes unless the element's
     // allow-list names 'data-*' explicitly, and data-cspv-audio-id is what the beacon uses
-    // to find this counter and repaint it — filtered markup would render a number that
+    // to find this counter and repaint it, filtered markup would render a number that
     // silently never updates. Every value is escaped where it is built, below.
     echo cspv_audio_plays_html( $args ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped at construction in cspv_audio_plays_html()
 }
@@ -193,7 +193,7 @@ function cspv_audio_plays_html( $args = array() ) {
     $count   = cspv_get_audio_play_count( $post_id );
 
     // Singular when the number IS one, including after the beacon bumps 0 to 1 in the
-    // browser — hence data-cspv-audio-suffix carrying both forms rather than one baked
+    // browser, hence data-cspv-audio-suffix carrying both forms rather than one baked
     // string, so "1 plays" never appears.
     $many   = (string) $args['suffix'];
     $one    = ' ' . rtrim( trim( $many ), 's' );

@@ -3,7 +3,7 @@
  *
  * Mints ONE Test Account Manager session and persists it as auth.json, which
  * playwright.config.js hands to every test via `use.storageState`. Specs
- * therefore start already logged in — no login form, no 2FA, no hidden-login
+ * therefore start already logged in, no login form, no 2FA, no hidden-login
  * slug, and no per-spec session boilerplate.
  *
  * This setup deliberately does NOT touch WordPress state. An earlier version

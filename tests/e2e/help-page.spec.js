@@ -1,17 +1,17 @@
 /**
  * Help page rendering check
  *
- * Published help docs always live on help.cloudscale.consulting (see CLAUDE.md —
+ * Published help docs always live on help.cloudscale.consulting (see CLAUDE.md,
  * CloudScaleWpPluginHelpDocs is the single source of truth, publishing there for
  * all 5 plugins), never on the plugin's own site. So this uses an absolute URL
  * rather than one resolved against whichever site's admin the rest of the suite
- * is targeting via WP_BASE_URL, and needs no auth — the page is public.
+ * is targeting via WP_BASE_URL, and needs no auth, the page is public.
  *
  * Previously pointed at /wordpress-plugin-help/cloudscale-wordpress-marketing-analytics/
  * and asserted .cs-hero / .cs-panel-heading / .cs-tip-box / #statistics anchors,
  * a page structure that stopped existing when docs moved off the plugin's own
  * site onto help.cloudscale.consulting's multi-page template (one page per
- * section, e.g. /plugin-help/analytics/statistics/, not anchors on one page) —
+ * section, e.g. /plugin-help/analytics/statistics/, not anchors on one page),
  * so it had been failing unconditionally. Rewritten 2026-08-18 against the
  * current template.
  */
@@ -39,7 +39,7 @@ test('help page renders HTML correctly (no raw JSON/CSS text)', async ({ page })
         ).toBeVisible();
     }
 
-    // Page must NOT contain raw JSON or CSS as visible text — the original bug
+    // Page must NOT contain raw JSON or CSS as visible text, the original bug
     // this test guards against: an out-of-scope esc()/serialization leaking the
     // schema.org JSON-LD or a <style> block's source as plain page content.
     const bodyText = await page.locator('body').innerText();

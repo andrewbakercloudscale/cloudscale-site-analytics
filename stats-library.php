@@ -85,7 +85,7 @@ function cspv_referrer_source() {
  * Check whether a custom analytics table exists, cached per request.
  *
  * Single SHOW TABLES round trip per unique table name per request, no matter
- * how many stats functions ask — dashboard widget + Smart Summary previously
+ * how many stats functions ask, dashboard widget + Smart Summary previously
  * asked this same question for the same 3-4 tables 8-9 times in one page load.
  *
  * @since  2.9.457
@@ -106,7 +106,7 @@ function cspv_table_exists( $table ) {
  * Fetch referrer rows for a table/window/limit, cached per request.
  *
  * cspv_insights_kpi() and cspv_smart_summary_items() both fetch the exact
- * same top-200-referrers-in-window query when given the same period —
+ * same top-200-referrers-in-window query when given the same period,
  * this collapses that into a single query per unique (table, from, to,
  * limit) combination per request.
  *
@@ -961,8 +961,8 @@ function cspv_insights_top_pages( $from_str, $to_str, $prev_from_str, $prev_to_s
  * special case only has to be defined once.
  *
  * @since 2.9.485
- * @param  int $period Days (clamped 1–360). 1 means a rolling last-24-hours
- *                      window, not "today so far" — the calendar-day snap
+ * @param  int $period Days (clamped 1-360). 1 means a rolling last-24-hours
+ *                      window, not "today so far", the calendar-day snap
  *                      used for every other value would otherwise show
  *                      almost nothing in the minutes right after midnight.
  * @return array{0: string, 1: string, 2: int} from_str, to_str ('Y-m-d H:i:s'), clamped period.

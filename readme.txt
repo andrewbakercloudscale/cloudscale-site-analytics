@@ -12,7 +12,7 @@ Accurate page view tracking for WordPress sites behind Cloudflare and other CDNs
 
 == Description ==
 
-CloudScale Site Analytics solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting — typically 5 to 10 times lower than actual traffic.
+CloudScale Site Analytics solves the fundamental problem with page view tracking on cached WordPress sites. When Cloudflare, Fastly, or any CDN serves a cached HTML page, WordPress never executes. Server side counters like Jetpack Stats miss the view entirely, resulting in severe undercounting, typically 5 to 10 times lower than actual traffic.
 
 CloudScale uses a lightweight JavaScript beacon that fires after the cached page loads, recording every view through a REST API endpoint that bypasses the CDN cache. The result is accurate view counts regardless of cache status.
 
@@ -90,7 +90,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * Add: Insights tab 24-hour filter, plus live search on the Post Analytics and Geo Post View panels
 * Add: Telegram alerts now include the site's local time (with a real timezone abbreviation, or a numeric offset when no named zone is set) and host/IP attribution
 * Add: `cloudscale_alerts_muted` switch so a DR/QA copy of the site can be silenced without disarming the real site's Telegram token
-* Fix: A draft preview's beacon request — which the endpoint deliberately 404s — was reported as a Telegram CRITICAL even though the workflow was working correctly; previews, private posts, and future-dated posts no longer enqueue the beacon
+* Fix: A draft preview's beacon request, which the endpoint deliberately 404s, was reported as a Telegram CRITICAL even though the workflow was working correctly; previews, private posts, and future-dated posts no longer enqueue the beacon
 * Fix: Emoji resource-hint filter matched the CDN host as a substring, over-matching real WordPress hosts like ps.w.org; now compares the parsed host exactly
 * Fix: Site Health panel was 30% taller than it needed to be at 10px type; metrics now sit side by side with larger type and a shared RAG-badge renderer
 * Fix: All ten Insights Playwright specs were failing because the tab's JS assets were only enqueued for one of the two hook suffixes WordPress can register the page under; now enqueued under both
@@ -99,12 +99,12 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * Fix: Dashboard widget's Top Pages list now shows 4 rows to match Top Referrers' taller header
 * Fix: Views-by-country chart labels now show flag + 2-letter code with a wider axis; countries-over-time legend centered and spread out
 * Fix: First WordPress.org submission review found 14 findings, all theme-supplied widget markup that cannot be escaped without breaking page structure; now allowlisted correctly instead of flagged
-* Fix: DB-IP auto-update description corrected — the cron event fires daily and enforces the monthly download cadence inside its callback, not "once per month" as previously worded
+* Fix: DB-IP auto-update description corrected, the cron event fires daily and enforces the monthly download cadence inside its callback, not "once per month" as previously worded
 
 = 2.9.421 =
 * Fix: search-result thumbnails were forced to 150x150 on every search page even when the active theme requested a larger size; now only applied when no explicit size was requested
 * Fix: shared Telegram settings card used a non-literal text domain and unescaped output, both flagged by WP.org's automated plugin checker
-* Perf: Dashboard widget's Smart Summary ran the same SHOW TABLES check up to 9 times and the same top-referrers query twice per page load — both memoized per-request, no behaviour change
+* Perf: Dashboard widget's Smart Summary ran the same SHOW TABLES check up to 9 times and the same top-referrers query twice per page load, both memoized per-request, no behaviour change
 * Fix: Debug button and view counter no longer leak into post excerpts on listing pages, only the actual post being viewed
 * Fix: View-count queue raised from 1,000/min to 10,000/min global + 2,000/min per-post caps, with a Telegram alert on saturation instead of silent drops
 * Fix: deploy-all-sites.sh was deploying both sites to the same container due to a pi-connect.sh env var override that never took effect
@@ -126,7 +126,7 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * WordPress.org submission hardening: all assets bundled locally, inline style/script tags replaced with wp_enqueue APIs, uninstall.php added
 
 = 2.9.12 =
-* Site Health v2: complete rewrite — four time windows (1 Day, 7 Days, 28 Days, 90 Days) each with RAG indicator and prior-period comparison
+* Site Health v2: complete rewrite, four time windows (1 Day, 7 Days, 28 Days, 90 Days) each with RAG indicator and prior-period comparison
 * Insufficient Data gating: buckets without enough history show waiting state instead of misleading percentages
 * Site Health results cached in wp_options for 1 hour
 
@@ -141,14 +141,14 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 * View Diagnostics debug panel on singular posts (admin only) with resync button
 
 = 2.9.0 =
-* Flattened plugin structure — all files in plugin root for reliable FTP/cPanel upgrades
+* Flattened plugin structure, all files in plugin root for reliable FTP/cPanel upgrades
 * Deactivation hook cleans stale subdirectories from pre-2.9.0 installs
 
 = 2.8.7 =
 * Dedup toggle persistence fix: switched to yes/no string storage
 
 = 2.8.5 =
-* View Deduplication settings UI with configurable window (1h–48h)
+* View Deduplication settings UI with configurable window (1h-48h)
 
 = 2.8.4 =
 * Dashboard widget referrers now has Sites/Pages toggle
@@ -219,7 +219,7 @@ This plugin optionally connects to the following external services:
 = Telegram Bot API (optional, alert notifications only) =
 When you configure Telegram alerts in the plugin settings, the plugin communicates with the Telegram Bot API:
 * Service URL: https://api.telegram.org/
-* What is sent and when: (1) When an admin clicks "Fetch Chat ID", the plugin calls the getUpdates endpoint with your bot token to discover your chat ID. (2) When an admin clicks "Send Test" or when a plugin event triggers a notification, the plugin calls sendMessage to deliver the alert text to your configured chat ID. No visitor data, page view analytics, or site content is transmitted — only the admin-authored alert text and your Telegram bot credentials.
+* What is sent and when: (1) When an admin clicks "Fetch Chat ID", the plugin calls the getUpdates endpoint with your bot token to discover your chat ID. (2) When an admin clicks "Send Test" or when a plugin event triggers a notification, the plugin calls sendMessage to deliver the alert text to your configured chat ID. No visitor data, page view analytics, or site content is transmitted, only the admin-authored alert text and your Telegram bot credentials.
 * This service is only used when an admin has entered a bot token and chat ID in the plugin settings.
 * Telegram Privacy Policy: https://telegram.org/privacy
 * Telegram Terms of Service: https://telegram.org/tos
@@ -247,9 +247,9 @@ No visitor or site data is transmitted to any external service during page view 
 
 The following open-source libraries are bundled with this plugin. The minified production builds are shipped; the full, unminified source for each is available at the linked upstream project, and each is under a GPL-compatible licence:
 
-* Chart.js 4.4.1 — MIT License — https://github.com/chartjs/Chart.js/releases/tag/v4.4.1
-* Leaflet 1.9.4 — BSD-2-Clause License — https://github.com/Leaflet/Leaflet/releases/tag/v1.9.4
-* MaxMind DB Reader (PHP) — Apache License 2.0 — https://github.com/maxmind/MaxMind-DB-Reader-php
+* Chart.js 4.4.1, MIT License, https://github.com/chartjs/Chart.js/releases/tag/v4.4.1
+* Leaflet 1.9.4, BSD-2-Clause License, https://github.com/Leaflet/Leaflet/releases/tag/v1.9.4
+* MaxMind DB Reader (PHP), Apache License 2.0, https://github.com/maxmind/MaxMind-DB-Reader-php
 
 == License ==
 

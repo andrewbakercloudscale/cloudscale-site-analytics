@@ -5,12 +5,12 @@ module.exports = async () => {
     const cookiesRaw = process.env.WP_COOKIES;
 
     if (!baseURL || !cookiesRaw) {
-        throw new Error('Missing env vars: WP_BASE_URL, WP_COOKIES — these are set by run-ui-tests.sh');
+        throw new Error('Missing env vars: WP_BASE_URL, WP_COOKIES, these are set by run-ui-tests.sh');
     }
 
     const c = JSON.parse(cookiesRaw);
 
-    // Inject WordPress auth cookies directly — bypasses the login form, 2FA, and
+    // Inject WordPress auth cookies directly, bypasses the login form, 2FA, and
     // the hidden login page (all provided by CloudScale Cyber DevTools' built-in
     // login security). Playwright never touches the login page at all.
     const browser = await chromium.launch();
@@ -29,10 +29,10 @@ module.exports = async () => {
     await page.goto(`${baseURL}/wp-admin/`, { waitUntil: 'domcontentloaded' });
 
     if (!page.url().includes('/wp-admin/')) {
-        throw new Error(`Cookie injection failed — ended up at: ${page.url()}`);
+        throw new Error(`Cookie injection failed, ended up at: ${page.url()}`);
     }
 
-    // Persist auth state for all tests — file is gitignored
+    // Persist auth state for all tests, file is gitignored
     await context.storageState({ path: 'auth.json' });
     await browser.close();
 };

@@ -1,12 +1,12 @@
 'use strict';
 /**
- * totp.js — generate a TOTP code from a Base32 secret (RFC 6238).
+ * totp.js, generate a TOTP code from a Base32 secret (RFC 6238).
  *
  * WHY THIS EXISTS
  * ---------------
  * The TOTP setup wizard test used to print the secret and wait on stdin for a human to read a
- * code out of their authenticator app. Unattended — which is every CI run and every run against
- * a QA copy — that could only ever end in a 60-second timeout reported as a failure, so the one
+ * code out of their authenticator app. Unattended, which is every CI run and every run against
+ * a QA copy, that could only ever end in a 60-second timeout reported as a failure, so the one
  * test covering the site's actual second factor never checked anything.
  *
  * Six digits from an HMAC is not worth a dependency, and pulling one in for a security test is a

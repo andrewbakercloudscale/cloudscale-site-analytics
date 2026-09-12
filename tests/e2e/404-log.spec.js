@@ -1,5 +1,5 @@
 /**
- * 404 Error Log — end-to-end tests
+ * 404 Error Log, end-to-end tests
  *
  * Covers: visiting a non-existent URL as an admin records the hit in the 404 log.
  *
@@ -7,7 +7,7 @@
  * dropped every 404 triggered by a logged-in administrator, so the log was
  * always empty during normal testing/browsing.
  *
- * The table only renders the top 50 URLs by hit_count DESC — a real site
+ * The table only renders the top 50 URLs by hit_count DESC, a real site
  * accumulates thousands of bot-scanned 404s, so a single fresh test hit
  * (hit_count=1) will never be ranked into that view once the 50th row's
  * hit_count is above 1 (andrewbaker.ninja: 47k+ unique URLs, 50th row at
@@ -15,7 +15,7 @@
  * the table therefore fails unconditionally on any site with real traffic,
  * regardless of whether tracking actually works. Instead this asserts the
  * one thing that's actually true regardless of table size: the "unique
- * URLs" count goes up by exactly one for a guaranteed-unique slug — which
+ * URLs" count goes up by exactly one for a guaranteed-unique slug, which
  * is precisely what the admin-exclusion regression this test guards
  * against would break (the count would stay flat instead).
  */
@@ -36,7 +36,7 @@ async function openAndExpand404Panel(page) {
     await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
 
     // It is collapsed by default (display:none until #cspv-404-header is clicked),
-    // but the open/closed state persists in localStorage across page loads — so on
+    // but the open/closed state persists in localStorage across page loads, so on
     // a second visit within the same test it may already be open. Clicking
     // unconditionally would toggle it back closed, so only click if still hidden.
     const panel = page.locator('#cspv-404-inner');

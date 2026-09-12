@@ -1,6 +1,6 @@
 <?php
 /**
- * beacon-preview-test.php — the view beacon must not fire where recording is impossible.
+ * beacon-preview-test.php, the view beacon must not fire where recording is impossible.
  *
  * WHY THIS EXISTS
  * ---------------

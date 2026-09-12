@@ -478,7 +478,7 @@ function cspv_render_debug_panel() {
         </div>
         <?php endif; ?>
 
-        <!-- 14-day traffic chart — always 14 slots, zero-filled for missing days -->
+        <!-- 14-day traffic chart, always 14 slots, zero-filled for missing days -->
         <?php
         $today_ts  = strtotime( current_time( 'Y-m-d' ) );
         $chart_map = array();

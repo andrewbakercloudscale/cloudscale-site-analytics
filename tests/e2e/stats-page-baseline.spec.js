@@ -1,5 +1,5 @@
 /**
- * stats-page.php baseline — run BEFORE and AFTER every refactor phase.
+ * stats-page.php baseline, run BEFORE and AFTER every refactor phase.
  * All tests must pass on the current code; any regression means the refactor broke something.
  */
 
@@ -100,7 +100,7 @@ test('C3: referrers panel resolves after 1-week load', async ({ page }) => {
 test('D1: display tab has nonce field in DOM', async ({ page }) => {
     await gotoStats(page);
     await page.locator('[data-tab="display"]').click();
-    // wp_nonce_field generates type="hidden" — use toBeAttached not toBeVisible
+    // wp_nonce_field generates type="hidden", use toBeAttached not toBeVisible
     await expect(page.locator('[name="cspv_display_nonce"]')).toBeAttached({ timeout: 5000 });
 });
 

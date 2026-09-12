@@ -143,7 +143,7 @@ function cspv_enqueue_admin_assets( $hook ) {
     $ver_js .= 'var stored=localStorage.getItem(k);';
     $ver_js .= 'localStorage.setItem(k,v);';
     $ver_js .= 'if(stored&&stored!==v){window.location.reload();return;}';
-    // Server-side check — bypasses localStorage staleness; fired on bfcache
+    // Server-side check, bypasses localStorage staleness; fired on bfcache
     // restore (pageshow persisted) and on tab re-focus (visibilitychange).
     $ver_js .= 'function svCheck(){';
     $ver_js .= 'var u=(window.ajaxurl||' . wp_json_encode( admin_url( 'admin-ajax.php' ) ) . ')+"?action=cspv_version&_="+Date.now();';

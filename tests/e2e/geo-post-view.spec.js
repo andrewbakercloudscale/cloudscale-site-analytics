@@ -59,7 +59,7 @@ test('Geo Post View section loads and renders map on post click', async ({ page 
     console.log('Map title:', titleText);
     expect(titleText).toContain('🗺');
 
-    // Wait for AJAX to complete — map el should no longer show Loading
+    // Wait for AJAX to complete, map el should no longer show Loading
     const mapEl = page.locator('#cspv-geo-map-el');
     await expect(mapEl).toBeVisible();
     await expect(mapEl).not.toContainText('Loading', { timeout: 20000 });
@@ -74,7 +74,7 @@ test('Geo Post View section loads and renders map on post click', async ({ page 
     expect(hasLeaflet || hasNoData, 'Map must show Leaflet or no-data message, not stuck on Loading').toBe(true);
 
     if (hasLeaflet) {
-        // Leaflet panes are absolutely positioned inside overflow:hidden — check DOM presence, not CSS visibility.
+        // Leaflet panes are absolutely positioned inside overflow:hidden, check DOM presence, not CSS visibility.
         const leafletPaneCount = await mapEl.locator('.leaflet-pane').count();
         expect(leafletPaneCount, 'Leaflet should have rendered at least one pane').toBeGreaterThan(0);
     }

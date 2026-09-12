@@ -26,9 +26,9 @@ class CloudScale_Telegram {
 	 *
 	 * WordPress.org named `cloudscale_telegram_bot_token` and `cloudscale_telegram_chat_id` in
 	 * its 18 Aug 2026 review as options not carrying the plugin's declared prefix, so the live
-	 * names moved to `csdt_`. These four options are DELIBERATELY shared by all five plugins —
+	 * names moved to `csdt_`. These four options are DELIBERATELY shared by all five plugins,
 	 * one Telegram configuration for the whole suite, and only one copy of this class ever loads
-	 * (see the class_exists() guard) — so they cannot be prefixed per-plugin without splitting
+	 * (see the class_exists() guard), so they cannot be prefixed per-plugin without splitting
 	 * one config into five.
 	 *
 	 * Renaming a live option is the dangerous part: the token, chat id and mute switch are what
@@ -36,7 +36,7 @@ class CloudScale_Telegram {
 	 * read falls back to the legacy name and every write updates BOTH, which means an install
 	 * running any mix of old and new copies keeps working in either direction.
 	 *
-	 * The legacy writes can be dropped once all five plugins have shipped with the new names —
+	 * The legacy writes can be dropped once all five plugins have shipped with the new names,
 	 * not before. `dr-restore.sh` also writes the legacy mute key from outside PHP, which is the
 	 * specific reason is_muted() honours either name rather than preferring one.
 	 */
@@ -53,7 +53,7 @@ class CloudScale_Telegram {
 	 *
 	 * An option that is present but empty counts as absent here: a half-migrated install can
 	 * hold an empty new-style row alongside a populated legacy one, and preferring the empty
-	 * value would disarm alerting silently — the failure mode this whole class exists to avoid.
+	 * value would disarm alerting silently, the failure mode this whole class exists to avoid.
 	 *
 	 * @param string $new    New option name.
 	 * @param string $legacy Legacy option name.
@@ -86,7 +86,7 @@ class CloudScale_Telegram {
 	 *
 	 * Until this existed there was no way to mute a host. send() gated only on the
 	 * token and chat id being present, and each call site checked its own feature
-	 * toggle — so `csdt_notify_telegram_enabled` silenced the paths that happened to
+	 * toggle, so `csdt_notify_telegram_enabled` silenced the paths that happened to
 	 * consult it and nothing else. CSDT_Test_Accounts::send_security_alert() was one
 	 * of the ones that did not.
 	 *
@@ -109,7 +109,7 @@ class CloudScale_Telegram {
 	 *
 	 * EITHER name muting is enough. dr-restore.sh writes the legacy key directly, and a copy
 	 * that believes it is production is exactly the case where guessing wrong pages a human at
-	 * 3am — so this errs toward silence rather than toward preferring the new name.
+	 * 3am, so this errs toward silence rather than toward preferring the new name.
 	 */
 	public static function is_muted(): bool {
 		return '1' === (string) get_option( self::OPTION_MUTED, '' )
@@ -123,7 +123,7 @@ class CloudScale_Telegram {
 	 *
 	 * Every throttle in these five plugins was a transient with a 6-hour expiry, and every one of
 	 * them read as correct. This install runs a persistent Redis object cache, so transients live in
-	 * Redis while options live in MariaDB — and every deploy of any of the five runs `wp cache flush`
+	 * Redis while options live in MariaDB, and every deploy of any of the five runs `wp cache flush`
 	 * and reloads PHP-FPM. That deleted every quiet window: the next failure reported an ongoing
 	 * incident as new. Several deploys a day, several identical alerts a day, from throttles that
 	 * passed their own tests because a test never flushes a cache it is not using. Reported
@@ -156,7 +156,7 @@ class CloudScale_Telegram {
 	 *
 	 * Duplicate suppression alone cannot bound the volume: fifty DIFFERENT alerts in a minute is
 	 * still a phone nobody can read, and a burst of distinct-but-related messages is exactly what a
-	 * failing batch job produces. So the total is capped as well, and the cap is not per-level — the
+	 * failing batch job produces. So the total is capped as well, and the cap is not per-level, the
 	 * reader's attention is one pool.
 	 *
 	 * 6 an hour and 24 a day are chosen to be higher than any real incident needs and far below the
@@ -168,7 +168,7 @@ class CloudScale_Telegram {
 
 	/*
 	 * There is deliberately NO bypass parameter. Every alert that goes through send() is capped,
-	 * including criticals — a level that could opt out would become the level everything uses. The
+	 * including criticals, a level that could opt out would become the level everything uses. The
 	 * one message that must always arrive, the settings page's "send test message", posts to
 	 * Telegram directly (see register_ajax) and never reaches this gate, so the button still tells
 	 * the truth about whether alerts work.
@@ -179,7 +179,7 @@ class CloudScale_Telegram {
 	 *
 	 * Numbers are dropped, not kept: timings, byte counts, IP addresses, streak counters and dates
 	 * are what differ between repeats of one incident, and keeping them would make every repeat
-	 * unique — a throttle that never fires. The first 160 characters are enough to tell one alert
+	 * unique, a throttle that never fires. The first 160 characters are enough to tell one alert
 	 * apart from another while ignoring the detail that accumulates further down (the host block,
 	 * the local time, the request path).
 	 *
@@ -198,8 +198,8 @@ class CloudScale_Telegram {
 	/**
 	 * May this alert go out now? Records the decision either way.
 	 *
-	 * Returns the message to send — the body plus, when messages were held back since the last one
-	 * delivered, a line saying how many — or null when it must stay quiet.
+	 * Returns the message to send, the body plus, when messages were held back since the last one
+	 * delivered, a line saying how many, or null when it must stay quiet.
 	 *
 	 * @param string $text   Message body.
 	 * @param string $source Sending plugin/feature.
@@ -291,8 +291,8 @@ class CloudScale_Telegram {
 	 *
 	 * The marker and the LEVEL word beside it must never disagree, and they did.
 	 * The map held only info/warning/error/critical and an unrecognised level fell
-	 * back to info, so the one call site that says 'high' — the front-end asset
-	 * monitor — shipped real failures as "✅ <site name> ... HIGH". A green
+	 * back to info, so the one call site that says 'high', the front-end asset
+	 * monitor, shipped real failures as "✅ <site name> ... HIGH". A green
 	 * tick over a broken asset is the most misleading thing an alert can look like
 	 * on a phone: it is read before the words are.
 	 *
@@ -314,8 +314,8 @@ class CloudScale_Telegram {
 			'error'    => "\u{274C}",
 			'critical' => "\u{1F6A8}",
 		];
-		// Words that arrived from another severity vocabulary — a scanner's
-		// low/medium/high, a caller's "urgent" — resolve to one of the four rather
+		// Words that arrived from another severity vocabulary, a scanner's
+		// low/medium/high, a caller's "urgent", resolve to one of the four rather
 		// than falling through to the tick.
 		$aliases = [
 			'success' => 'info',
@@ -355,7 +355,7 @@ class CloudScale_Telegram {
 	 * machine hostname is the field that actually differs, which is why it
 	 * leads. On 2026-08-07 hundreds of alerts from a QA copy on the DR host
 	 * were indistinguishable from production's, and the only address in them
-	 * was 172.20.0.1 — that copy's Docker gateway. That is why an unroutable
+	 * was 172.20.0.1, that copy's Docker gateway. That is why an unroutable
 	 * address is now labelled rather than presented as the visitor's IP.
 	 */
 	private static function alert_origin(): string {
@@ -404,7 +404,7 @@ class CloudScale_Telegram {
 	 * The WordPress account attached to this request, when there is one.
 	 *
 	 * "From: 41.198.157.47" alone reads as an unknown attacker even when the request carried a
-	 * valid, currently-authenticated admin session — the one piece of context that actually
+	 * valid, currently-authenticated admin session, the one piece of context that actually
 	 * answers "is this me" was missing from every alert. Added rather than assumed: wp-cron and
 	 * WP-CLI genuinely have no session, and a request whose auth cookie has not been processed
 	 * yet at the point send() runs gets no line rather than a guessed one.
@@ -425,7 +425,7 @@ class CloudScale_Telegram {
 	/**
 	 * What triggered this alert: a request with a client IP, or a background
 	 * context that genuinely has no client. Never invent an address for the
-	 * latter — a wrong IP is worse than an admitted absence.
+	 * latter, a wrong IP is worse than an admitted absence.
 	 */
 	private static function trigger_source(): string {
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -438,7 +438,7 @@ class CloudScale_Telegram {
 		// Prefer the validated helper: it honours HTTP_CF_CONNECTING_IP and
 		// X-Forwarded-For only when the immediate peer is a trusted proxy, so an
 		// attacker cannot dictate what this alert reports. It lives in Cyber
-		// DevTools, hence the guard — this file ships in five plugins.
+		// DevTools, hence the guard, this file ships in five plugins.
 		//
 		// BOTH class names are tried because Cyber DevTools renamed this class to CSDT_DevTools
 		// for WordPress.org's prefixing rule, and a shared file cannot know which version of
@@ -497,14 +497,14 @@ class CloudScale_Telegram {
 	 *
 	 * Settings → General accepts either a named zone (Africa/Johannesburg, which
 	 * makes wp_date('T') produce SAST) or a bare UTC offset. With a bare offset there
-	 * IS no zone name, and wp_date('T') answers "GMT+0200" — which reads as a GMT
+	 * IS no zone name, and wp_date('T') answers "GMT+0200", which reads as a GMT
 	 * time to anyone scanning an alert, and GMT is not what the clock is showing.
 	 *
 	 * An offset-shaped label is therefore resolved to a zone abbreviation, via PHP's
 	 * own offset→zone table, rather than printed as "+02:00": alerts should name the
 	 * clock they are quoting, and a bare offset makes the reader do the work. Several
 	 * zones share an offset and PHP returns the canonical one, so the abbreviation is
-	 * right for the offset even where the zone id is not the site's own — which is why
+	 * right for the offset even where the zone id is not the site's own, which is why
 	 * the *offset* is what gets resolved and never invented from anything else. Set a
 	 * named zone in Settings → General and this returns its own abbreviation directly.
 	 *
@@ -520,7 +520,7 @@ class CloudScale_Telegram {
 			}
 			// The candidate zone's offset AT THIS INSTANT must equal the offset we are
 			// labelling. Without that check, +02:00 resolved to a zone whose
-			// abbreviation was EEST — a real name for a clock that is +03:00 in
+			// abbreviation was EEST, a real name for a clock that is +03:00 in
 			// August, printed next to a time that is +02:00. A label contradicting
 			// the timestamp it labels is worse than a bare offset.
 			$moment     = new DateTime( '@' . $ts );
@@ -559,7 +559,7 @@ class CloudScale_Telegram {
 	/**
 	 * Rewrite UTC timestamps inside an alert body into the site's local zone.
 	 *
-	 * Alerts quote times from places that are UTC by construction — PHP's error log
+	 * Alerts quote times from places that are UTC by construction, PHP's error log
 	 * writes "[04-Aug-2026 20:40:15 UTC]", and several of our own messages used
 	 * gmdate(). An alert that says one thing in the footer and another in the body
 	 * makes the reader do timezone arithmetic at exactly the moment they can least
@@ -569,7 +569,7 @@ class CloudScale_Telegram {
 	 * is left alone rather than guessed at.
 	 */
 	private static function localise_utc_stamps( string $text ): string {
-		// PHP error-log prefix: [04-Aug-2026 20:40:15 UTC] — and GMT, which is what
+		// PHP error-log prefix: [04-Aug-2026 20:40:15 UTC], and GMT, which is what
 		// PHP actually emits when date.timezone is UTC. Matching only "UTC" is why
 		// alerts kept showing a GMT stamp after every other clock had been localised:
 		// the copy was correct everywhere we controlled and wrong on the one line we
@@ -627,13 +627,13 @@ class CloudScale_Telegram {
 
 		// Local time and originating host on EVERY alert, stamped here rather than
 		// at the call sites so a new alert cannot ship without either. Times quoted
-		// inside the body are converted to the same clock — see
+		// inside the body are converted to the same clock, see
 		// localise_utc_stamps(); see alert_origin() for why the site domain alone
 		// cannot attribute a clone.
 		// Order matters: the origin block goes BEFORE the timestamp because
 		// check-telegram-local-time.php asserts the message ENDS with a zone-named
-		// local time. That invariant is worth keeping — it is what proves no alert
-		// ever ships without a readable clock — so attribution slots in above it
+		// local time. That invariant is worth keeping, it is what proves no alert
+		// ever ships without a readable clock, so attribution slots in above it
 		// rather than the gate being relaxed to accommodate this.
 		$full = self::alert_prefix( $source, $level )
 			. self::localise_utc_stamps( $text )

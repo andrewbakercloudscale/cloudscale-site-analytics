@@ -23,7 +23,7 @@ add_action( 'rest_api_init', 'cspv_register_endpoint' );
  * Return the current Cloudflare egress IP ranges (CIDR notation).
  *
  * Uses a bundled static list of Cloudflare's published egress ranges.
- * No external request is made — the list ships with the plugin.
+ * No external request is made, the list ships with the plugin.
  *
  * @since 2.9.318
  * @return string[]
@@ -144,7 +144,7 @@ function cspv_public_view_count( $post_id ) {
 // Both are sized well above realistic peak concurrent traffic so they only
 // bite under an actual DDoS against the view-counter endpoint (per-IP
 // throttling in ip-throttle.php is the precise abuse defense; these are
-// backstops). Once either is hit, incoming hits are dropped —
+// backstops). Once either is hit, incoming hits are dropped,
 // cspv_flush_view_queue() alerts via Telegram (rate-limited) if any drops
 // occurred, so it is never silent.
 // ---------------------------------------------------------------------------
@@ -382,7 +382,7 @@ function cspv_get_client_ip() {
     // CF-Connecting-IP is authoritative (set by Cloudflare, stripped from client
     // input) when the request reached us via Cloudflare. That's true both when the
     // immediate peer is a published Cloudflare edge IP AND when it's a private/
-    // loopback address — the case for a Cloudflare *Tunnel* origin (cloudflared ->
+    // loopback address, the case for a Cloudflare *Tunnel* origin (cloudflared ->
     // nginx -> php), where REMOTE_ADDR is the internal gateway, never a CF edge.
     // Without this, tunnel traffic fell through to X-Forwarded-For (often a CF/proxy
     // hop that doesn't geolocate), producing "Unknown" countries.
@@ -403,7 +403,7 @@ function cspv_get_client_ip() {
  * Per-IP rate limit for the public read endpoints (counts, ping).
  *
  * Coarse fixed-window counter, generous by default (120 requests / 60s) so
- * legitimate listing-page traffic is never affected — only trivial flood loops
+ * legitimate listing-page traffic is never affected, only trivial flood loops
  * from a single IP are blocked. Both bounds are filterable; a limit of 0
  * disables the check.
  *
@@ -423,7 +423,7 @@ function cspv_read_rate_limited() {
     }
     $raw_ip = cspv_get_client_ip();
     if ( '' === $raw_ip ) {
-        return false; // Can't identify the caller — don't block.
+        return false; // Can't identify the caller, don't block.
     }
     $key   = 'cspv_rl_' . hash( 'sha256', $raw_ip . wp_salt() );
     $count = (int) wp_cache_get( $key, 'cspv_ratelimit' );
@@ -436,19 +436,19 @@ function cspv_read_rate_limited() {
 
 /**
  * ---------------------------------------------------------------------------
- * WordPress.org reviewer note — public ("__return_true") endpoints
+ * WordPress.org reviewer note, public ("__return_true") endpoints
  * ---------------------------------------------------------------------------
  * Frontend view tracking relies on a JavaScript beacon (beacon.js) that fires
  * from every visitor's browser, including anonymous (logged-out) visitors and
  * on Cloudflare-cached pages where PHP never runs. The routes below are
- * therefore intentionally public — a capability or login check would defeat
+ * therefore intentionally public, a capability or login check would defeat
  * their purpose. They are hardened, not unguarded:
  *
  *   POST /v1/record/{id}  Records one page view.
  *                         - {id} validated (numeric > 0) and absint-sanitised;
  *                         - target must be an existing published (publish) post;
  *                         - a valid wp_rest nonce is required by default
- *                           (cspv_beacon_auth — see cspv_beacon_auth_required());
+ *                           (cspv_beacon_auth, see cspv_beacon_auth_required());
  *                         - per-IP throttle + session dedup prevent flooding;
  *                         - the only visitor data stored is a hashed IP
  *                           (SHA-256 + wp_salt, never raw) plus the post ID.
@@ -480,7 +480,7 @@ function cspv_register_endpoint() {
         array(
             'methods'             => 'POST',
             'callback'            => 'cspv_record_view',
-            'permission_callback' => '__return_true', // Public by design: anonymous visitor beacon. Hardened — see reviewer note above (validated ID + wp_rest nonce + per-IP throttle).
+            'permission_callback' => '__return_true', // Public by design: anonymous visitor beacon. Hardened, see reviewer note above (validated ID + wp_rest nonce + per-IP throttle).
             'args'                => array(
                 'id' => array(
                     'validate_callback' => function ( $param ) {
@@ -595,7 +595,7 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
         set_transient( 'cspv_audio_table_exists', '1', HOUR_IN_SECONDS );
     }
 
-    // Column name is one of two hard-coded literals selected above — safe to
+    // Column name is one of two hard-coded literals selected above, safe to
     // interpolate; only post_id and the hour bucket are user-influenced values.
     $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
         "INSERT INTO `{$table}` (post_id, bucketed_at, `{$column}`)
@@ -608,7 +608,7 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
      * Keep the denormalised play counter in step with the bucket write.
      *
      * The public counter on the player reads meta, not this table (see
-     * cspv_get_audio_play_count) — a listing page renders a player per result and
+     * cspv_get_audio_play_count), a listing page renders a player per result and
      * cannot afford a SUM each. Incremented only for 'play': the counter answers
      * "how many people pressed play", and a completion is the same listener again.
      *
@@ -757,8 +757,8 @@ function cspv_record_view( WP_REST_Request $request ) {
     // --- APCu queue dispatch ------------------------------------------
     // Try to enqueue the increment instead of writing directly to DB.
     //   true  = queued (APCu active, batch write deferred to cron)
-    //   false = queue full at CSPV_QUEUE_MAX — drop silently (rate-limiting)
-    //   null  = APCu unavailable — fall through to direct DB write
+    //   false = queue full at CSPV_QUEUE_MAX, drop silently (rate-limiting)
+    //   null  = APCu unavailable, fall through to direct DB write
     $queued    = cspv_apcu_enqueue( $post_id );
     $use_queue = ( $queued === true );
 
@@ -997,7 +997,7 @@ function cspv_register_counts_endpoint() {
         array(
             'methods'             => 'GET',
             'callback'            => 'cspv_get_counts',
-            'permission_callback' => '__return_true', // Public by design: read-only, returns counts already shown publicly on the frontend (max 50 absint IDs — see reviewer note above).
+            'permission_callback' => '__return_true', // Public by design: read-only, returns counts already shown publicly on the frontend (max 50 absint IDs, see reviewer note above).
             'args'                => array(
                 'ids' => array(
                     'required'          => true,

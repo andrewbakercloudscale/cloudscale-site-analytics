@@ -274,7 +274,7 @@
     // Why this is not optional polish: these pages are served from a CDN, so the number
     // rendered into the HTML is as old as the cached copy. Without this the listener
     // presses play, their play IS counted, and the counter they are looking at does not
-    // move — which reads as a broken counter rather than a cached one.
+    // move, which reads as a broken counter rather than a cached one.
     //
     // Suffix pluralisation is carried on the element (both forms) rather than decided
     // here, so this stays translation-agnostic and 0 -> 1 never prints "1 plays".

@@ -203,7 +203,7 @@ function cspv_render_stats_tab( $vars ) {
                 </div>
             </div>
             <div style="background:#fff;padding:22px 24px 24px;">
-                <p style="font-size:20px;color:#1e293b;margin:0 0 14px;line-height:1.5;">The only WordPress backup plugin that is <strong>100% free</strong> — including one-click restore. Other plugins like UpdraftPlus and BackupBuddy charge $70–$200 per year just to recover your site.</p>
+                <p style="font-size:20px;color:#1e293b;margin:0 0 14px;line-height:1.5;">The only WordPress backup plugin that is <strong>100% free</strong>, including one-click restore. Other plugins like UpdraftPlus and BackupBuddy charge $70-$200 per year just to recover your site.</p>
                 <p style="font-size:20px;color:#1e293b;margin:0 0 20px;line-height:1.5;">Includes automatic scheduled backups, Amazon S3, Google Drive, Dropbox, and EC2 AMI snapshots. <strong>No subscription. No upsells. Ever.</strong></p>
                 <a href="https://help.cloudscale.consulting/plugin-help/backup-restore/" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;font-size:18px;font-weight:700;padding:13px 30px;border-radius:8px;text-decoration:none;box-shadow:0 2px 10px rgba(157,23,77,.35);">Learn More &rarr;</a>
             </div>
@@ -1133,7 +1133,7 @@ ob_start();
     var insightsData  = null;
     var insightsSub   = 'top';
 
-    // Per-panel search terms (Insights tab) — all lowercase, '' = no filter
+    // Per-panel search terms (Insights tab), all lowercase, '' = no filter
     var insSearch = {
         traffic: '', growth: '', posts: '', refTable: '', refLanding: '', refsChart: '', content: ''
     };
@@ -2157,7 +2157,7 @@ ob_start();
         });
     }());
 
-    // Per-panel search boxes — filter the already-loaded dashboard data client-side.
+    // Per-panel search boxes, filter the already-loaded dashboard data client-side.
     insBindSearch('cspv-ins-traffic-search',    'traffic',    renderInsDashboard);
     insBindSearch('cspv-ins-growth-search',     'growth',     renderInsDashboard);
     insBindSearch('cspv-ins-posts-search',      'posts',      renderInsDashboard);
@@ -2173,7 +2173,7 @@ ob_start();
         var from = new Date(now - (insPeriod - 1) * 864e5).toISOString().slice(0, 10);
         var rangeEl = document.getElementById('cspv-insights-range');
         // This panel only supports whole calendar dates server-side, so "24 hours"
-        // resolves to today's calendar day rather than a true rolling 24h window —
+        // resolves to today's calendar day rather than a true rolling 24h window,
         // still label it to match what the period button says, not "Last 1 days".
         if (rangeEl) rangeEl.textContent = insPeriod === 1 ? 'Last 24 hours' : 'Last ' + insPeriod + ' days';
         document.getElementById('cspv-insights-list').innerHTML = '<div class="cspv-loading">Loading…</div>';
@@ -2308,14 +2308,14 @@ ob_start();
         var modal   = document.getElementById('cspv-ref-drill-modal');
         var titleEl = document.getElementById('cspv-ref-drill-title');
         var listEl  = document.getElementById('cspv-ref-drill-list');
-        titleEl.textContent = host + ' \u2014 Top Pages';
+        titleEl.textContent = host + ', Top Pages';
         listEl.innerHTML = '<div class="cspv-loading" style="padding:20px 20px 12px;">Loading\u2026</div>';
         openModal(modal);
         var fd = new FormData();
         fd.append('action', 'cspv_referrer_drill');
         fd.append('nonce', nonce);
         fd.append('host', host);
-        // Use the exact datetime window computed when the chart data loaded \u2014
+        // Use the exact datetime window computed when the chart data loaded  -
         // avoids a rolling-24h boundary mismatch if a few minutes have passed.
         if (lastQueryFrom && lastQueryTo) {
             fd.append('exact_from', lastQueryFrom);
@@ -2437,7 +2437,7 @@ ob_start();
             // server needs no key.
             // `bounds` clamps requested tiles to real coordinates. Without it, at zoom 1 in
             // a wide container Leaflet asks for x = -1 and x = 2 (not merely wrapped copies,
-            // which `noWrap` already stops) — invalid tile coordinates the CDN 400s on, four
+            // which `noWrap` already stops), invalid tile coordinates the CDN 400s on, four
             // times per page load.
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 subdomains: 'abc',
@@ -2516,7 +2516,7 @@ ob_start();
                 rangeEl.textContent = rangeLabels[r];
             } else {
                 var fd = from.slice(0, 10), td = to.slice(0, 10);
-                rangeEl.textContent = fd === td ? fd : fd + ' \u2013 ' + td;
+                rangeEl.textContent = fd === td ? fd : fd + ', ' + td;
             }
         }
 
@@ -3556,7 +3556,7 @@ ob_start();
         });
 
         // Enter still runs a full server-side search across ALL posts, for when
-        // the wanted one isn't in this pre-rendered top-100 list \u2014 no visible
+        // the wanted one isn't in this pre-rendered top-100 list, no visible
         // button for it, consistent with every other panel's search box.
         function doSearch() {
             var q = searchInput.value.trim();
@@ -3718,7 +3718,7 @@ ob_start();
             wrap.style.display = 'block';
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-            // Re-fetch if the post changed OR the Insights period changed —
+            // Re-fetch if the post changed OR the Insights period changed,
             // otherwise switching periods left a stale, wrong-period map open.
             if (geoLoadedId === postId && geoLoadedPeriod === insPeriod && geoMap) {
                 setTimeout(function() { geoMap.invalidateSize(); }, 100);
@@ -3769,7 +3769,7 @@ ob_start();
                 // CARTO's basemaps.cartocdn.com stopped serving anonymous/keyless tiles,
                 // returning "API KEY REQUIRED" watermark tiles instead. OSM's standard tile
                 // server needs no key.
-                // bounds clamps requested tiles to real coordinates — see the comment on the
+                // bounds clamps requested tiles to real coordinates, see the comment on the
                 // Geography map's tileLayer call above for why this matters at zoom 1.
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     subdomains: 'abc', maxZoom: 19, noWrap: true,

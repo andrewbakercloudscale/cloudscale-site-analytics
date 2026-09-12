@@ -33,7 +33,7 @@ const DESTRUCTIVE_RE = /\b(delete|remove|reset|clear|wipe|purge|trash|revoke|rol
 
 // Selectors that indicate a visible confirmation UI after a click
 const MODAL_SELECTORS = [
-    '#cs-dialog-modal',          // csConfirm() — used by all backup plugin destructive actions
+    '#cs-dialog-modal',          // csConfirm(), used by all backup plugin destructive actions
     '#cs-dialog-overlay',
     '.cs-modal:not([style*="display: none"]):not([style*="display:none"])',
     '[role="dialog"]:not([hidden])',
@@ -46,7 +46,7 @@ const MODAL_SELECTORS = [
     '[class*="dialog"]:not([style*="display: none"])',
 ];
 
-// Skip patterns — UI toggles or intentionally confirmation-free actions
+// Skip patterns, UI toggles or intentionally confirmation-free actions
 const SKIP_PATTERNS = [
     /remove.*filter/i,
     /clear.*search/i,
@@ -93,7 +93,7 @@ async function dismissModal(page) {
             }
         } catch { /* continue */ }
     }
-    // Force-hide cs-dialog overlay and modal via JS — jQuery .hide() and Playwright can race
+    // Force-hide cs-dialog overlay and modal via JS, jQuery .hide() and Playwright can race
     await page.evaluate(() => {
         const els = document.querySelectorAll('#cs-dialog-overlay, #cs-dialog-modal, .cs-modal-overlay, [id$="-overlay"]');
         els.forEach(el => { el.style.display = 'none'; el.style.visibility = 'hidden'; });
@@ -118,7 +118,7 @@ async function scanAndTestButtons(page, label, failures, notices) {
             if (seenText.has(text)) continue; // skip duplicate rows
             seenText.add(text);
             destructive.push({ btn, text });
-        } catch { /* stale — skip */ }
+        } catch { /* stale, skip */ }
     }
 
     if (destructive.length === 0) return;
@@ -148,7 +148,7 @@ async function scanAndTestButtons(page, label, failures, notices) {
             page.off('request', reqHandler);
             continue;
         }
-        console.log(`      clicked: "${text}" — waiting...`);
+        console.log(`      clicked: "${text}", waiting...`);
 
         await page.waitForTimeout(400);
 
@@ -161,7 +161,7 @@ async function scanAndTestButtons(page, label, failures, notices) {
         if (postFired && !confirmed) {
             failures.push(`[${label}] "${text}" fired POST (${postUrl.split('?')[0]}) without confirmation`);
         } else if (!postFired && !confirmed) {
-            notices.push(`[${label}] "${text}" — no POST, no confirmation (may be UI-only)`);
+            notices.push(`[${label}] "${text}", no POST, no confirmation (may be UI-only)`);
         } else {
             console.log(`      ✓ "${text}"`);
         }
@@ -201,7 +201,7 @@ for (const { name, url, tabs } of PAGES) {
         }
 
         if (notices.length) {
-            console.log(`\n  ${name} — manual review needed:`);
+            console.log(`\n  ${name}, manual review needed:`);
             for (const n of notices) console.log(`    ⚠ ${n}`);
         }
 

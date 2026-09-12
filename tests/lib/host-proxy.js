@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * host-proxy.js — point the whole test run at one host without touching DNS.
+ * host-proxy.js, point the whole test run at one host without touching DNS.
  *
  * WHY THIS EXISTS
  * ---------------
  * WP_HOME is pinned to the canonical domain, so a restored or QA copy 301s any other
  * hostname straight to it. Open the QA hostname in a browser and you are looking at
- * PRODUCTION while believing you are testing a copy — which is how a review of a "QA instance"
+ * PRODUCTION while believing you are testing a copy, which is how a review of a "QA instance"
  * ended up reporting three services broken.
  *
  * Tests therefore have to keep using the production hostname and have it land somewhere else.
  * Chromium can do that alone (--host-resolver-rules), but the specs mint their session from Node
- * first, and Node resolves through real DNS — so half the run would hit production and half the
+ * first, and Node resolves through real DNS, so half the run would hit production and half the
  * copy, which is worse than either.
  *
  * A CONNECT proxy fixes both at once: every client speaks to the canonical hostname as usual, and
@@ -73,7 +73,7 @@ if (!/^\d+\.\d+\.\d+\.\d+$/.test(TARGET)) {
 
 const server = http.createServer((req, res) => {
     // Plain HTTP is not proxied: everything here is https, and silently allowing http would
-    // let a request bypass the tunnel and reach production. Logged rather than dropped quietly —
+    // let a request bypass the tunnel and reach production. Logged rather than dropped quietly,
     // a page that asks for an http:// URL is worth knowing about, and an unexplained failure in
     // the run should never trace back to a refusal this proxy never mentioned.
     console.error('host-proxy: REFUSED plain HTTP ' + req.method + ' ' + req.url);

@@ -117,6 +117,43 @@ class CloudScale_Telegram {
 	}
 
 	/**
+	 * A short label naming the environment an alert came from, e.g. "DR>".
+	 *
+	 * The sibling of OPTION_MUTED, for the case muting is too blunt. DR has to
+	 * alert: it is where restores are tested, so it is the box most likely to be
+	 * the one failing, and a muted DR proves nothing. But it shares production's
+	 * chat id, so its deliberate failures land beside real ones and the risk is
+	 * that genuine alerts start getting ignored.
+	 *
+	 * The body already distinguishes them -- alert_prefix() prints the domain and
+	 * alert_origin() prints the host -- but both sit inside a message you have to
+	 * open. This is for the notification you see on a lock screen without opening
+	 * anything.
+	 *
+	 * Empty on production, which is every install that never sets it, so the
+	 * default is the current behaviour exactly.
+	 */
+	const OPTION_ENV_LABEL = 'csdt_alert_env_label';
+
+	/**
+	 * The environment label, sanitised and length-capped.
+	 *
+	 * Capped because the header shares Telegram's 4096-char budget with the alert
+	 * itself: a label long enough to matter would truncate the body, and the body
+	 * is the part that says what broke. Newlines are stripped for the same reason
+	 * the cap exists -- the first line is the notification preview, and a label
+	 * containing one would push the domain off it.
+	 */
+	private static function env_label(): string {
+		$label = sanitize_text_field( (string) get_option( self::OPTION_ENV_LABEL, '' ) );
+		$label = trim( preg_replace( '/\s+/', ' ', $label ) );
+		if ( '' === $label ) {
+			return '';
+		}
+		return function_exists( 'mb_substr' ) ? mb_substr( $label, 0, 12 ) : substr( $label, 0, 12 );
+	}
+
+	/**
 	 * The rate ledger: what has actually been sent, and what has been held back.
 	 *
 	 * AN OPTION, NOT A TRANSIENT, and that is the whole reason this exists centrally.
@@ -339,6 +376,15 @@ class CloudScale_Telegram {
 		$label = strtoupper( trim( $level ) ?: 'INFO' );
 
 		$header = $source ? $domain . ' : ' . $source : $domain;
+
+		// Ahead of the domain, not after it: this exists to be read in a lock-screen
+		// preview that truncates, so it has to be in the first few characters or it
+		// is not doing its job. See OPTION_ENV_LABEL.
+		$env = self::env_label();
+		if ( '' !== $env ) {
+			$header = $env . ' ' . $header;
+		}
+
 		return $emoji . ' ' . $header . "\n" . $label . "\n\n";
 	}
 
@@ -358,12 +404,71 @@ class CloudScale_Telegram {
 	 * was 172.20.0.1, that copy's Docker gateway. That is why an unroutable
 	 * address is now labelled rather than presented as the visitor's IP.
 	 */
-	private static function alert_origin(): string {
-		$host = gethostname();
-		if ( ! is_string( $host ) || '' === $host ) {
-			$host = 'unknown-host';
+	/**
+	 * A name for the machine this is running on, that a human can act on.
+	 *
+	 * WHY gethostname() IS NOT ENOUGH
+	 *
+	 * Inside Docker it returns the CONTAINER ID: a random twelve-hex-digit string
+	 * such as 4d322d560c76. It does not name the machine, it is not the site, and
+	 * it is not even stable, because recreating the container changes it. So two
+	 * alerts from the same box a week apart carry different "hosts", and neither
+	 * points at anything anyone can look up.
+	 *
+	 * The host's own address cannot be discovered from inside either: SERVER_ADDR
+	 * is the container's address on the bridge network. A container has to be TOLD
+	 * where it is running, so this prefers, in order:
+	 *
+	 *   1. CSBR_HOST_LABEL, a constant or environment variable set by whoever runs
+	 *      the container, e.g. "andrew-pi-5" or "andrew-pi-5 (192.168.0.24)";
+	 *   2. gethostname(), when it does not look like a container id;
+	 *   3. the container id, clearly labelled as one, so the reader is not misled
+	 *      into thinking it names a machine.
+	 *
+	 * @since 3.2.753
+	 * @return string Host label, never empty.
+	 */
+	private static function host_label(): string {
+		$explicit = '';
+		if ( defined( 'CSBR_HOST_LABEL' ) && is_string( constant( 'CSBR_HOST_LABEL' ) ) ) {
+			$explicit = trim( (string) constant( 'CSBR_HOST_LABEL' ) );
+		}
+		if ( '' === $explicit ) {
+			$env = getenv( 'CSBR_HOST_LABEL' );
+			if ( is_string( $env ) ) {
+				$explicit = trim( $env );
+			}
+		}
+		if ( '' !== $explicit ) {
+			return sanitize_text_field( $explicit );
 		}
 
+		$host = gethostname();
+		if ( ! is_string( $host ) || '' === $host ) {
+			return 'unknown-host';
+		}
+
+		// Docker's default: the twelve-hex-digit container id. Saying so is more
+		// useful than printing it as though it were a machine name.
+		if ( 1 === preg_match( '/^[0-9a-f]{12}$/', $host ) ) {
+			return 'container ' . $host . ', host not labelled';
+		}
+
+		return sanitize_text_field( $host );
+	}
+
+	private static function alert_origin(): string {
+		$host = self::host_label();
+
+		/*
+		 * The container's own address, and labelled as such.
+		 *
+		 * SERVER_ADDR inside a container is the address on the container network,
+		 * a 172.x that means nothing outside this machine and is not the host's
+		 * address. Printing it unqualified next to a hostname invites exactly the
+		 * wrong reading, so it is only shown when it adds something, and it says
+		 * what it is.
+		 */
 		$server_ip = isset( $_SERVER['SERVER_ADDR'] )
 			? sanitize_text_field( wp_unslash( $_SERVER['SERVER_ADDR'] ) )
 			: '';
@@ -372,7 +477,7 @@ class CloudScale_Telegram {
 		}
 
 		$lines   = array();
-		$lines[] = 'Host: ' . $host . ( '' !== $server_ip ? ' (' . $server_ip . ')' : '' );
+		$lines[] = 'Host: ' . $host . ( '' !== $server_ip ? ' (container ' . $server_ip . ')' : '' );
 		$lines[] = 'From: ' . self::trigger_source();
 
 		$account = self::acting_account();
@@ -536,7 +641,7 @@ class CloudScale_Telegram {
 			foreach ( $candidates as $zone ) {
 				try {
 					$tz = new DateTimeZone( $zone );
-				} catch ( \Exception $e ) {
+				} catch ( \Throwable $e ) {
 					unset( $e );
 					continue;
 				}

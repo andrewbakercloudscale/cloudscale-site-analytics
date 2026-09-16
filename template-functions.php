@@ -184,7 +184,7 @@ function cspv_the_audio_plays( $args = array() ) {
  */
 function cspv_audio_plays_html( $args = array() ) {
     $defaults = array(
-        'icon'    => '&#9654;',
+        'icon'    => '▶',
         'suffix'  => ' plays',
         'post_id' => null,
     );
@@ -199,8 +199,10 @@ function cspv_audio_plays_html( $args = array() ) {
     $one    = ' ' . rtrim( trim( $many ), 's' );
     $suffix = ( 1 === $count ) ? $one : $many;
 
-    // esc_html on a caller-supplied icon would print '&#9654;' as literal text, so the
-    // default is decoded to its character first and whatever a caller passes is escaped.
+    // esc_html on an HTML entity prints it as literal text, so anything a caller passes
+    // is decoded before it is escaped. The DEFAULT above is the character itself rather
+    // than '&#9654;': it no longer depends on this decode, and the shared licence-UI gate
+    // flags an entity in an 'icon' value because the shared card escapes what it is given.
     // A theme is a trusted caller, but "trusted" is not a property this function can check.
     $icon_txt = html_entity_decode( (string) $args['icon'], ENT_QUOTES, 'UTF-8' );
     $icon     = ( '' !== $icon_txt )

@@ -4,10 +4,13 @@
     "cspv",
     "cloudscale"
   ],
-  "legacy_prefixes": [],
-  "legacy_budget": 0,
+  "legacy_prefixes": [
+    "csdt"
+  ],
+  "legacy_budget": 1,
+  "legacy_prefixes_reason": "'csdt' is cyber-devtools' prefix, and one option written from this plugin carries it: csdt_alert_env_label, in the shared CloudScale_Telegram class. That is deliberate and documented at the top of shared-admin-ui/class-cloudscale-telegram.php -- the Telegram token, chat id, mute switch, rate ledger and environment label are ONE configuration for the whole five-plugin suite, only one copy of the class ever loads, and prefixing them per-plugin would split one config into five. A migration from the older cloudscale_* names to csdt_* is in flight (every read falls back, every write updates both), so renaming this one would move it backwards against that migration and orphan the setting on every site that has one. Declared here rather than under finding_budget because it is the tighter statement: only a csdt_-prefixed name counts, and only one of them.",
   "foreign_hooks": [],
-  "path_exemptions": [],
+  "_path_accessor_note": "There is no path_accessor key because this plugin reads no core path constant at all: the rejection-class check reports path-location 0 across 23 shipped PHP files. That is measured, not assumed, and it is why declaring an accessor here would be wrong -- a class with nothing to resolve, named as the one file allowed to read them, would claim cover it does not have. The other four plugins each needed one (cyber-devtools 15 reads, backup-restore 79, seo-ai-optimizer 21, database-cleanup 4). If a core path constant is ever introduced here, add includes/class-cspv-paths.php on the shape of those and name it in path_accessor rather than exempting the line.",
   "vendor_exemptions": [
     {
       "path": "lib/maxmind-db",

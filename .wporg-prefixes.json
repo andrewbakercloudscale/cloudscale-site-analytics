@@ -16,5 +16,14 @@
       "path": "lib/maxmind-db",
       "reason": "Vendored third-party library (maxmind/MaxMind-DB-Reader-PHP, Apache-2.0), shipped unmodified so it can be replaced with an upstream release. Its classes live in the MaxMind\\Db namespace and cannot collide; only lib/maxmind-db/autoload.php declares a global, mmdb_autoload(), which is our own shim and is renamed to a plugin prefix if it ever clashes."
     }
+  ],
+  "_known_offloading_hosts_reason": "Hosts on WordPress.org's own offloading-host list (Plugin Check's OffloadingServicesTrait) that appear as strings in the shipped tree. The reviewer's scanner matches every string in every file, comments and JavaScript included, and honours no phpcs annotation, so a string that is never fetched still has to be explained rather than hidden. 'fetched': true means a real request, and then 'disclosed_as' must name the endpoint readme.txt carries.",
+  "known_offloading_hosts": [
+    {
+      "file": "cloudscale-site-analytics.php",
+      "host": "s.w.org",
+      "fetched": false,
+      "reason": "Not fetched. WordPress core's twemoji polyfill rewrites native emoji into <img> tags served from this host; the filter here matches that host in order to REMOVE those URLs from the page, and the plugin never issues a request to it. The literal cannot be avoided: core has shipped the reference as both 'https://s.w.org' and '//s.w.org', and matching one form silently stopped removing anything when core used the other."
+    }
   ]
 }

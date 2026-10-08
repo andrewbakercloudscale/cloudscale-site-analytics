@@ -193,6 +193,13 @@ function cspv_render_stats_tab( $vars ) {
             <div id="cspv-cf-test-log"></div>
         </div>
 
+        <?php
+        // Shown only where the backup plugin is not running. It used to be printed on every
+        // site, so someone already using CloudScale Backup & Restore was advertised the
+        // plugin they had installed. CSBR_VERSION is defined by that plugin's main file,
+        // so it is set exactly when the plugin is active.
+        if ( ! defined( 'CSBR_VERSION' ) ) :
+        ?>
         <!-- ── CloudScale Backup & Restore promo ─────────────────────── -->
         <div style="margin-top:24px;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12);">
             <div style="background:linear-gradient(135deg,#9d174d,#ec4899);padding:20px 24px 16px;display:flex;align-items:center;gap:16px;">
@@ -208,6 +215,7 @@ function cspv_render_stats_tab( $vars ) {
                 <a href="https://help.cloudscale.consulting/plugin-help/backup-restore/" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;font-size:18px;font-weight:700;padding:13px 30px;border-radius:8px;text-decoration:none;box-shadow:0 2px 10px rgba(157,23,77,.35);">Learn More &rarr;</a>
             </div>
         </div>
+        <?php endif; ?>
 
     </div><!-- /stats tab -->
     <?php

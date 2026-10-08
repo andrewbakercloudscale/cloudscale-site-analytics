@@ -672,7 +672,7 @@ function cspv_download_dbip_file() {
     ) );
 
     if ( is_wp_error( $response ) ) {
-        return new WP_Error( 'download_failed', 'Download failed: ' . CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
+        return new WP_Error( 'download_failed', 'Download failed: ' . CSPV_Error_Text::in_seconds( $response->get_error_message() ) );
     }
 
     $code = wp_remote_retrieve_response_code( $response );
@@ -747,7 +747,7 @@ function cspv_ajax_download_dbip() {
     try {
         $result = cspv_download_dbip_file();
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( CloudScale_Error_Text::in_seconds( $result->get_error_message() ) );
+            wp_send_json_error( CSPV_Error_Text::in_seconds( $result->get_error_message() ) );
         } else {
             wp_send_json_success( $result );
         }
@@ -764,8 +764,8 @@ add_action( 'cspv_dbip_auto_update', function() {
         cspv_dbip_auto_update_run();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[cloudscale-site-analytics] cron cspv_dbip_auto_update failed (%s): %s', get_class( $e ), $e->getMessage() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional cron error logging
-        if ( class_exists( 'CloudScale_Telegram' ) ) {
-            CloudScale_Telegram::send(
+        if ( class_exists( 'CSPV_Telegram' ) ) {
+            CSPV_Telegram::send(
                 "DB-IP geolocation auto-update cron failed.\n\nError: " . $e->getMessage(),
                 'Site Analytics',
                 'error'
@@ -921,7 +921,7 @@ function cspv_save_display_settings() {
         if ( ! file_exists( $mmdb_path ) ) {
             $dl = cspv_download_dbip_file();
             if ( is_wp_error( $dl ) ) {
-                $geo_notice = ' DB-IP download failed: ' . esc_html( CloudScale_Error_Text::in_seconds( $dl->get_error_message() ) );
+                $geo_notice = ' DB-IP download failed: ' . esc_html( CSPV_Error_Text::in_seconds( $dl->get_error_message() ) );
             } else {
                 $geo_notice = ' DB-IP Lite (' . esc_html( $dl['size'] ) . ') downloaded automatically.';
             }

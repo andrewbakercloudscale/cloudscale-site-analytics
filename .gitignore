@@ -36,9 +36,11 @@ tests/.env
 
 # Playwright test artifacts
 tests/test-results/
-# The HTML report's attachment blobs: regenerated on every run, 1.2 MB a time, and
-# untracked-but-unignored is how they end up in a commit via `git add -A`.
-tests/playwright-report/data/
+# The whole HTML report, index.html included. Only its data/ blobs were ignored, and
+# index.html plus test-results/.last-run.json had been committed before the rules
+# existed, so every test run left the tree dirty and every deploy warned about
+# "uncommitted files" that were only the last run's output.
+tests/playwright-report/
 
 # Playwright MCP scratch output (page snapshots, console logs, downloaded fixtures).
 .playwright-mcp/

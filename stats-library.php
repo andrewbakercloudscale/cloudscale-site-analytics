@@ -1208,12 +1208,55 @@ function cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period )
 }
 
 /**
- * Return top posts for the Insights bar chart.
+ * Posts viewed in the Insights period, most viewed first, for the two pick lists
+ * on the Insights tab (Post Analytics and Geo Post View).
  *
- * @param  string $from_str
- * @param  string $to_str
- * @param  int    $limit
- * @return array  Array of { title, url, views }
+ * Those lists were rendered once in PHP from the all-time view counter, so they
+ * ignored the period buttons: with "30 days" selected they still ranked every
+ * post by its lifetime total, and a post published this month sat far below the
+ * fold or off the list entirely. Views only, and no audience join, because this
+ * is a hundred rows and the join is the expensive part of the table above it.
+ *
+ * @since 2.9.512
+ * @param string $from_str Period start, Y-m-d H:i:s.
+ * @param string $to_str   Period end, Y-m-d H:i:s.
+ * @param int    $limit    Most posts to return.
+ * @return array<int,array{id:int,title:string,type:string,url:string,views:int}>
+ */
+function cspv_insights_period_posts( $from_str, $to_str, $limit = 100 ) {
+    global $wpdb;
+    $table = esc_sql( cspv_views_table() );
+
+    $rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- table name from esc_sql(); live period aggregate
+        "SELECT post_id, COALESCE(SUM(view_count),0) AS views FROM `{$table}`
+         WHERE viewed_at BETWEEN %s AND %s
+         GROUP BY post_id ORDER BY views DESC LIMIT %d",
+        $from_str, $to_str, $limit ) );
+
+    $result = array();
+    foreach ( (array) $rows as $r ) {
+        $pid  = absint( $r->post_id );
+        $post = $pid ? get_post( $pid ) : null;
+        if ( ! $post || 'publish' !== $post->post_status ) { continue; }
+        $result[] = array(
+            'id'    => $pid,
+            'title' => html_entity_decode( $post->post_title, ENT_QUOTES, 'UTF-8' ),
+            'type'  => $post->post_type,
+            'url'   => get_permalink( $pid ),
+            'views' => (int) $r->views,
+        );
+    }
+    return $result;
+}
+
+/**
+ * Top posts for the Insights period, with audience and narration figures.
+ *
+ * @since 1.0.0
+ * @param string $from_str Period start, Y-m-d H:i:s.
+ * @param string $to_str   Period end, Y-m-d H:i:s.
+ * @param int    $limit    Most posts to return.
+ * @return array
  */
 function cspv_insights_top_posts_data( $from_str, $to_str, $limit = 15 ) {
     global $wpdb;

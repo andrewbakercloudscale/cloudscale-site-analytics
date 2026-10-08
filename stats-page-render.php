@@ -314,6 +314,14 @@ function cspv_render_insights_tab( $vars ) {
                         <div style="position:relative;" id="cspv-ins-country-wrap">
                             <canvas id="cspv-ins-country-chart"></canvas>
                         </div>
+                        <div id="cspv-ins-country-hint" style="font-size:11px;color:#374151;margin-top:8px;">Click a country to see its top 10 pages.</div>
+                        <div id="cspv-ins-country-drill" style="display:none;margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#0f172a;">
+                                <span id="cspv-ins-country-drill-title" style="font-size:12px;font-weight:700;color:#eef2f8;"></span>
+                                <button type="button" id="cspv-ins-country-drill-close" aria-label="Close" style="background:none;border:none;color:#eef2f8;font-size:16px;line-height:1;cursor:pointer;padding:0 2px;">&times;</button>
+                            </div>
+                            <div id="cspv-ins-country-drill-list"></div>
+                        </div>
                     </div>
                     <div class="cspv-ins-chart-panel cspv-ins-panel-wide">
                         <div class="cspv-ins-chart-title">Countries Over Time</div>
@@ -427,7 +435,7 @@ function cspv_render_insights_tab( $vars ) {
                 <div class="cspv-ins-chart-panel cspv-ins-chart-panel-solo">
                     <div style="background:linear-gradient(135deg,#581c87,#7e22ce);color:#fff;margin:-1px -1px 0;padding:10px 16px;border-radius:6px 6px 0 0;font-size:12px;font-weight:700;letter-spacing:.04em;">&#x1F5FA; Geo Post View</div>
                     <div style="padding:12px 16px 16px;">
-                        <p style="margin:0 0 10px;font-size:12px;color:#64748b;">Click a post to see its geographic traffic distribution.</p>
+                        <p style="margin:0 0 10px;font-size:12px;color:#64748b;">Posts viewed in the selected period, most viewed first. Click one to see where its readers were.</p>
                         <input type="text" id="cspv-geo-search" class="cspv-ins-panel-search" placeholder="Filter by post title…" autocomplete="off">
                         <div id="cspv-geo-post-list" style="max-height:260px;overflow-y:auto;border:1px solid #e8ecf0;border-radius:8px;">
                             <?php if ( empty( $ph_top_posts ) ) : ?>
@@ -1129,6 +1137,14 @@ ob_start();
     // handler so a currently-open geo map reloads for the new period instead
     // of silently continuing to show the old one.
     var insOnPeriodChange = null;
+    // Set by the Post Analytics and Geo Post View sections below. Both lists are
+    // drawn in PHP from the all-time counter; these redraw them from the views in
+    // the selected period each time the dashboard loads.
+    var insRenderPhList  = null;
+    var insRenderGeoList = null;
+    function insPeriodLabel() {
+        return insPeriod === 1 ? 'last 24 hours' : 'last ' + insPeriod + ' days';
+    }
     // Your Content panel state
     var insightsData  = null;
     var insightsSub   = 'top';
@@ -1550,6 +1566,8 @@ ob_start();
     function loadInsDashboard() {
         document.getElementById('cspv-ins-loading').style.display = 'block';
         document.getElementById('cspv-ins-content').style.display = 'none';
+        // A fresh load means a new period: an open country list belongs to the old bars.
+        insCloseCountryDrill();
         ['cspv-ins-traffic-chart','cspv-ins-growth-chart',
          'cspv-ins-country-chart','cspv-ins-country-time-chart','cspv-ins-refs-chart']
             .forEach(insDestroyChart);
@@ -1567,6 +1585,12 @@ ob_start();
                 insDashData = json.data;
                 document.getElementById('cspv-ins-content').style.display = 'block';
                 renderInsDashboard();
+                // Here and not in renderInsDashboard(), which also runs on every search
+                // keystroke and would close a post the user has just opened.
+                if (Array.isArray(insDashData.period_posts)) {
+                    if (insRenderPhList)  insRenderPhList(insDashData.period_posts);
+                    if (insRenderGeoList) insRenderGeoList(insDashData.period_posts);
+                }
             })
             .catch(function() {
                 document.getElementById('cspv-ins-loading').textContent = 'Request failed.';
@@ -2012,6 +2036,15 @@ ob_start();
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                // Click a bar, or anywhere along its row, for that country's top pages.
+                onClick: function(evt, _els, chart) {
+                    var hit = chart.getElementsAtEventForMode(evt, 'y', { intersect: false }, false);
+                    if (hit && hit.length && top[hit[0].index]) { insDrillCountry(top[hit[0].index].country_code); }
+                },
+                onHover: function(evt, _els, chart) {
+                    var hit = chart.getElementsAtEventForMode(evt, 'y', { intersect: false }, false);
+                    chart.canvas.style.cursor = (hit && hit.length) ? 'pointer' : 'default';
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: function(c) {
@@ -2025,6 +2058,62 @@ ob_start();
             }
         });
     }
+
+    // ── Views by Country: the pages behind one bar ─────────────────
+    var insDrillCc = '';
+    function insCloseCountryDrill() {
+        var box = document.getElementById('cspv-ins-country-drill');
+        if (box) box.style.display = 'none';
+        insDrillCc = '';
+    }
+    function insDrillCountry(cc) {
+        var box   = document.getElementById('cspv-ins-country-drill');
+        var title = document.getElementById('cspv-ins-country-drill-title');
+        var list  = document.getElementById('cspv-ins-country-drill-list');
+        if (!box || !list || !cc) return;
+        cc = String(cc).toUpperCase();
+        // A second click on the open country closes it.
+        if (insDrillCc === cc && box.style.display !== 'none') { insCloseCountryDrill(); return; }
+        insDrillCc = cc;
+        title.textContent = countryFlag(cc) + countryName(cc) + ': top pages, ' + insPeriodLabel();
+        list.innerHTML = '<div style="padding:12px;font-size:12px;color:#374151;">Loading…</div>';
+        box.style.display = 'block';
+        var fd = new FormData();
+        fd.append('action',  'cspv_country_drill');
+        fd.append('nonce',   nonce);
+        fd.append('country', cc);
+        fd.append('period',  String(insPeriod));
+        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                if (insDrillCc !== cc) return; // another country was clicked meanwhile
+                var pages = (resp && resp.success && resp.data && resp.data.pages) ? resp.data.pages : null;
+                if (!pages) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:#b91c1c;">Could not load the pages for this country.</div>'; return; }
+                if (!pages.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:#374151;">No pages recorded for this country in the ' + insPeriodLabel() + '.</div>'; return; }
+                var mx = pages[0].views || 1;
+                list.innerHTML = pages.map(function(p, i) {
+                    var pct  = Math.max(2, Math.round((p.views / mx) * 100));
+                    var name = p.url
+                        ? '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" style="color:#1d4ed8;text-decoration:none;font-weight:600;">' + esc(p.title) + '</a>'
+                        : '<span style="color:#0f172a;font-weight:600;">' + esc(p.title) + '</span>';
+                    return '<div class="cspv-ins-country-drill-row" style="padding:7px 12px;border-top:' + (i ? '1px solid #eef2f7' : 'none') + ';">'
+                        + '<div style="display:flex;align-items:baseline;gap:10px;font-size:12px;line-height:1.35;">'
+                        +   '<span style="flex:0 0 16px;color:#374151;">' + (i + 1) + '</span>'
+                        +   '<span style="flex:1;min-width:0;word-break:break-word;">' + name + '</span>'
+                        +   '<span style="flex-shrink:0;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums;">' + p.views.toLocaleString() + '</span>'
+                        + '</div>'
+                        + '<div style="height:4px;background:#e2e8f0;border-radius:2px;margin:5px 0 0 26px;"><div style="height:4px;border-radius:2px;background:#3b82f6;width:' + pct + '%;"></div></div>'
+                        + '</div>';
+                }).join('');
+            })
+            .catch(function() {
+                if (insDrillCc === cc) list.innerHTML = '<div style="padding:12px;font-size:12px;color:#b91c1c;">Request failed.</div>';
+            });
+    }
+    (function() {
+        var x = document.getElementById('cspv-ins-country-drill-close');
+        if (x) x.addEventListener('click', insCloseCountryDrill);
+    }());
 
     function renderInsCountryTimeChart(ct) {
         insDestroyChart('cspv-ins-country-time-chart');
@@ -3534,8 +3623,11 @@ ob_start();
         // Sortable column headers
         var phSortCol = 'views';
         var phSortAsc = false;
-        document.querySelectorAll('.cspv-ph-sort').forEach(function(hdr) {
-            hdr.addEventListener('click', function() {
+        // Delegated: the header is redrawn with the list when the period changes.
+        listBox.addEventListener('click', function(ev) {
+            var hdr = ev.target.closest ? ev.target.closest('.cspv-ph-sort') : null;
+            if (!hdr) return;
+            (function() {
                 var col = hdr.dataset.col;
                 if (phSortCol === col) { phSortAsc = !phSortAsc; } else { phSortCol = col; phSortAsc = (col === 'title'); }
                 var rows = Array.from(listBox.querySelectorAll('.cspv-ph-row'));
@@ -3552,8 +3644,35 @@ ob_start();
                     if (h.dataset.col === col) { label += phSortAsc ? ' \u25B2' : ' \u25BC'; }
                     h.textContent = label;
                 });
-            });
+            }());
         });
+
+        // Redraw the list from the posts viewed in the selected Insights period.
+        insRenderPhList = function(posts) {
+            if (!posts.length) {
+                listBox.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">No views recorded in the ' + insPeriodLabel() + '.</div>';
+                return;
+            }
+            var html = '<div id="cspv-ph-header" style="display:flex;align-items:center;padding:4px 16px;background:#0e7490;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1;">' +
+                '<div class="cspv-ph-sort" data-col="title" style="flex:1;cursor:pointer;">Post</div>' +
+                '<div class="cspv-ph-sort" data-col="views" style="width:150px;text-align:right;cursor:pointer;">Views, ' + insPeriodLabel() + ' \u25BC</div></div>';
+            posts.forEach(function(p, i) {
+                var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
+                var viewLink = p.url ? ' <a class="cspv-ph-view-link" href="' + escHtml(p.url) + '" target="_blank" rel="noopener" style="color:#06b6d4;font-size:11px;font-weight:400;margin-left:6px;text-decoration:none;" title="View post">\u2197</a>' : '';
+                html += '<div class="cspv-ph-row" data-id="' + parseInt(p.id, 10) + '" data-url="' + escHtml(p.url || '') + '" data-title="' + escHtml((p.title || '').toLowerCase()) + '" data-views="' + (parseInt(p.views, 10) || 0) + '" style="display:flex;align-items:center;' +
+                    'padding:2px 16px;background:' + bg + ';cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s;line-height:1.3;">' +
+                    '<div style="min-width:0;flex:1;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+                    escHtml(p.title) + ' <span style="color:#aaa;font-weight:400;font-size:11px;">' + escHtml(p.type || '') + '</span>' + viewLink + '</div>' +
+                    '<div style="width:100px;text-align:right;font-weight:800;font-size:14px;color:#06b6d4;font-variant-numeric:tabular-nums;">' + (parseInt(p.views, 10) || 0).toLocaleString() + '</div></div>';
+            });
+            listBox.innerHTML = html;
+            phSortCol = 'views';
+            phSortAsc = false;
+            phNoMatchEl = null;
+            wireRowClicks();
+            // Whatever is typed in the search box still applies to the new rows.
+            if (searchInput.value.trim()) { searchInput.dispatchEvent(new Event('input')); }
+        };
 
         // Enter still runs a full server-side search across ALL posts, for when
         // the wanted one isn't in this pre-rendered top-100 list, no visible
@@ -3838,17 +3957,49 @@ ob_start();
             });
         }
 
-        geoList.querySelectorAll('.cspv-geo-post-item').forEach(function(item) {
-            item.addEventListener('click', function() {
-                geoList.querySelectorAll('.cspv-geo-post-item').forEach(function(r) {
-                    r.style.background = '';
-                    r.style.outline = '';
-                });
-                item.style.background = '#ede9fe';
-                item.style.outline = '2px solid #7e22ce';
-                loadGeoSection(parseInt(item.dataset.id, 10), item.dataset.title || String(item.dataset.id));
+        // Delegated: the rows are redrawn when the period changes.
+        geoList.addEventListener('click', function(ev) {
+            var item = ev.target.closest ? ev.target.closest('.cspv-geo-post-item') : null;
+            if (!item) return;
+            geoList.querySelectorAll('.cspv-geo-post-item').forEach(function(r) {
+                r.style.background = r.dataset.bg || '';
+                r.style.outline = '';
             });
+            item.style.background = '#ede9fe';
+            item.style.outline = '2px solid #7e22ce';
+            loadGeoSection(parseInt(item.dataset.id, 10), item.dataset.title || String(item.dataset.id));
         });
+
+        // Redraw the list from the posts viewed in the selected Insights period.
+        insRenderGeoList = function(posts) {
+            geoNoMatchEl = null;
+            if (!posts.length) {
+                geoList.innerHTML = '<div style="padding:20px;text-align:center;color:#888;font-size:12px;">No views recorded in the ' + insPeriodLabel() + '.</div>';
+                return;
+            }
+            geoList.innerHTML = '';
+            posts.forEach(function(p, i) {
+                var bg   = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+                var open = parseInt(p.id, 10) === geoActivePostId;
+                var item = document.createElement('div');
+                item.className = 'cspv-geo-post-item';
+                item.dataset.id    = String(parseInt(p.id, 10));
+                item.dataset.title = p.title || '';
+                item.dataset.bg    = bg;
+                item.style.cssText = 'display:flex;align-items:center;padding:8px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .15s;background:' + (open ? '#ede9fe' : bg) + (open ? ';outline:2px solid #7e22ce' : '');
+                var name = document.createElement('div');
+                name.style.cssText = 'min-width:0;flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+                name.textContent = p.title || '';
+                var num = document.createElement('div');
+                num.style.cssText = 'width:80px;text-align:right;font-weight:800;font-size:13px;color:#7e22ce;font-variant-numeric:tabular-nums;flex-shrink:0;';
+                num.textContent = (parseInt(p.views, 10) || 0).toLocaleString();
+                item.appendChild(name);
+                item.appendChild(num);
+                geoList.appendChild(item);
+            });
+            var gs = document.getElementById('cspv-geo-search');
+            if (gs && gs.value.trim()) { gs.dispatchEvent(new Event('input')); }
+        };
 
         // Live filter, consistent with every other panel's search box.
         var geoSearch    = document.getElementById('cspv-geo-search');

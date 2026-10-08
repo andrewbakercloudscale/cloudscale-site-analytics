@@ -458,3 +458,77 @@ test('Geo Post View map request is scoped to the selected period', async ({ page
     expect(geoReqBody, 'switching period should re-fetch the open geo map').toBeTruthy();
     expect(geoReqBody).toContain('period=7');
 });
+
+test('Post Analytics and Geo Post View list the selected period, not all time', async ({ page }) => {
+    // Regression: both lists were drawn once in PHP from the all-time view counter
+    // and ignored the period buttons, so "30 days" still ranked posts by lifetime
+    // views and a post published this month could not be found in them.
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const read = async sel => page.locator(sel).evaluateAll(
+        els => els.map(e => parseInt(e.lastElementChild.textContent.replace(/[^0-9]/g, ''), 10) || 0)
+    );
+    const loadPeriod = async days => {
+        const done = page.waitForResponse(r => r.url().includes('admin-ajax.php') && (r.request().postData() || '').includes('cspv_insights_dashboard'));
+        await page.locator('.cspv-ins-period[data-period="' + days + '"]').click();
+        await done;
+        await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    };
+
+    await loadPeriod(360);
+    const geoYear = await read('#cspv-geo-post-list .cspv-geo-post-item');
+    const phYear  = await read('#cspv-ph-list .cspv-ph-row');
+    await expect(page.locator('#cspv-ph-header')).toContainText(/last 360 days/i);
+
+    await loadPeriod(7);
+    const geoWeek = await read('#cspv-geo-post-list .cspv-geo-post-item');
+    const phWeek  = await read('#cspv-ph-list .cspv-ph-row');
+    await expect(page.locator('#cspv-ph-header')).toContainText(/last 7 days/i);
+
+    if (!geoYear.length || !geoWeek.length) { test.skip(); return; }
+    console.log('top of list, 360 days:', geoYear[0], ' 7 days:', geoWeek[0]);
+    // A week cannot hold more views than the year that contains it, and on any
+    // site with history it holds fewer. Identical numbers mean the list never moved.
+    expect(geoWeek[0]).toBeLessThanOrEqual(geoYear[0]);
+    expect(geoWeek.reduce((a, b) => a + b, 0)).toBeLessThan(geoYear.reduce((a, b) => a + b, 0));
+    expect(phWeek.reduce((a, b) => a + b, 0)).toBeLessThan(phYear.reduce((a, b) => a + b, 0));
+    // Most viewed first.
+    expect(geoWeek).toEqual([...geoWeek].sort((a, b) => b - a));
+
+    // The redrawn rows still open: a click loads that post's map for this period.
+    const geoReq = page.waitForRequest(r => (r.postData() || '').includes('cspv_post_geo_map'));
+    await page.locator('#cspv-geo-post-list .cspv-geo-post-item').first().click();
+    expect((await geoReq).postData()).toContain('period=7');
+});
+
+test('Clicking a country bar lists that country\'s top pages for the period', async ({ page }) => {
+    const { jsErrors } = await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+
+    const canvas = page.locator('#cspv-ins-country-chart');
+    await canvas.scrollIntoViewIfNeeded();
+    const box = await canvas.boundingBox();
+    if (!box || box.height < 20) { test.skip(); return; }
+
+    const drillReq = page.waitForRequest(r => (r.postData() || '').includes('cspv_country_drill'));
+    // The first bar: a little below the top edge, well inside the plot area.
+    await canvas.click({ position: { x: Math.round(box.width * 0.6), y: 15 } });
+    const body = (await drillReq).postData();
+    expect(body).toContain('period=30');
+    expect(body).toMatch(/name="country"\s+[A-Z]{2}|country=[A-Z]{2}/);
+
+    const drill = page.locator('#cspv-ins-country-drill');
+    await expect(drill).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#cspv-ins-country-drill-title')).toContainText(/top pages, last 30 days/);
+    const rows = page.locator('.cspv-ins-country-drill-row');
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
+    const n = await rows.count();
+    console.log('country drill rows:', n, '|', await page.locator('#cspv-ins-country-drill-title').textContent());
+    expect(n).toBeGreaterThan(0);
+    expect(n).toBeLessThanOrEqual(10);
+
+    await page.locator('#cspv-ins-country-drill-close').click();
+    await expect(drill).toBeHidden();
+    expect(jsErrors, jsErrors.join('\n')).toHaveLength(0);
+});

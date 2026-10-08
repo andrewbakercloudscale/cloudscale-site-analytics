@@ -558,7 +558,12 @@ function cspv_ajax_country_drill() {
         // where the bars span NOW-24h..NOW rather than a calendar day. Mirrors
         // cspv_ajax_referrer_drill().
         $dt_re = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/';
-        if ( $exact_from && $exact_to &&
+        // The Insights tab has a period, not a date range: resolve it here, with the
+        // same helper the Views by Country bars were drawn from, so a click on a bar
+        // lists the pages behind exactly that bar.
+        if ( isset( $_POST['period'] ) ) {
+            list( $from_str, $to_str ) = cspv_insights_period_range( absint( $_POST['period'] ) );
+        } elseif ( $exact_from && $exact_to &&
              preg_match( $dt_re, $exact_from ) && preg_match( $dt_re, $exact_to ) ) {
             $from_str = $exact_from;
             $to_str   = $exact_to;
@@ -1010,6 +1015,7 @@ function cspv_ajax_insights_dashboard() {
             'referrer_growth'         => cspv_insights_referrer_growth( $from_str, $to_str, $own_host, $period ),
             'peak_hours'              => cspv_insights_peak_hours( $from_str, $to_str ),
             'top_posts'               => cspv_insights_top_posts_data( $from_str, $to_str ),
+            'period_posts'            => cspv_insights_period_posts( $from_str, $to_str ),
             'top_posts_by_referrer'   => cspv_insights_posts_by_referrer( $from_str, $to_str, $own_host ),
             'referrer_landing_pages'  => cspv_insights_referrer_landing_pages( $from_str, $to_str, $own_host ),
             'views_by_country'        => cspv_top_countries( $from_str, $to_str, 10 ),

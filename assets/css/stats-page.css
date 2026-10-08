@@ -995,8 +995,9 @@ body.cspv-modal-open { overflow: hidden; }
     .cspv-ins-hm-cell { height: 14px; }
     .cspv-ins-hm-day-label { width: 26px; min-width: 26px; font-size: 9px; }
 
-    /* Posts table: hide audience column on very small screens */
-    .cspv-ins-pt-aud-cell,
-    .cspv-ins-posts-tbl thead th:last-child { display: none; }
+    /* Posts table: nothing is hidden here. A rule that hid the last header cell on
+       small screens outlived the audience column it was written for, so "Audio
+       completed" lost its heading while its numbers stayed. The table scrolls
+       sideways instead (min-width on the table, overflow-x on its wrap). */
     .cspv-ins-pt-title-cell { max-width: 160px; word-break: break-word; }
 }

@@ -511,12 +511,19 @@ test('Clicking a country bar lists that country\'s top pages for the period', as
     const box = await canvas.boundingBox();
     if (!box || box.height < 20) { test.skip(); return; }
 
+    // Where the first bar actually is, once it has finished growing. A click at a
+    // guessed offset while the bars are still animating in lands on nothing.
+    await page.waitForTimeout(1500);
+    const bar = await page.evaluate(() => {
+        const b = Chart.getChart('cspv-ins-country-chart').getDatasetMeta(0).data[0];
+        return { x: Math.round(b.base + 20), y: Math.round(b.y) };
+    });
     const drillReq = page.waitForRequest(r => (r.postData() || '').includes('cspv_country_drill'));
-    // The first bar: a little below the top edge, well inside the plot area.
-    await canvas.click({ position: { x: Math.round(box.width * 0.6), y: 15 } });
+    await canvas.click({ position: bar });
     const body = (await drillReq).postData();
-    expect(body).toContain('period=30');
-    expect(body).toMatch(/name="country"\s+[A-Z]{2}|country=[A-Z]{2}/);
+    // Sent as multipart form data, so each field is a part, not key=value.
+    expect(body).toMatch(/name="period"\s+30\b/);
+    expect(body).toMatch(/name="country"\s+[A-Z]{2}\b/);
 
     const drill = page.locator('#cspv-ins-country-drill');
     await expect(drill).toBeVisible({ timeout: 10000 });

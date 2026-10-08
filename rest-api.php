@@ -262,7 +262,7 @@ function cspv_alert_on_queue_drops(): void {
     apcu_store( 'cspv_q_dropped', 0 );
     apcu_store( 'cspv_q_dropped_per_post', 0 );
 
-    if ( ! class_exists( 'CloudScale_Telegram' ) || ! CloudScale_Telegram::is_configured() ) {
+    if ( ! class_exists( 'CSPV_Telegram' ) || ! CSPV_Telegram::is_configured() ) {
         return;
     }
     if ( get_transient( 'cspv_queue_saturated_alerted' ) ) {
@@ -278,7 +278,7 @@ function cspv_alert_on_queue_drops(): void {
         $reasons[] = sprintf( '%d dropped by a single post exceeding its own cap (CSPV_QUEUE_MAX_PER_POST = %d)', $dropped_per_post, CSPV_QUEUE_MAX_PER_POST );
     }
 
-    CloudScale_Telegram::send(
+    CSPV_Telegram::send(
         sprintf(
             "View-count queue saturated: %s.\n\nThese views were not recorded. Further alerts are suppressed for 15 minutes while this continues.",
             implode( '; ', $reasons )

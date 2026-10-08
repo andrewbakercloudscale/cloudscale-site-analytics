@@ -539,3 +539,32 @@ test('Clicking a country bar lists that country\'s top pages for the period', as
     await expect(drill).toBeHidden();
     expect(jsErrors, jsErrors.join('\n')).toHaveLength(0);
 });
+
+test('Top Posts by Views keeps every column heading on a phone', async ({ page }) => {
+    // Regression: a mobile rule hid the last header cell (written for an audience
+    // column that no longer exists), so "Audio completed" had numbers and no heading.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openInsightsTab(page);
+    await expect(page.locator('#cspv-ins-content')).toBeVisible({ timeout: 20000 });
+    const heads = page.locator('.cspv-ins-posts-tbl thead th');
+    await expect(heads.first()).toBeAttached({ timeout: 10000 });
+    const shown = await heads.evaluateAll(ths => ths.filter(t => getComputedStyle(t).display !== 'none').map(t => t.textContent.trim()));
+    const cells = await page.locator('.cspv-ins-posts-tbl tbody tr').first().locator('td').count();
+    console.log('headings shown at 390px:', shown.length, 'of', cells, 'columns:', shown.join(' | '));
+    expect(shown.length).toBe(cells);
+    expect(shown[shown.length - 1]).toMatch(/Audio completed/);
+});
+
+test('Statistics Geography says which window it covers, in words', async ({ page }) => {
+    // The window used to be a faint date, so this panel (24 hours by default) read
+    // as contradicting Views by Country on the Insights tab (30 days by default).
+    await page.goto(ADMIN_PAGE, { waitUntil: 'domcontentloaded' });
+    await page.locator('.cspv-quick[data-range="today"]').click();
+    await expect(page.locator('#cspv-geo-range')).toHaveText(/last 24 hours/i, { timeout: 20000 });
+    await page.locator('.cspv-quick[data-range="7"]').click();
+    await expect(page.locator('#cspv-geo-range')).toHaveText(/last 7 days/i, { timeout: 20000 });
+    const row = page.locator('#cspv-geo-list .cspv-row[data-country]').first();
+    if (!(await row.count())) { test.skip(); return; }
+    await row.click();
+    await expect(page.locator('#cspv-geo-drill-header')).toContainText(/top pages, last 7 days/);
+});

@@ -138,7 +138,7 @@ function cspv_render_stats_tab( $vars ) {
         <div id="cspv-geo-panel" style="margin-top:16px;">
             <div class="cspv-panel" style="flex:1;">
                 <div class="cspv-section-header" style="color:#fff;background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:6px 6px 0 0;">
-                    <span>🌍 Geography <span id="cspv-geo-range" style="font-size:11px;font-weight:400;opacity:0.8;"></span><span id="cspv-geo-source-badge" style="display:none;margin-left:8px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;vertical-align:middle;letter-spacing:0.03em;"></span></span>
+                    <span>🌍 Geography <span id="cspv-geo-range" style="display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:#0f172a;background:#ffffff;border-radius:10px;padding:2px 8px;vertical-align:middle;letter-spacing:0;text-transform:none;"></span><span id="cspv-geo-source-badge" style="display:none;margin-left:8px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;vertical-align:middle;letter-spacing:0.03em;"></span></span>
                     <a href="#" id="cspv-geo-reset" style="font-size:11px;color:rgba(255,255,255,.8);text-decoration:underline;font-weight:400;">Reset Map</a>
                 </div>
                 <div id="cspv-geo-map" style="height:300px;width:100%;background:#f0fdf4;"></div>
@@ -2660,14 +2660,29 @@ ob_start();
         if (sessionsEl) sessionsEl.textContent = depth.sessions.toLocaleString() + ' Sessions';
     }
 
+    // The Statistics tab's current window, as a person would say it.
+    var statsGeoWindow = '';
+    function statsWindowLabel(from, to) {
+        var btn = document.querySelector('.cspv-quick.active');
+        var names = { '12h': 'last 12 hours', 'today': 'last 24 hours', '7': 'last 7 days', '30': 'last 30 days', '90': 'last 90 days', '180': 'last 180 days' };
+        if (btn && names[btn.dataset.range]) { return names[btn.dataset.range]; }
+        if (!from || !to) { return ''; }
+        return (from === to) ? fmtDate(from) : fmtDate(from) + ' to ' + fmtDate(to);
+    }
+
     function renderGeo(items, from, to, geoSource, geoSourceActual) {
         var el = document.getElementById('cspv-geo-list');
         var drillEl = document.getElementById('cspv-geo-drill');
         var rangeEl = document.getElementById('cspv-geo-range');
         var badgeEl = document.getElementById('cspv-geo-source-badge');
         if (drillEl) drillEl.style.display = 'none';
-        if (rangeEl && from && to) {
-            rangeEl.textContent = (from === to) ? fmtDate(from) : fmtDate(from) + ' to ' + fmtDate(to);
+        // The window in words, on the header and on the drill-down. As a faint date it
+        // was easy to miss, and this panel (24 hours by default) then looked as though
+        // it contradicted Views by Country on the Insights tab (30 days by default).
+        statsGeoWindow = statsWindowLabel(from, to);
+        if (rangeEl) {
+            rangeEl.textContent = statsGeoWindow ? statsGeoWindow.charAt(0).toUpperCase() + statsGeoWindow.slice(1) : '';
+            rangeEl.style.display = statsGeoWindow ? 'inline-block' : 'none';
         }
         if (badgeEl) {
             // For auto mode, show the actual source in use; otherwise show the setting
@@ -2732,7 +2747,7 @@ ob_start();
             return;
         }
         drillEl.dataset.openCountry = cc;
-        headerEl.textContent = countryFlag(cc) + countryName(cc) + ', Top Pages';
+        headerEl.textContent = countryFlag(cc) + countryName(cc) + ': top pages' + (statsGeoWindow ? ', ' + statsGeoWindow : '');
         listEl.innerHTML = '<div class="cspv-loading">Loading…</div>';
         // Move drill panel to appear directly under the clicked country row
         if (rowEl && rowEl.parentNode) {

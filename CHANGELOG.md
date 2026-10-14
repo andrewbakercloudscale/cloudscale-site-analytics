@@ -3,7 +3,7 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [2.9.515] - 2026-10-15
 
 ### Changed
 - **Alert settings stored under this plugin's own prefix.** The Telegram bot token, chat ID,

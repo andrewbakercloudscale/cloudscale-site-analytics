@@ -85,6 +85,9 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 
 == Changelog ==
 
+= Unreleased =
+* Changed: alert settings (Telegram, environment label, mute) are stored under this plugin's own prefix, migrated automatically, and kept in sync with the other CloudScale plugins.
+
 = 2.9.490 =
 * Add: Audio narration engagement tracking (play/complete events from the site's audio-narration player), reported per post in the Insights table
 * Add: Insights tab 24-hour filter, plus live search on the Post Analytics and Geo Post View panels

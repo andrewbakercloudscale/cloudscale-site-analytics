@@ -3,6 +3,17 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Changed
+- **Alert settings stored under this plugin's own prefix.** The Telegram bot token, chat ID,
+  environment label and mute switch were shared rows under one plugin's name, which
+  WordPress.org's prefixing rule does not allow. Each CloudScale plugin now stores its own copy,
+  migrated automatically from the old rows on first load (the old rows are left in place), and
+  the plugins keep one configuration between them: a save, label or mute in one reaches the
+  others. The `CSPV_ALERT_ENV_LABEL` constant names the environment; the suite-wide
+  `CLOUDSCALE_ALERT_ENV_LABEL` is still honoured.
+
 ## [2.9.498] - 2026-09-07
 
 ### Added

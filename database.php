@@ -141,6 +141,49 @@ function cspv_merge_legacy_table( $old_suffix, $new, $old ) {
 }
 
 /**
+ * Two other CloudScale plugins read these tables by name. Copies older than the versions below
+ * still look for cs_analytics_*: Cyber DevTools lists the renamed tables in its orphan scan, with
+ * Drop Selected beside them, and the SEO AI Optimizer shows no audio plays. Neither can be fixed
+ * from here, so the admin is told which plugin to update, for as long as an old copy is active.
+ */
+function cspv_sibling_table_name_notice() {
+    if ( ! current_user_can( 'activate_plugins' ) ) {
+        return;
+    }
+    // Class => array( plugin name, first release that knows cspv_analytics_* ).
+    $siblings = array(
+        'CSDT_DevTools' => array( 'CloudScale Cyber DevTools', '1.10.1033' ),
+        'Cs_Seo_Plugin' => array( 'CloudScale SEO AI Optimizer', '4.21.667' ),
+    );
+    $outdated = array();
+    foreach ( $siblings as $class => $sibling ) {
+        if ( ! class_exists( $class, false ) ) {
+            continue;
+        }
+        $version = defined( $class . '::VERSION' ) ? (string) constant( $class . '::VERSION' ) : '0';
+        if ( version_compare( $version, $sibling[1], '<' ) ) {
+            $outdated[ $class ] = sprintf( '%1$s %2$s or later', $sibling[0], $sibling[1] );
+        }
+    }
+    if ( empty( $outdated ) ) {
+        return;
+    }
+    $message = sprintf(
+        /* translators: %s: list of plugin names with minimum versions */
+        __( 'its tables are now named cspv_analytics_*. Update %s.', 'cloudscale-site-analytics' ),
+        implode( ', ', $outdated )
+    );
+    if ( isset( $outdated['CSDT_DevTools'] ) ) {
+        $message .= ' ' . __( 'Until then, do not drop tables from the Cyber DevTools orphan scan: the analytics tables are listed there by mistake.', 'cloudscale-site-analytics' );
+    }
+    printf(
+        '<div class="notice notice-warning"><p><strong>%1$s</strong> %2$s</p></div>',
+        esc_html__( 'CloudScale Site Analytics:', 'cloudscale-site-analytics' ),
+        esc_html( $message )
+    );
+}
+
+/**
  * Create the V2 hourly bucketed views table.
  *
  * One row per post per hour, with a view_count column.

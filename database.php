@@ -153,6 +153,8 @@ function cspv_sibling_table_name_notice() {
     // Class => array( plugin name, first release that knows cspv_analytics_* ).
     $siblings = array(
         'CSDT_DevTools' => array( 'CloudScale Cyber DevTools', '1.10.1033' ),
+        // Renamed from Cs_Seo_Plugin in SEO 4.21.670; the old name is what an older copy defines.
+        'CloudScale_SEO_AI_Optimizer_Plugin' => array( 'CloudScale SEO AI Optimizer', '4.21.667' ),
         'Cs_Seo_Plugin' => array( 'CloudScale SEO AI Optimizer', '4.21.667' ),
     );
     $outdated = array();

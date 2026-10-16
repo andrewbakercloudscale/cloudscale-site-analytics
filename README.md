@@ -1,6 +1,6 @@
 # WordPress Page Views for Cloudflare
 
-![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.94-orange)
+![WordPress](https://img.shields.io/badge/WordPress-6.2%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.9.94-orange)
 
 WordPress analytics that actually work behind Cloudflare. Every other page view counter counts on the server. When Cloudflare serves a cached page, WordPress never executes and the counter never increments. On a site with 85 to 95 percent cache hit rate, server side counters undercount by 5x to 10x.
 
@@ -55,13 +55,6 @@ The beacon is tiny and fires asynchronously after the page has rendered. Zero im
 - **Top Posts Sidebar Widget**: most viewed posts with thumbnails, pagination, configurable time window, responsive two column grid on desktop
 - **Recent Posts Sidebar Widget**: latest posts with optional date and view count badges
 
-### Jetpack Migration
-
-- One click import of Jetpack lifetime view totals
-- 28 day transition mode blends imported data with new beacon data
-- Migration lock prevents accidental re runs
-- Imported totals displayed in a banner on the Statistics tab
-
 ### Template Functions
 
 - `cspv_the_views()` outputs the formatted view counter with icon and suffix
@@ -70,7 +63,7 @@ The beacon is tiny and fires asynchronously after the page has rendered. Zero im
 
 ## Requirements
 
-- WordPress 6.0 or higher
+- WordPress 6.2 or higher
 - PHP 8.1 or higher
 
 ## Installation

@@ -9,7 +9,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 function cspv_render_stats_tab( $vars ) {
     extract( $vars, EXTR_SKIP ); // phpcs:ignore WordPress.PHP.DontExtract.extract_extract -- admin-only, all keys are trusted internal names
@@ -758,6 +758,15 @@ function cspv_render_display_tab( $vars ) {
                     <div id="cspv-geo-unknown-status" style="font-size:11px;color:#666;margin-top:6px;"></div>
                 </div>
 
+                <!-- Emoji polyfill (opt-in) -->
+                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px 16px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                    <label style="font-size:13px;color:#0f172a;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" name="cspv_disable_emoji_polyfill" value="yes" <?php checked( get_option( 'cspv_disable_emoji_polyfill', 'no' ), 'yes' ); ?>>
+                        Turn off the WordPress emoji script (use the browser's own emoji)
+                    </label>
+                    <a class="cspv-info-btn cspv-info-btn-dark" data-info="emoji-polyfill" title="Info">i</a>
+                </div>
+
                 <p style="margin:16px 0 0;display:flex;align-items:center;gap:12px;">
                     <button type="button" id="cspv-save-display" style="background:linear-gradient(135deg,#9d174d,#ec4899);color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">💾 Save Display Settings</button>
                     <span id="cspv-display-saved" style="display:none;color:#059669;font-weight:600;font-size:14px;">✓ Saved</span>
@@ -794,16 +803,16 @@ function cspv_render_display_tab( $vars ) {
                 <div id="cspv-purge-status" style="font-size:11px;color:#666;margin-top:8px;"></div>
                 <?php
                 global $wpdb;
-                $vis_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
-                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+                $vis_table = esc_sql( $wpdb->prefix . 'cspv_analytics_visitors_v2' );
+                $vis_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $vis_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
                 if ( $vis_exists ) {
-                    $vis_rows = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                    $vis_unique = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT visitor_hash) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                    $vis_min = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-                    $vis_max = $wpdb->get_var( "SELECT MAX(viewed_at) FROM `{$vis_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
+                    $vis_rows = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $vis_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- analytics custom table, table name bound via %i
+                    $vis_unique = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(DISTINCT visitor_hash) FROM %i', $vis_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- analytics custom table, table name bound via %i
+                    $vis_min = $wpdb->get_var( $wpdb->prepare( 'SELECT MIN(viewed_at) FROM %i', $vis_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- analytics custom table, table name bound via %i
+                    $vis_max = $wpdb->get_var( $wpdb->prepare( 'SELECT MAX(viewed_at) FROM %i', $vis_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- analytics custom table, table name bound via %i
                     echo '<div style="font-size:11px;color:#888;margin-top:4px;">'
-                       . 'Visitor table: ' . number_format( $vis_rows ) . ' rows, '
-                       . number_format( $vis_unique ) . ' unique hashes';
+                       . 'Visitor table: ' . esc_html( number_format_i18n( $vis_rows ) ) . ' rows, '
+                       . esc_html( number_format_i18n( $vis_unique ) ) . ' unique hashes';
                     if ( $vis_min ) {
                         echo ' (' . esc_html( $vis_min ) . ' to ' . esc_html( $vis_max ) . ')';
                     }
@@ -1049,6 +1058,20 @@ function cspv_render_throttle_tab( $vars ) {
                     </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════ TELEGRAM ALERTS ═══════════════════════ -->
+        <div style="margin-top:24px;background:#fff;border:2px solid #b3e5fc;border-radius:8px;overflow:hidden;">
+            <div class="cspv-section-header" style="background:linear-gradient(135deg,#0277bd,#039be5);">
+                <span>✈ Telegram Alerts <a class="cspv-info-btn" data-info="telegram-alerts" title="Info">i</a></span>
+            </div>
+            <div style="padding:20px 24px;">
+                <?php CSPV_Telegram::render_settings_fields( 'cloudscale-site-analytics', 'Site Analytics' ); ?>
+                <div style="margin-top:12px;">
+                    <button type="button" id="cspv-save-telegram" class="cspv-btn-primary">Save Telegram Settings</button>
+                    <span id="cspv-telegram-save-status" style="margin-left:12px;font-size:12px;font-weight:700;"></span>
+                </div>
             </div>
         </div>
 
@@ -1939,15 +1962,8 @@ ob_start();
         // overflow-x:auto gives a clean horizontal scroll on narrow screens,
         // keeping every column reachable (including the last, Audio completed).
         // Auto layout (not fixed) with a wide Article column that wraps at words.
-        var html = '<style>'
-            + '.cspv-ins-posts-tbl{border-collapse:collapse;width:100%;min-width:680px;font-size:12px;}'
-            + '.cspv-ins-posts-tbl th,.cspv-ins-posts-tbl td{padding:7px 8px;text-align:right;vertical-align:middle;}'
-            + '.cspv-ins-posts-tbl thead th{color:#e5e7eb;font-weight:700;background:#0f172a;font-size:11px;white-space:normal;line-height:1.2;}'
-            + '.cspv-ins-posts-tbl tbody td{color:#0f172a;border-bottom:1px solid #eef2f7;white-space:nowrap;}'
-            + '.cspv-ins-posts-tbl th.left,.cspv-ins-posts-tbl td.left{text-align:left;white-space:normal;width:260px;min-width:240px;}'
-            + '.cspv-ins-posts-tbl td.left a{color:#1d4ed8;text-decoration:none;font-weight:600;line-height:1.3;word-break:break-word;}'
-            + '</style>';
-        html += '<table class="cspv-ins-posts-tbl"><thead><tr>'
+        // Table styles live in assets/css/stats-page.css (.cspv-ins-posts-tbl).
+        var html = '<table class="cspv-ins-posts-tbl"><thead><tr>'
             + '<th class="left">Article</th>'
             + '<th title="Total page loads (a refresh counts again)">Views</th>'
             + '<th title="Distinct people (a refresh does not re-count)">Unique visitors</th>'
@@ -3070,6 +3086,27 @@ ob_start();
         });
     }
 
+    // ── Telegram alert credentials ─────────────────────────────────
+    var saveTgBtn = document.getElementById('cspv-save-telegram');
+    if (saveTgBtn) {
+        saveTgBtn.addEventListener('click', function() {
+            var btn = this, status = document.getElementById('cspv-telegram-save-status');
+            btn.disabled = true; status.textContent = 'Saving…'; status.style.color = '';
+            var fd = new FormData();
+            fd.append('action', 'cspv_save_telegram'); fd.append('nonce', throttleNonce);
+            fd.append('telegram_token', document.getElementById('cs-telegram-token').value);
+            fd.append('telegram_chat_id', document.getElementById('cs-telegram-chat-id').value);
+            fetch(ajaxUrl, { method: 'POST', body: fd })
+                .then(function(r){ return r.json(); })
+                .then(function(resp) {
+                    status.textContent = resp.success ? '✓ Saved' : '✗ Failed';
+                    status.style.color = resp.success ? '#1db954' : '#e53e3e';
+                })
+                .catch(function(){ status.textContent = '✗ Network error'; status.style.color = '#e53e3e'; })
+                .finally(function(){ btn.disabled = false; setTimeout(function(){ status.textContent=''; }, 4000); });
+        });
+    }
+
     // ── Clear ALL IP Addresses (nuclear option) ────────────────────
     var clearAllBtn = document.getElementById('cspv-clear-all-ips');
     if (clearAllBtn) {
@@ -3559,6 +3596,14 @@ ob_start();
         'ftb-blocklist': {
             title: '🚫 FTB Blocked IPs',
             body: '<p>IPs currently blocked by the Fail2Ban system. FTB blocks last <strong>2 hours</strong> and auto clear. Each entry shows when it was blocked and when the block expires.</p><p>You can unblock individual IPs or clear the entire FTB blocklist to lift all blocks early.</p>'
+        },
+        'emoji-polyfill': {
+            title: '😀 WordPress Emoji Script',
+            body: '<p>Off by default. WordPress adds a small script to every page that, in browsers it thinks lack emoji support, swaps emoji characters for images loaded from the WordPress.org emoji CDN.</p><p>Tick this to remove that script and its styles from the front end and admin, from feeds and from emails, so emoji (including the ones this plugin shows in its dashboards and country flags) are drawn by the browser itself and no page depends on that CDN. Untick it to restore the WordPress default.</p>'
+        },
+        'telegram-alerts': {
+            title: '✈ Telegram Alerts',
+            body: '<p>Optional. When a bot token and chat ID are saved here, the plugin sends an alert to your Telegram chat when something needs attention: the view queue backing up, or the daily DB-IP geolocation update failing. Leave both fields empty and nothing is ever sent to Telegram.</p><p>Create a bot with @BotFather, paste its token, send any message to the bot, then click <strong>Fetch Chat ID</strong>. <strong>Send Test</strong> delivers a test message. Click <strong>Save Telegram Settings</strong> to store them.</p><p>Each alert carries the plugin-generated alert text, the site domain, the server hostname and address, the client IP address, the logged-in username (if any) and the request method and URL that triggered it. If another CloudScale plugin on this site already has Telegram configured, that configuration is reused here, and a save here is offered to it.</p>'
         },
         'clear-all-ips': {
             title: '🗑 Clear All IP Addresses',

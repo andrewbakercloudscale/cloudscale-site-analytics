@@ -13,7 +13,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: direct queries on custom time-series tables are required
 
 // -------------------------------------------------------------------------
 // 1. Register widget
@@ -80,8 +80,8 @@ class CSPV_Search_Widget extends WP_Widget {
 		$btn_color   = ! empty( $instance['btn_color'] )   ? sanitize_hex_color( $instance['btn_color'] )   : '#e8491d';
 		$btn_hover   = ! empty( $instance['btn_hover'] )   ? sanitize_hex_color( $instance['btn_hover'] )   : '#f27c1a';
 
-		echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
-		echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+		echo wp_kses_post( $args['before_widget'] );
+		echo wp_kses_post( $args['before_title'] ) . esc_html( $title ) . wp_kses_post( $args['after_title'] );
 		?>
 		<form role="search" method="get" class="cspv-search-form"
 			  style="--cspv-btn-color:<?php echo esc_attr( $btn_color ); ?>;--cspv-btn-hover:<?php echo esc_attr( $btn_hover ); ?>;"
@@ -103,7 +103,7 @@ class CSPV_Search_Widget extends WP_Widget {
 			</button>
 		</form>
 		<?php
-		echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+		echo wp_kses_post( $args['after_widget'] );
 	}
 
 	/**
@@ -246,94 +246,102 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 	// phrase match unchanged.
 	$words = array_values( array_filter( array_map( 'trim', explode( ' ', $term ) ) ) );
 
+	// Only one table is queried, so columns are unqualified and the table name
+	// goes in through %i.
 	if ( count( $words ) >= 2 ) {
-		// Build per-word AND conditions so "Machinery Strange" == "Strange Machinery".
-		$word_where_parts = array();
-		$word_args        = array();
+		// Per-word AND conditions so "Machinery Strange" == "Strange Machinery".
+		// Every word uses the same literal fragment (3 LIKE placeholders), so the
+		// WHERE is built inline from array_fill and stays literal SQL.
+		$word_args = array();
 		foreach ( $words as $word ) {
-			$wlike              = '%' . $wpdb->esc_like( $word ) . '%';
-			$word_where_parts[] = "( {$wpdb->posts}.post_title LIKE %s OR {$wpdb->posts}.post_content LIKE %s OR {$wpdb->posts}.post_excerpt LIKE %s )";
-			$word_args[]        = $wlike;
-			$word_args[]        = $wlike;
-			$word_args[]        = $wlike;
+			$wlike       = '%' . $wpdb->esc_like( $word ) . '%';
+			$word_args[] = $wlike;
+			$word_args[] = $wlike;
+			$word_args[] = $wlike;
 		}
-		$word_where = implode( ' AND ', $word_where_parts );
 
-		$order_args  = array( $t0_word, $t0_start, $t0_end, $t0_colon, $t0_dot, $t0_comma, $t0_exact, $like, $like );
-		$prepare_args = array_merge( $word_args, $order_args );
-		$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $wpdb->posts is a trusted core table name
-				"SELECT {$wpdb->posts}.*
-				 FROM {$wpdb->posts}
-				 WHERE {$wpdb->posts}.post_status = 'publish'
-				   AND {$wpdb->posts}.post_type NOT IN (
+		$order_args = array( $t0_word, $t0_start, $t0_end, $t0_colon, $t0_dot, $t0_comma, $t0_exact, $like, $like );
+
+		// Placeholders: %i (1) + 3 per word + order-by (9) = 3 * count( $words ) + 10, and
+		// the args array is built to exactly that: table (1) + $word_args (3 per word) +
+		// $order_args (9). The sniff cannot count an array_merge(), hence the ignore.
+		$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- live search across post types, results not cacheable per term
+			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- replacement count is dynamic (3 per search word), see the count above
+				"SELECT *
+				 FROM %i
+				 WHERE post_status = 'publish'
+				   AND post_type NOT IN (
 				       'revision','nav_menu_item','attachment','custom_css',
 				       'customize_changeset','oembed_cache','user_request',
 				       'wp_block','wp_template','wp_template_part',
 				       'wp_global_styles','wp_navigation'
 				   )
-				   AND {$word_where}
+				   AND "
+				. implode( ' AND ', array_fill( 0, count( $words ), '( post_title LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s )' ) )
+				. "
 				 ORDER BY
 				   CASE
 				     -- Tier 0: exact-case term as a standalone word in the title
-				     WHEN (    BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title  = %s
+				     WHEN (    BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title  = %s
 				          ) THEN 0
 				     -- Tier 1: exact-case term anywhere in the title
-				     WHEN BINARY {$wpdb->posts}.post_title LIKE %s THEN 1
+				     WHEN BINARY post_title LIKE %s THEN 1
 				     -- Tier 2: case-insensitive match in title (e.g. 'ai' inside 'waiting')
-				     WHEN {$wpdb->posts}.post_title LIKE %s THEN 2
+				     WHEN post_title LIKE %s THEN 2
 				     -- Tier 3: match is only in content/excerpt, not in title
 				     ELSE 3
 				   END,
-				   {$wpdb->posts}.post_date DESC
+				   post_date DESC
 				 LIMIT 50",
-				$prepare_args
+				array_merge( array( $wpdb->posts ), $word_args, $order_args )
 			)
 		);
 	} else {
 		// Single-word: original phrase match unchanged.
-		$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $wpdb->posts is a trusted core table name
-				"SELECT {$wpdb->posts}.*
-				 FROM {$wpdb->posts}
-				 WHERE {$wpdb->posts}.post_status = 'publish'
-				   AND {$wpdb->posts}.post_type NOT IN (
+		$results = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- live search across post types, results not cacheable per term
+			$wpdb->prepare(
+				"SELECT *
+				 FROM %i
+				 WHERE post_status = 'publish'
+				   AND post_type NOT IN (
 				       'revision','nav_menu_item','attachment','custom_css',
 				       'customize_changeset','oembed_cache','user_request',
 				       'wp_block','wp_template','wp_template_part',
 				       'wp_global_styles','wp_navigation'
 				   )
 				   AND (
-				       {$wpdb->posts}.post_title   LIKE %s
-				    OR {$wpdb->posts}.post_content LIKE %s
-				    OR {$wpdb->posts}.post_excerpt LIKE %s
+				       post_title   LIKE %s
+				    OR post_content LIKE %s
+				    OR post_excerpt LIKE %s
 				   )
 				 ORDER BY
 				   CASE
 				     -- Tier 0: exact-case term as a standalone word in the title
-				     WHEN (    BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title LIKE %s
-				            OR BINARY {$wpdb->posts}.post_title  = %s
+				     WHEN (    BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title LIKE %s
+				            OR BINARY post_title  = %s
 				          ) THEN 0
 				     -- Tier 1: exact-case term anywhere in the title
-				     WHEN BINARY {$wpdb->posts}.post_title LIKE %s THEN 1
+				     WHEN BINARY post_title LIKE %s THEN 1
 				     -- Tier 2: case-insensitive match in title (e.g. 'ai' inside 'waiting')
-				     WHEN {$wpdb->posts}.post_title LIKE %s THEN 2
+				     WHEN post_title LIKE %s THEN 2
 				     -- Tier 3: match is only in content/excerpt, not in title
 				     ELSE 3
 				   END,
-				   {$wpdb->posts}.post_date DESC
+				   post_date DESC
 				 LIMIT 50",
+				// FROM (1)
+				$wpdb->posts,
 				// WHERE (3)
 				$like, $like, $like,
 				// Tier 0 (7)

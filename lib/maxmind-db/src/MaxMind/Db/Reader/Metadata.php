@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-namespace MaxMind\Db\Reader;
+namespace Cspv\MaxMind\Db\Reader;
 
 /**
  * This class provides the metadata for the MaxMind DB file.
@@ -99,8 +99,8 @@ class Metadata
     public function __construct(array $metadata)
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args()) )
             );
         }
 

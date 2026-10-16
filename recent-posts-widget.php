@@ -109,10 +109,10 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
             'no_found_rows'  => false,
         ) );
 
-        echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+        echo wp_kses_post( $args['before_widget'] );
 
         if ( $title ) {
-            echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+            echo wp_kses_post( $args['before_title'] ) . esc_html( $title ) . wp_kses_post( $args['after_title'] );
         }
 
         if ( $query->have_posts() ) {
@@ -197,7 +197,7 @@ class CSPV_Recent_Posts_Widget extends WP_Widget {
             echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No posts found.', 'cloudscale-site-analytics' ) . '</p>';
         }
 
-        echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+        echo wp_kses_post( $args['after_widget'] );
     }
 
     /**

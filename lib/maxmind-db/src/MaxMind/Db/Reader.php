@@ -3,12 +3,12 @@
 
 declare(strict_types=1);
 
-namespace MaxMind\Db;
+namespace Cspv\MaxMind\Db;
 
-use MaxMind\Db\Reader\Decoder;
-use MaxMind\Db\Reader\InvalidDatabaseException;
-use MaxMind\Db\Reader\Metadata;
-use MaxMind\Db\Reader\Util;
+use Cspv\MaxMind\Db\Reader\Decoder;
+use Cspv\MaxMind\Db\Reader\InvalidDatabaseException;
+use Cspv\MaxMind\Db\Reader\Metadata;
+use Cspv\MaxMind\Db\Reader\Util;
 
 /**
  * Instances of this class provide a reader for the MaxMind DB format. IP
@@ -76,22 +76,22 @@ class Reader
     public function __construct(string $database)
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args()) )
             );
         }
         $fileHandle = @fopen($database, 'rb'); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- vendor library
         if ($fileHandle === false) {
-            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                "The file \"$database\" does not exist or is not readable."
+            throw new \InvalidArgumentException(
+                esc_html( "The file \"$database\" does not exist or is not readable." )
             );
         }
         $this->fileHandle = $fileHandle;
 
         $fileSize = @filesize($database);
         if ($fileSize === false) {
-            throw new \UnexpectedValueException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                "Error determining the size of \"$database\"."
+            throw new \UnexpectedValueException(
+                esc_html( "Error determining the size of \"$database\"." )
             );
         }
         $this->fileSize = $fileSize;
@@ -124,8 +124,8 @@ class Reader
     public function get(string $ipAddress)
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args()) )
             );
         }
         [$record] = $this->getWithPrefixLen($ipAddress);
@@ -151,8 +151,8 @@ class Reader
     public function getWithPrefixLen(string $ipAddress): array
     {
         if (\func_num_args() !== 1) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 1 parameter, %d given', __METHOD__, \func_num_args()) )
             );
         }
 
@@ -174,8 +174,8 @@ class Reader
     {
         $packedAddr = @inet_pton($ipAddress);
         if ($packedAddr === false) {
-            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                "The value \"$ipAddress\" is not a valid IP address."
+            throw new \InvalidArgumentException(
+                esc_html( "The value \"$ipAddress\" is not a valid IP address." )
             );
         }
 
@@ -201,9 +201,9 @@ class Reader
                 $node = $this->ipV4Start;
             }
         } elseif ($metadata->ipVersion === 4 && $bitCount === 128) {
-            throw new \InvalidArgumentException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                "Error looking up $ipAddress. You attempted to look up an"
-                . ' IPv6 address in an IPv4-only database.'
+            throw new \InvalidArgumentException(
+                esc_html( "Error looking up $ipAddress. You attempted to look up an"
+                . ' IPv6 address in an IPv4-only database.' )
             );
         }
 
@@ -293,8 +293,8 @@ class Reader
 
             default:
                 throw new InvalidDatabaseException(
-                    'Unknown record size: ' // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                    . $this->metadata->recordSize
+                    esc_html( 'Unknown record size: '
+                    . $this->metadata->recordSize )
                 );
         }
     }
@@ -327,8 +327,8 @@ class Reader
         $handle = $this->fileHandle;
         $fstat = fstat($handle);
         if ($fstat === false) {
-            throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                "Error getting file information ($filename)."
+            throw new InvalidDatabaseException(
+                esc_html( "Error getting file information ($filename)." )
             );
         }
         $fileSize = $fstat['size'];
@@ -347,9 +347,9 @@ class Reader
             }
         }
 
-        throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-            "Error opening database file ($filename). " .
-            'Is this a valid MaxMind DB file?'
+        throw new InvalidDatabaseException(
+            esc_html( "Error opening database file ($filename). " .
+            'Is this a valid MaxMind DB file?' )
         );
     }
 
@@ -362,8 +362,8 @@ class Reader
     public function metadata(): Metadata
     {
         if (\func_num_args()) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args()) )
             );
         }
 
@@ -387,8 +387,8 @@ class Reader
     public function close(): void
     {
         if (\func_num_args()) {
-            throw new \ArgumentCountError( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception message
-                sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args())
+            throw new \ArgumentCountError(
+                esc_html( sprintf('%s() expects exactly 0 parameters, %d given', __METHOD__, \func_num_args()) )
             );
         }
 

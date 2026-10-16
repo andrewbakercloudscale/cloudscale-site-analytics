@@ -3,7 +3,7 @@
  * CloudScale Analytics, 404 Tracking
  *
  * Logs every frontend 404 (destination URL + referrer source) to
- * wp_cs_analytics_404_v2. Repeated hits on the same URL+referrer pair increment
+ * wp_cspv_analytics_404_v2. Repeated hits on the same URL+referrer pair increment
  * the hit_count rather than adding new rows.
  *
  * Results displayed in the stats page above Site Health.
@@ -14,7 +14,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: direct queries on a custom log table are required; table names go through %i, except the dbDelta() CREATE TABLE below, which cannot take placeholders
 
 // -------------------------------------------------------------------------
 // 1. Table creation, also runs lazily on admin_init if the table is missing
@@ -41,7 +41,7 @@ function cspv_maybe_create_404_table() {
 }
 
 /**
- * Create the wp_cs_analytics_404_v2 table.
+ * Create the wp_cspv_analytics_404_v2 table.
  *
  * One row per unique URL + referrer combination. Repeated hits increment
  * hit_count and update last_seen via ON DUPLICATE KEY UPDATE.
@@ -52,9 +52,12 @@ function cspv_maybe_create_404_table() {
 function cspv_create_table_404_v2() {
 	global $wpdb;
 
-	$table           = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
+	$table           = esc_sql( $wpdb->prefix . 'cspv_analytics_404_v2' );
 	$charset_collate = $wpdb->get_charset_collate();
 
+	// dbDelta() parses raw CREATE TABLE text and cannot take $wpdb->prepare() placeholders,
+	// so the table name is interpolated here. It is built from $wpdb->prefix and a literal
+	// suffix, with no user input, and passed through esc_sql() above.
 	$sql = "CREATE TABLE IF NOT EXISTS {$table} (
 		id         BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 		url        VARCHAR(512)        NOT NULL DEFAULT '',
@@ -93,13 +96,13 @@ function cspv_track_404() {
 		return;
 	}
 	global $wpdb;
-	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
+	$table = esc_sql( $wpdb->prefix . 'cspv_analytics_404_v2' );
 
 	if ( ! cspv_404_table_exists() ) {
 		return;
 	}
 
-	$request  = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	$request  = isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
 	$url      = substr( esc_url_raw( home_url( $request ) ), 0, 512 );
 	$referrer = isset( $_SERVER['HTTP_REFERER'] )
 		? substr( esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ), 0, 512 ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -107,10 +110,11 @@ function cspv_track_404() {
 	$now = current_time( 'mysql' );
 
 	$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
-		$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
-			"INSERT INTO `{$table}` (url, referrer, hit_count, first_seen, last_seen)
+		$wpdb->prepare(
+			'INSERT INTO %i (url, referrer, hit_count, first_seen, last_seen)
 			 VALUES (%s, %s, 1, %s, %s)
-			 ON DUPLICATE KEY UPDATE hit_count = hit_count + 1, last_seen = %s",
+			 ON DUPLICATE KEY UPDATE hit_count = hit_count + 1, last_seen = %s',
+			$table,
 			$url,
 			$referrer,
 			$now,
@@ -192,8 +196,8 @@ function cspv_ajax_purge_404_log() {
 
 	try {
 		global $wpdb;
-		$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
-		$wpdb->query( "TRUNCATE TABLE `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+		$table = esc_sql( $wpdb->prefix . 'cspv_analytics_404_v2' );
+		$wpdb->query( $wpdb->prepare( 'TRUNCATE TABLE %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
 		wp_send_json_success( array( 'message' => '404 log cleared.' ) );
 	} catch ( \Throwable $e ) {
 		wp_send_json_error( $e->getMessage(), 500 );
@@ -216,21 +220,24 @@ function cspv_ajax_purge_404_log() {
  */
 function cspv_render_404_html() {
 	global $wpdb;
-	$table = esc_sql( $wpdb->prefix . 'cs_analytics_404_v2' );
+	$table = esc_sql( $wpdb->prefix . 'cspv_analytics_404_v2' );
 
 	if ( ! cspv_404_table_exists() ) {
 		echo '<p style="color:#888;font-size:13px;">404 log table not found, deactivate and reactivate the plugin to create it.</p>';
 		return;
 	}
 
-	$total_unique = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
-	$total_hits   = (int) $wpdb->get_var( "SELECT SUM(hit_count) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+	$total_unique = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
+	$total_hits   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT SUM(hit_count) FROM %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
 
 	$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics table
-		"SELECT url, referrer, hit_count, first_seen, last_seen
-		 FROM `{$table}`
-		 ORDER BY hit_count DESC, last_seen DESC
-		 LIMIT 50" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted internal table name
+		$wpdb->prepare(
+			'SELECT url, referrer, hit_count, first_seen, last_seen
+			 FROM %i
+			 ORDER BY hit_count DESC, last_seen DESC
+			 LIMIT 50',
+			$table
+		)
 	);
 
 	$over_limit = $total_unique > 50;

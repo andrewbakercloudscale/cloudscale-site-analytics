@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-namespace MaxMind\Db\Reader;
+namespace Cspv\MaxMind\Db\Reader;
 
 class Util
 {

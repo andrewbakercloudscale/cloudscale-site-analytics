@@ -1,10 +1,10 @@
 === CloudScale Site Analytics ===
 Contributors: cloudscale, andrewjbaker
 Tags: page views, analytics, statistics, view counter, cdn analytics
-Requires at least: 6.0
+Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.515
+Stable tag: 2.9.516
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,6 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 * Accurate counting behind Cloudflare and other CDNs
 * Session based deduplication (no double counting on refresh)
 * IP throttle protection against view inflation attacks
-* Jetpack Stats one click migration tool
 * Dashboard widget with hourly, daily, monthly, and 6 month charts
 * Top Posts and Recent Posts sidebar widgets with pagination
 * Configurable view counter badge on posts (badge, pill, or minimal style)
@@ -30,6 +29,7 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 * Full statistics page with period comparison and top posts
 * REST API endpoints for custom integrations
 * Privacy focused: IP addresses are hashed with wp_salt, never stored raw
+* Optional setting (off by default) to turn off the WordPress emoji script, so emoji are drawn by the browser instead of images from the WordPress.org emoji CDN
 
 = How It Works =
 
@@ -42,7 +42,7 @@ CloudScale uses a lightweight JavaScript beacon that fires after the cached page
 
 = Requirements =
 
-* WordPress 6.0 or higher
+* WordPress 6.2 or higher
 * PHP 7.4 or higher
 * A Cloudflare account with Cache Rules (free tier is sufficient)
 
@@ -67,10 +67,6 @@ In the Cloudflare dashboard go to Caching > Cache Rules > Create Rule:
 
 The plugin also sends no cache headers on every REST response, but the Cache Rule is the primary protection.
 
-= How do I migrate from Jetpack Stats? =
-
-Go to Tools > CloudScale Site Analytics > Migrate Jetpack tab. Click the migration button to import all Jetpack lifetime view counts into CloudScale. The migration preserves your historical totals as a starting point and the plugin blends them with new beacon data during a 28 day transition period.
-
 = Does it work without Cloudflare? =
 
 Yes. The beacon approach works on any WordPress site. The Cloudflare Cache Rule is only needed if you use Cloudflare caching. Without Cloudflare, the REST endpoint is already accessible and the plugin works out of the box.
@@ -84,6 +80,13 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.516 =
+* Changed: database tables renamed to the plugin's cspv_analytics_ prefix; existing data is moved automatically on first load.
+* Changed: requires WordPress 6.2 (SQL identifiers are passed to prepare() as %i placeholders).
+* Changed: turning off the WordPress emoji script is now an opt-in setting on the Display tab, off by default.
+* Added: Telegram Alerts card on the IP Throttle tab, so alert credentials can be entered in this plugin.
+* Security: REST beacon routes do their nonce and rate-limit checks in permission_callback; display settings save verifies its nonce.
 
 = 2.9.515 =
 * Changed: alert settings (Telegram, environment label, mute) are stored under this plugin's own prefix, migrated automatically, and kept in sync with the other CloudScale plugins.
@@ -220,16 +223,16 @@ IP addresses are hashed using SHA256 combined with your site wp_salt before stor
 This plugin optionally connects to the following external services:
 
 = Telegram Bot API (optional, alert notifications only) =
-When you configure Telegram alerts in the plugin settings, the plugin communicates with the Telegram Bot API:
-* Service URL: https://api.telegram.org/
-* What is sent and when: (1) When an admin clicks "Fetch Chat ID", the plugin calls the getUpdates endpoint with your bot token to discover your chat ID. (2) When an admin clicks "Send Test" or when a plugin event triggers a notification, the plugin calls sendMessage to deliver the alert text to your configured chat ID. No visitor data, page view analytics, or site content is transmitted, only the admin-authored alert text and your Telegram bot credentials.
-* This service is only used when an admin has entered a bot token and chat ID in the plugin settings.
+When Telegram alerts are configured, the plugin communicates with the Telegram Bot API (api.telegram.org):
+* Service documentation: https://core.telegram.org/bots
+* Credentials used: the bot token and chat ID entered in Tools > CloudScale Site Analytics > IP Throttle tab > Telegram Alerts. If another CloudScale plugin on the same site already has Telegram configured, this plugin reuses that bot token and chat ID (and a save here is offered to those plugins), so one configuration serves the whole suite. Nothing is sent while no bot token and chat ID are configured.
+* What is sent and when: (1) When an admin clicks "Fetch Chat ID", the bot token is sent to the getUpdates endpoint to discover the chat ID. (2) When an admin clicks "Send Test", or when a plugin event needs attention (the view-recording queue backing up, or the scheduled DB-IP database update failing), the plugin calls sendMessage with the bot token, the chat ID and the alert. Each alert contains the plugin-generated alert text, the site's domain, the server's hostname and IP address, the IP address of the client whose request triggered the alert (which can be a site visitor when the alert is raised while recording a page view), the logged-in user's username if any, and the HTTP method and request URL of that request. No page view analytics or site content is transmitted.
 * Telegram Privacy Policy: https://telegram.org/privacy
 * Telegram Terms of Service: https://telegram.org/tos
 
 = DB-IP Lite (optional, geolocation only) =
 IP geolocation is optional. To enable it you click "Download DB-IP Lite" on the plugin's statistics page, which fetches the free DB-IP City Lite database directly from DB-IP's servers:
-* Service URL: https://download.db-ip.com/
+* Service URL: https://db-ip.com/db/ (the database file is downloaded from download.db-ip.com)
 * The first download happens only when you explicitly trigger it from the admin panel. After that, while the auto-update option is enabled (it can be turned off on the statistics page), a daily WP-Cron event checks the calendar month and downloads a fresh database once per month to keep geolocation accurate. No automatic download ever occurs until you have performed the first download yourself.
 * What is sent: only the standard HTTP GET request required to fetch the database file. No site, post, or visitor data is transmitted to DB-IP.
 * DB-IP Privacy Policy: https://db-ip.com/privacy.php
@@ -243,6 +246,9 @@ When the optional DB-IP geolocation feature is enabled and you view the Statisti
 * What is sent: standard tile requests (HTTP GET for map image tiles). The request URL includes zoom level and tile coordinates; no site data, post data, or visitor data is transmitted.
 * OpenStreetMap Copyright and Licence: https://www.openstreetmap.org/copyright
 * Tile Usage Policy: https://operations.osmfoundation.org/policies/tiles/
+
+= CloudScale help pages (links only) =
+The admin screens contain links to the plugin's documentation on help.cloudscale.consulting and to the author's site cloudscale.consulting. These are ordinary links that open only when an admin clicks them. The plugin never sends any request or data to either host by itself.
 
 No visitor or site data is transmitted to any external service during page view tracking. The JavaScript beacon communicates only with your own site's REST API endpoint, and view counts never leave your server.
 

@@ -11,7 +11,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: direct queries on custom time-series tables are required; every table/column name goes through %i
 
 add_action( 'rest_api_init', 'cspv_register_endpoint' );
 
@@ -90,8 +90,8 @@ function cspv_is_cloudflare_ip( $ip ) {
 
 // Allow our public tracking endpoints to be called even when another plugin
 // uses rest_authentication_errors to restrict the REST API to logged-in users.
-// Our endpoints use permission_callback => '__return_true' (public by design)
-// but WordPress checks rest_authentication_errors before the permission callback,
+// Our beacon endpoints allow anonymous callers (public by design, gated by their
+// permission callbacks on nonce + throttle) but WordPress checks rest_authentication_errors before the permission callback,
 // so a WP_Error from another plugin blocks our routes before we get a say.
 add_filter( 'rest_authentication_errors', 'cspv_allow_beacon_without_auth', 20 );
 
@@ -112,7 +112,7 @@ function cspv_allow_beacon_without_auth( $result ) {
     $rest_prefix = rest_get_url_prefix();
     $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
     if ( false !== strpos( $request_uri, '/' . $rest_prefix . '/cloudscale-site-analytics/v1/' ) ) {
-        return null; // Let __return_true permission_callback decide
+        return null; // Let the route's own permission_callback decide
     }
     return $result;
 }
@@ -295,7 +295,7 @@ function cspv_alert_on_queue_drops(): void {
  */
 function cspv_flush_queue_via_iterator(): void {
     global $wpdb;
-    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
+    $v2_table    = esc_sql( $wpdb->prefix . 'cspv_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
     $iter        = new APCuIterator( '/^cspv_q_\d+$/' );
     foreach ( $iter as $entry ) {
@@ -305,11 +305,11 @@ function cspv_flush_queue_via_iterator(): void {
         if ( $post_id <= 0 ) { continue; }
         apcu_store( 'cspv_q_' . $post_id, 0 );
         apcu_store( 'cspv_q_total', max( 0, (int) apcu_fetch( 'cspv_q_total' ) - $pending ) );
-        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
-            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT INTO %i (post_id, viewed_at, view_count)
              VALUES (%d, %s, %d)
-             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)",
-            $post_id, $hour_bucket, $pending
+             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)',
+            $v2_table, $post_id, $hour_bucket, $pending
         ) );
         update_post_meta( $post_id, CSPV_META_KEY, (int) get_post_meta( $post_id, CSPV_META_KEY, true ) + $pending );
     }
@@ -326,7 +326,7 @@ function cspv_flush_queue_via_dirty_list(): void {
         return;
     }
     global $wpdb;
-    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
+    $v2_table    = esc_sql( $wpdb->prefix . 'cspv_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
     foreach ( array_keys( $dirty ) as $post_id ) {
         $post_id = (int) $post_id;
@@ -334,11 +334,11 @@ function cspv_flush_queue_via_dirty_list(): void {
         if ( $pending <= 0 ) { unset( $dirty[ $post_id ] ); continue; }
         apcu_store( 'cspv_q_' . $post_id, 0 );
         apcu_store( 'cspv_q_total', max( 0, (int) apcu_fetch( 'cspv_q_total' ) - $pending ) );
-        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
-            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT INTO %i (post_id, viewed_at, view_count)
              VALUES (%d, %s, %d)
-             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)",
-            $post_id, $hour_bucket, $pending
+             ON DUPLICATE KEY UPDATE view_count = view_count + VALUES(view_count)',
+            $v2_table, $post_id, $hour_bucket, $pending
         ) );
         update_post_meta( $post_id, CSPV_META_KEY, (int) get_post_meta( $post_id, CSPV_META_KEY, true ) + $pending );
         unset( $dirty[ $post_id ] );
@@ -376,7 +376,7 @@ function cspv_beacon_auth_required() {
  * @return string  Validated IP address, or '' if none.
  */
 function cspv_get_client_ip() {
-    $remote_addr = $_SERVER['REMOTE_ADDR'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- validated via filter_var; REMOTE_ADDR is server-set, not user-supplied
+    $remote_addr = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
     $raw_ip      = '';
 
     // CF-Connecting-IP is authoritative (set by Cloudflare, stripped from client
@@ -436,22 +436,25 @@ function cspv_read_rate_limited() {
 
 /**
  * ---------------------------------------------------------------------------
- * WordPress.org reviewer note, public ("__return_true") endpoints
+ * WordPress.org reviewer note, public endpoints
  * ---------------------------------------------------------------------------
  * Frontend view tracking relies on a JavaScript beacon (beacon.js) that fires
  * from every visitor's browser, including anonymous (logged-out) visitors and
- * on Cloudflare-cached pages where PHP never runs. The routes below are
- * therefore intentionally public, a capability or login check would defeat
- * their purpose. They are hardened, not unguarded:
+ * on Cloudflare-cached pages where PHP never runs. The routes below therefore
+ * accept anonymous callers, a capability or login check would defeat their
+ * purpose. The two write routes are gated by their own permission callbacks:
  *
- *   POST /v1/record/{id}  Records one page view.
+ *   POST /v1/record/{id}  Records one page view. cspv_record_permission():
  *                         - {id} validated (numeric > 0) and absint-sanitised;
  *                         - target must be an existing published (publish) post;
  *                         - a valid wp_rest nonce is required by default
  *                           (cspv_beacon_auth, see cspv_beacon_auth_required());
- *                         - per-IP throttle + session dedup prevent flooding;
+ *                         - per-IP throttle prevents flooding;
  *                         - the only visitor data stored is a hashed IP
  *                           (SHA-256 + wp_salt, never raw) plus the post ID.
+ *   POST /v1/audio/{id}   Records one narration play/complete event.
+ *                         cspv_audio_permission(): same post, nonce and
+ *                         throttle gates; event restricted to play|complete.
  *   GET  /v1/counts       Read-only. Returns view counts for published posts
  *                         only; non-published IDs are silently omitted.
  *                         Input capped at 50 absint IDs per call.
@@ -460,8 +463,8 @@ function cspv_read_rate_limited() {
  *                         gated behind current_user_can( 'manage_options' ).
  *
  * No public endpoint exposes private content or accepts unsanitised input.
- * Each '__return_true' below is deliberate and scoped to one read or to the
- * guarded record write described above.
+ * Each remaining '__return_true' below is deliberate and scoped to one
+ * read-only route.
  * ---------------------------------------------------------------------------
  */
 
@@ -480,7 +483,9 @@ function cspv_register_endpoint() {
         array(
             'methods'             => 'POST',
             'callback'            => 'cspv_record_view',
-            'permission_callback' => '__return_true', // Public by design: anonymous visitor beacon. Hardened, see reviewer note above (validated ID + wp_rest nonce + per-IP throttle).
+            // Anonymous visitors are allowed (public beacon). The permission callback
+            // is the gate: published post, wp_rest nonce and per-IP throttle.
+            'permission_callback' => 'cspv_record_permission',
             'args'                => array(
                 'id' => array(
                     'validate_callback' => function ( $param ) {
@@ -501,13 +506,25 @@ function cspv_register_endpoint() {
         array(
             'methods'             => 'POST',
             'callback'            => 'cspv_record_audio_event',
-            'permission_callback' => '__return_true', // Public by design: anonymous listener beacon. Hardened: validated ID + wp_rest nonce + per-IP throttle.
+            // Anonymous listeners are allowed (public beacon). The permission callback
+            // is the gate: published post, wp_rest nonce and per-IP throttle.
+            'permission_callback' => 'cspv_audio_permission',
             'args'                => array(
-                'id' => array(
+                'id'    => array(
                     'validate_callback' => function ( $param ) {
                         return is_numeric( $param ) && (int) $param > 0;
                     },
                     'sanitize_callback' => 'absint',
+                ),
+                // Which event: play (pressed play) or complete (reached the end).
+                // Anything else is rejected (400) so the column chosen from it in
+                // cspv_record_audio_event() is always one of two known names.
+                'event' => array(
+                    'default'           => 'complete',
+                    'validate_callback' => function ( $param ) {
+                        return is_string( $param ) && in_array( sanitize_key( $param ), array( 'play', 'complete' ), true );
+                    },
+                    'sanitize_callback' => 'sanitize_key',
                 ),
             ),
         )
@@ -526,12 +543,249 @@ function cspv_register_endpoint() {
 }
 
 /**
+ * Build a deliberate "not recorded" refusal for a beacon permission callback.
+ *
+ * The beacon gates (nonce, throttle, untracked type, kill switch) have always
+ * answered 200 with a normal-looking body ({post_id, views, logged:false}) so a
+ * scraper learns nothing and beacon.js still updates the on-page count and marks
+ * the post as seen (stopping a retry on every page load). A permission callback
+ * can only return true or a WP_Error, so the refusal travels as this WP_Error and
+ * cspv_rest_silent_refusal_response() turns it back into that exact body.
+ *
+ * @since  2.9.516
+ * @param  array $body Response body the client receives.
+ * @return WP_Error
+ */
+function cspv_beacon_silent_refusal( array $body ) {
+    return new WP_Error( 'cspv_not_recorded', 'Not recorded.', array( 'status' => 200, 'cspv_body' => $body ) );
+}
+
+add_filter( 'rest_request_after_callbacks', 'cspv_rest_silent_refusal_response', 10, 3 );
+
+/**
+ * Convert a cspv_beacon_silent_refusal() WP_Error into its original 200 body.
+ *
+ * @since  2.9.516
+ * @param  mixed           $response Result of the permission check or callback.
+ * @param  array           $handler  Route handler (unused).
+ * @param  WP_REST_Request $request  Request (unused).
+ * @return mixed
+ */
+function cspv_rest_silent_refusal_response( $response, $handler, $request ) {
+    if ( is_wp_error( $response ) && 'cspv_not_recorded' === $response->get_error_code() ) {
+        $data = $response->get_error_data();
+        if ( is_array( $data ) && isset( $data['cspv_body'] ) && is_array( $data['cspv_body'] ) ) {
+            return new WP_REST_Response( $data['cspv_body'], 200 );
+        }
+    }
+    return $response;
+}
+
+/**
+ * Run a beacon gate at most once per request.
+ *
+ * WordPress calls a route's permission_callback a second time after dispatch,
+ * from rest_send_allow_header() (rest_post_dispatch), to build the Allow header.
+ * cspv_is_throttled() counts the hit as a side effect, so an unguarded second
+ * call would count every view twice and halve the throttle limit. The first
+ * result is reused for the same request object. SplObjectStorage holds the
+ * request, so its id cannot be recycled by a later request in the same process.
+ *
+ * @since  2.9.516
+ * @param  WP_REST_Request $request Incoming request.
+ * @param  string          $gate    Gate function name.
+ * @return true|WP_Error
+ */
+function cspv_beacon_gate_once( WP_REST_Request $request, $gate ) {
+    static $seen = null;
+    if ( null === $seen ) {
+        $seen = new SplObjectStorage();
+    }
+    $done = isset( $seen[ $request ] ) ? $seen[ $request ] : array();
+    if ( ! array_key_exists( $gate, $done ) ) {
+        $done[ $gate ]    = call_user_func( $gate, $request );
+        $seen[ $request ] = $done;
+    }
+    return $done[ $gate ];
+}
+
+/**
+ * Permission callback for POST /cloudscale-site-analytics/v1/record/{id}.
+ *
+ * Anonymous callers are allowed on purpose: this is the page-view beacon fired
+ * by every visitor's browser, so a login or capability check would defeat it.
+ * Access is gated instead, in the order cspv_record_view() always applied it:
+ * body size (413), kill switch, published post (400/404), tracked post type,
+ * wp_rest nonce (unless cspv_beacon_auth is off), per-IP throttle.
+ *
+ * @since  2.9.516
+ * @param  WP_REST_Request $request Incoming REST request.
+ * @return true|WP_Error
+ */
+function cspv_record_permission( WP_REST_Request $request ) {
+    return cspv_beacon_gate_once( $request, 'cspv_record_gate' );
+}
+
+/**
+ * The checks behind cspv_record_permission(). Call through the wrapper only.
+ *
+ * @since  2.9.516
+ * @param  WP_REST_Request $request Incoming REST request.
+ * @return true|WP_Error
+ */
+function cspv_record_gate( WP_REST_Request $request ) {
+    // Sent here as well as in the callback: on a refusal the callback never runs.
+    cspv_send_nocache_headers();
+
+    // Reject oversized request bodies. The beacon only sends a tiny JSON
+    // payload (referrer + session_id); anything larger is rejected before any
+    // work is done. Filterable; 0 disables the cap.
+    $max_bytes = (int) apply_filters( 'cspv_max_body_bytes', 4096 );
+    if ( $max_bytes > 0 && strlen( (string) $request->get_body() ) > $max_bytes ) {
+        return new WP_Error( 'cspv_body_too_large', 'Request body too large.', array( 'status' => 413 ) );
+    }
+
+    // Emergency kill switch, reject all recording
+    if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
+        return cspv_beacon_silent_refusal( array(
+            'post_id' => absint( $request->get_param( 'id' ) ),
+            'views'   => 0,
+            'logged'  => false,
+            'paused'  => true,
+        ) );
+    }
+
+    // --- Validate post ID ------------------------------------------
+    $post_id = absint( $request->get_param( 'id' ) );
+    if ( $post_id <= 0 ) {
+        return new WP_Error( 'cspv_invalid_post', 'Invalid post ID.', array( 'status' => 400 ) );
+    }
+
+    $post = get_post( $post_id );
+    if ( ! $post ) {
+        return new WP_Error( 'cspv_post_not_found', 'Post not found.', array( 'status' => 404 ) );
+    }
+    if ( 'publish' !== $post->post_status ) {
+        return new WP_Error( 'cspv_post_not_published', 'Post is not published.', array( 'status' => 404 ) );
+    }
+
+    // Check post type filter, only record views for tracked types
+    $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
+    if ( ! empty( $track_types ) && ! in_array( $post->post_type, $track_types, true ) ) {
+        return cspv_beacon_silent_refusal( array(
+            'post_id' => $post_id,
+            'views'   => cspv_public_view_count( $post_id ),
+            'logged'  => false,
+        ) );
+    }
+
+    // --- Beacon authenticity gate ----------------------------------
+    // A genuine view comes from beacon.js, which fires with an X-WP-Nonce
+    // ('wp_rest') minted into the page. Scrapers/crawlers that POST straight
+    // to this public endpoint don't carry a valid nonce, so we reject them
+    // silently (200, logged:false), the caller gets no signal.
+    //
+    // Cache-safe: HTML is edge/nginx cached for 2h (max-age=7200), well inside
+    // the ~24h wp_rest nonce lifetime, so cached pages still carry a valid
+    // nonce. session_id is intentionally NOT a gate: getSessionId() returns ''
+    // when sessionStorage/crypto is unavailable (private mode, old browsers),
+    // so requiring it would drop real visitors. It is also client-generated and
+    // trivially forged, so it carries no authenticity value.
+    //
+    // Instant kill switch (no redeploy):  wp option update cspv_beacon_auth 0
+    if ( cspv_beacon_auth_required() ) {
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return cspv_beacon_silent_refusal( array(
+                'post_id' => $post_id,
+                'views'   => cspv_public_view_count( $post_id ),
+                'logged'  => false,
+            ) );
+        }
+    }
+
+    // --- IP throttle check -----------------------------------------
+    $raw_ip  = cspv_get_client_ip();
+    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
+    if ( cspv_is_throttled( $ip_hash ) ) {
+        // Silent accept, attacker gets no signal
+        return cspv_beacon_silent_refusal( array(
+            'post_id' => $post_id,
+            'views'   => cspv_public_view_count( $post_id ),
+            'logged'  => false,
+        ) );
+    }
+
+    return true;
+}
+
+/**
+ * Permission callback for POST /cloudscale-site-analytics/v1/audio/{id}.
+ *
+ * Anonymous callers are allowed on purpose: this is the narration beacon fired
+ * by every listener's browser. Gated, in the order cspv_record_audio_event()
+ * always applied it: kill switch, published post (400/404), wp_rest nonce
+ * (unless cspv_beacon_auth is off), per-IP throttle. The event value is
+ * validated by the route's 'event' arg before this runs.
+ *
+ * @since  2.9.516
+ * @param  WP_REST_Request $request Incoming REST request.
+ * @return true|WP_Error
+ */
+function cspv_audio_permission( WP_REST_Request $request ) {
+    return cspv_beacon_gate_once( $request, 'cspv_audio_gate' );
+}
+
+/**
+ * The checks behind cspv_audio_permission(). Call through the wrapper only.
+ *
+ * @since  2.9.516
+ * @param  WP_REST_Request $request Incoming REST request.
+ * @return true|WP_Error
+ */
+function cspv_audio_gate( WP_REST_Request $request ) {
+    // Sent here as well as in the callback: on a refusal the callback never runs.
+    cspv_send_nocache_headers();
+
+    if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
+        return cspv_beacon_silent_refusal( array( 'logged' => false, 'paused' => true ) );
+    }
+
+    $post_id = absint( $request->get_param( 'id' ) );
+    if ( $post_id <= 0 ) {
+        return new WP_Error( 'cspv_invalid_post', 'Invalid post ID.', array( 'status' => 400 ) );
+    }
+    $post = get_post( $post_id );
+    if ( ! $post || 'publish' !== $post->post_status ) {
+        return new WP_Error( 'cspv_post_not_found', 'Post not found.', array( 'status' => 404 ) );
+    }
+
+    // Beacon authenticity gate (same as views): require a valid wp_rest nonce
+    // unless the kill switch disables it.
+    if ( cspv_beacon_auth_required() ) {
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return cspv_beacon_silent_refusal( array( 'logged' => false ) );
+        }
+    }
+
+    // Per-IP throttle (shared with views): silent accept on trip.
+    $raw_ip  = cspv_get_client_ip();
+    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
+    if ( $ip_hash && cspv_is_throttled( $ip_hash ) ) {
+        return cspv_beacon_silent_refusal( array( 'logged' => false ) );
+    }
+
+    return true;
+}
+
+/**
  * REST callback for POST /cloudscale-site-analytics/v1/audio/{id}.
  *
  * Records one narration engagement event (play or completion) for the post in
- * the current hour bucket. Mirrors cspv_record_view's public-endpoint hardening
- * (nocache headers, kill switch, post validation, wp_rest nonce gate, per-IP
- * throttle) but writes only the audio table. Browser-side dedup (localStorage,
+ * the current hour bucket. The kill switch, post validation, wp_rest nonce gate
+ * and per-IP throttle run first in cspv_audio_permission(); this writes only the
+ * audio table. Browser-side dedup (localStorage,
  * 24h) keeps this to roughly one play + one completion per listener per day,
  * matching how views are deduped, so plays vs completes is a true rate.
  *
@@ -542,52 +796,20 @@ function cspv_register_endpoint() {
 function cspv_record_audio_event( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
 
-    if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
-        return new WP_REST_Response( array( 'logged' => false, 'paused' => true ), 200 );
-    }
-
+    // Kill switch, published post, nonce and throttle were checked by
+    // cspv_audio_permission(); 'event' was validated by the route args.
     $post_id = absint( $request->get_param( 'id' ) );
-    if ( $post_id <= 0 ) {
-        return new WP_REST_Response( array( 'error' => 'Invalid post ID.' ), 400 );
-    }
-    $post = get_post( $post_id );
-    if ( ! $post || 'publish' !== $post->post_status ) {
-        return new WP_REST_Response( array( 'error' => 'Post not found.' ), 404 );
-    }
-
-    // Which event: play (pressed play) or complete (reached the end). Anything
-    // else is rejected so the column choice below is always safe.
-    $body   = $request->get_json_params();
-    $event  = ( is_array( $body ) && isset( $body['event'] ) ) ? sanitize_key( $body['event'] ) : 'complete';
-    if ( ! in_array( $event, array( 'play', 'complete' ), true ) ) {
-        return new WP_REST_Response( array( 'error' => 'Invalid event.' ), 400 );
-    }
-    $column = ( 'play' === $event ) ? 'plays' : 'completes';
-
-    // Beacon authenticity gate (same as views): require a valid wp_rest nonce
-    // unless the kill switch disables it.
-    if ( cspv_beacon_auth_required() ) {
-        $nonce = $request->get_header( 'X-WP-Nonce' );
-        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return new WP_REST_Response( array( 'logged' => false ), 200 );
-        }
-    }
-
-    // Per-IP throttle (shared with views): silent accept on trip.
-    $raw_ip  = cspv_get_client_ip();
-    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
-    if ( $ip_hash && cspv_is_throttled( $ip_hash ) ) {
-        return new WP_REST_Response( array( 'logged' => false ), 200 );
-    }
+    $event   = ( 'play' === $request->get_param( 'event' ) ) ? 'play' : 'complete';
+    $column  = ( 'play' === $event ) ? 'plays' : 'completes';
 
     global $wpdb;
-    $table       = esc_sql( $wpdb->prefix . 'cs_analytics_audio_v2' );
+    $table       = esc_sql( $wpdb->prefix . 'cspv_analytics_audio_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     // Ensure the table exists (cached like the views-table check).
     $exists = get_transient( 'cspv_audio_table_exists' );
     if ( $exists === false ) {
-        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
         set_transient( 'cspv_audio_table_exists', $exists, HOUR_IN_SECONDS );
     }
     if ( $exists !== '1' ) {
@@ -595,13 +817,13 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
         set_transient( 'cspv_audio_table_exists', '1', HOUR_IN_SECONDS );
     }
 
-    // Column name is one of two hard-coded literals selected above, safe to
-    // interpolate; only post_id and the hour bucket are user-influenced values.
-    $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table/column name
-        "INSERT INTO `{$table}` (post_id, bucketed_at, `{$column}`)
+    // Column name is one of two hard-coded literals selected above, passed as an
+    // identifier (%i) three times: the insert column and both sides of the update.
+    $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+        'INSERT INTO %i (post_id, bucketed_at, %i)
          VALUES (%d, %s, 1)
-         ON DUPLICATE KEY UPDATE `{$column}` = `{$column}` + 1",
-        $post_id, $hour_bucket
+         ON DUPLICATE KEY UPDATE %i = %i + 1',
+        $table, $column, $post_id, $hour_bucket, $column, $column
     ) );
 
     /*
@@ -635,7 +857,8 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
 /**
  * REST callback for POST /cloudscale-site-analytics/v1/record/{id}.
  *
- * Validates the post, checks the IP throttle, writes the hourly view bucket,
+ * Runs after cspv_record_permission() has validated the post and applied the
+ * nonce and IP throttle gates. Writes the hourly view bucket,
  * referrer, geo, and unique-visitor rows, then increments the denormalised
  * post meta counter.
  *
@@ -646,55 +869,16 @@ function cspv_record_audio_event( WP_REST_Request $request ) {
 function cspv_record_view( WP_REST_Request $request ) {
     cspv_send_nocache_headers();
 
-    // Reject oversized request bodies. The beacon only sends a tiny JSON
-    // payload (referrer + session_id); anything larger is rejected before any
-    // work is done. Filterable; 0 disables the cap.
-    $max_bytes = (int) apply_filters( 'cspv_max_body_bytes', 4096 );
-    if ( $max_bytes > 0 && strlen( (string) $request->get_body() ) > $max_bytes ) {
-        return new WP_REST_Response( array( 'error' => 'Request body too large.' ), 413 );
-    }
-
-    // Emergency kill switch, reject all recording
-    if ( function_exists( 'cspv_tracking_paused' ) && cspv_tracking_paused() ) {
-        return new WP_REST_Response( array(
-            'post_id' => absint( $request->get_param( 'id' ) ),
-            'views'   => 0,
-            'logged'  => false,
-            'paused'  => true,
-        ), 200 );
-    }
-
-    // --- Validate post ID ------------------------------------------
+    // Body size, kill switch, published post, tracked type, nonce and throttle
+    // were all checked, in that order, by cspv_record_permission().
     $post_id = absint( $request->get_param( 'id' ) );
-    if ( $post_id <= 0 ) {
-        return new WP_REST_Response( array( 'error' => 'Invalid post ID.' ), 400 );
-    }
-
-    $post = get_post( $post_id );
-    if ( ! $post ) {
-        return new WP_REST_Response( array( 'error' => 'Post not found.' ), 404 );
-    }
-    if ( 'publish' !== $post->post_status ) {
-        return new WP_REST_Response( array( 'error' => 'Post is not published.' ), 404 );
-    }
-
-    // Check post type filter, only record views for tracked types
-    $track_types = get_option( 'cspv_track_post_types', array( 'post', 'page' ) );
-    if ( ! empty( $track_types ) && ! in_array( $post->post_type, $track_types, true ) ) {
-        return new WP_REST_Response( array(
-            'post_id' => $post_id,
-            'views'   => cspv_public_view_count( $post_id ),
-            'logged'  => false,
-        ), 200 );
-    }
 
     // --- Extract real IP (Cloudflare-aware) -------------------------
     // $is_cf is also reused below to decide whether CF-IPCountry can be
     // trusted for geolocation; cspv_get_client_ip() centralises IP resolution.
-    $remote_addr = $_SERVER['REMOTE_ADDR'] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- server-set value, validated via cspv_is_cloudflare_ip() CIDR check
+    $remote_addr = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
     $is_cf       = cspv_is_cloudflare_ip( $remote_addr );
     $raw_ip      = cspv_get_client_ip();
-    $ip_hash     = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
 
     $ua = '';
     if ( isset( $_SERVER['HTTP_USER_AGENT'] ) ) {
@@ -719,41 +903,6 @@ function cspv_record_view( WP_REST_Request $request ) {
         $session_id = substr( preg_replace( '/[^a-z0-9]/i', '', $body['session_id'] ), 0, 64 );
     }
 
-    // --- Beacon authenticity gate ----------------------------------
-    // A genuine view comes from beacon.js, which fires with an X-WP-Nonce
-    // ('wp_rest') minted into the page. Scrapers/crawlers that POST straight
-    // to this public endpoint don't carry a valid nonce, so we reject them
-    // silently (200, logged:false), the caller gets no signal.
-    //
-    // Cache-safe: HTML is edge/nginx cached for 2h (max-age=7200), well inside
-    // the ~24h wp_rest nonce lifetime, so cached pages still carry a valid
-    // nonce. session_id is intentionally NOT a gate: getSessionId() returns ''
-    // when sessionStorage/crypto is unavailable (private mode, old browsers),
-    // so requiring it would drop real visitors. It is also client-generated and
-    // trivially forged, so it carries no authenticity value.
-    //
-    // Instant kill switch (no redeploy):  wp option update cspv_beacon_auth 0
-    if ( cspv_beacon_auth_required() ) {
-        $nonce = $request->get_header( 'X-WP-Nonce' );
-        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return new WP_REST_Response( array(
-                'post_id' => $post_id,
-                'views'   => cspv_public_view_count( $post_id ),
-                'logged'  => false,
-            ), 200 );
-        }
-    }
-
-    // --- IP throttle check -----------------------------------------
-    if ( cspv_is_throttled( $ip_hash ) ) {
-        // Silent accept, attacker gets no signal
-        return new WP_REST_Response( array(
-            'post_id' => $post_id,
-            'views'   => cspv_public_view_count( $post_id ),
-            'logged'  => false,
-        ), 200 );
-    }
-
     // --- APCu queue dispatch ------------------------------------------
     // Try to enqueue the increment instead of writing directly to DB.
     //   true  = queued (APCu active, batch write deferred to cron)
@@ -772,21 +921,21 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // --- Write to database (skipped when APCu queue is active) ---------
     global $wpdb;
-    $v2_table    = esc_sql( $wpdb->prefix . 'cs_analytics_views_v2' );
+    $v2_table    = esc_sql( $wpdb->prefix . 'cspv_analytics_views_v2' );
     $hour_bucket = current_time( 'Y-m-d H' ) . ':00:00';
 
     if ( ! $use_queue ) {
         // Confirm V2 table exists, result cached for 1 hour to avoid SHOW TABLES on every view.
         $table_exists = get_transient( 'cspv_v2_table_exists' );
         if ( $table_exists === false ) {
-            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
             set_transient( 'cspv_v2_table_exists', $table_exists, HOUR_IN_SECONDS );
         }
         if ( $table_exists !== '1' ) {
             if ( function_exists( 'cspv_create_table_v2' ) ) {
                 cspv_create_table_v2();
             }
-            $created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+            $created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $v2_table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
             if ( ! $created ) {
                 return new WP_REST_Response( array( 'error' => 'Database table unavailable.' ), 500 );
             }
@@ -794,11 +943,11 @@ function cspv_record_view( WP_REST_Request $request ) {
         }
 
         // Upsert hourly view bucket
-        $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "INSERT INTO `{$v2_table}` (post_id, viewed_at, view_count)
+        $result = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT INTO %i (post_id, viewed_at, view_count)
              VALUES (%d, %s, 1)
-             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
-            $post_id, $hour_bucket
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1',
+            $v2_table, $post_id, $hour_bucket
         ) );
 
         if ( $result === false ) {
@@ -813,12 +962,12 @@ function cspv_record_view( WP_REST_Request $request ) {
 
     // Upsert referrer bucket (only if referrer is non empty)
     if ( $referrer !== '' ) {
-        $ref_table = esc_sql( $wpdb->prefix . 'cs_analytics_referrers_v2' );
-        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "INSERT INTO `{$ref_table}` (post_id, viewed_at, referrer, view_count)
+        $ref_table = esc_sql( $wpdb->prefix . 'cspv_analytics_referrers_v2' );
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT INTO %i (post_id, viewed_at, referrer, view_count)
              VALUES (%d, %s, %s, 1)
-             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
-            $post_id, $hour_bucket, substr( $referrer, 0, 512 )
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1',
+            $ref_table, $post_id, $hour_bucket, substr( $referrer, 0, 512 )
         ) );
     }
 
@@ -854,12 +1003,12 @@ function cspv_record_view( WP_REST_Request $request ) {
             $country = 'ZZ';
         }
         // Write to geo table, every view is recorded, ZZ = unknown/unresolved.
-        $geo_table = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
-        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "INSERT INTO `{$geo_table}` (post_id, viewed_at, country_code, view_count)
+        $geo_table = esc_sql( $wpdb->prefix . 'cspv_analytics_geo_v2' );
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT INTO %i (post_id, viewed_at, country_code, view_count)
              VALUES (%d, %s, %s, 1)
-             ON DUPLICATE KEY UPDATE view_count = view_count + 1",
-            $post_id, $hour_bucket, $country
+             ON DUPLICATE KEY UPDATE view_count = view_count + 1',
+            $geo_table, $post_id, $hour_bucket, $country
         ) );
     }
 
@@ -867,21 +1016,21 @@ function cspv_record_view( WP_REST_Request $request ) {
     $visitor_ip = filter_var( $raw_ip, FILTER_VALIDATE_IP ) ? $raw_ip : '';
     if ( $visitor_ip !== '' && $visitor_ip !== '127.0.0.1' && $visitor_ip !== '::1' ) {
         $visitor_hash  = hash( 'sha256', $visitor_ip . wp_salt() );
-        $visitor_table = esc_sql( $wpdb->prefix . 'cs_analytics_visitors_v2' );
+        $visitor_table = esc_sql( $wpdb->prefix . 'cspv_analytics_visitors_v2' );
         $visitor_date  = current_time( 'Y-m-d' );
-        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name/expression
-            "INSERT IGNORE INTO `{$visitor_table}` (visitor_hash, post_id, viewed_at)
-             VALUES (%s, %d, %s)",
-            $visitor_hash, $post_id, $visitor_date
+        $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+            'INSERT IGNORE INTO %i (visitor_hash, post_id, viewed_at)
+             VALUES (%s, %d, %s)',
+            $visitor_table, $visitor_hash, $post_id, $visitor_date
         ) );
     }
 
     // Session depth tracking (one row per session+post, INSERT IGNORE deduplicates)
     if ( $session_id !== '' ) {
-        $sess_table  = esc_sql( $wpdb->prefix . 'cs_analytics_sessions_v2' );
+        $sess_table  = esc_sql( $wpdb->prefix . 'cspv_analytics_sessions_v2' );
         $sess_exists = get_transient( 'cspv_sessions_table_exists' );
         if ( $sess_exists !== '1' ) {
-            $found       = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+            $found       = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sess_table ) ) ? '1' : '0'; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
             $sess_exists = $found;
             // Only cache a positive result, a negative could be stale after table creation
             if ( $found === '1' ) {
@@ -889,9 +1038,9 @@ function cspv_record_view( WP_REST_Request $request ) {
             }
         }
         if ( $sess_exists === '1' ) {
-            $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
-                "INSERT IGNORE INTO `{$sess_table}` (session_id, post_id, viewed_at) VALUES (%s, %d, %s)",
-                $session_id, $post_id, current_time( 'Y-m-d' )
+            $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct write to analytics custom table
+                'INSERT IGNORE INTO %i (session_id, post_id, viewed_at) VALUES (%s, %d, %s)',
+                $sess_table, $session_id, $post_id, current_time( 'Y-m-d' )
             ) );
         }
     }

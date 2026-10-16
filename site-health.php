@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
 
 /**
  * Return site health metrics, serving a 1-hour cached result when available.
@@ -61,12 +61,12 @@ function cspv_compute_site_health() {
     $table = esc_sql( cspv_views_table() );
     $today = current_time( 'Y-m-d' );
 
-    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- direct query on analytics custom table
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
 
     $earliest  = null;
     $data_days = 0;
     if ( $table_exists ) {
-        $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+        $earliest = $wpdb->get_var( $wpdb->prepare( 'SELECT MIN(viewed_at) FROM %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
     }
     $today_ts = strtotime( $today );
     if ( $earliest ) {
@@ -105,14 +105,14 @@ function cspv_compute_site_health() {
                 $previous = $r28['prior'];
             } else {
                 $start = wp_date( 'Y-m-d', strtotime( "-{$days} days", $today_ts ) ) . ' 00:00:00';
-                $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-                    "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE viewed_at >= %s", $start ) );
+                $current = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
+                    'SELECT COALESCE(SUM(view_count),0) FROM %i WHERE viewed_at >= %s', $table, $start ) );
 
                 $prev_end   = $start;
                 $prev_start = wp_date( 'Y-m-d', strtotime( "-{$required_days} days", $today_ts ) ) . ' 00:00:00';
-                $previous = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-                    "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE viewed_at >= %s AND viewed_at < %s",
-                    $prev_start, $prev_end ) );
+                $previous = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
+                    'SELECT COALESCE(SUM(view_count),0) FROM %i WHERE viewed_at >= %s AND viewed_at < %s',
+                    $table, $prev_start, $prev_end ) );
             }
 
             $has_data = ( $previous > 0 );
@@ -220,10 +220,10 @@ function cspv_count_hot_pages( $table, $today_ts, $days, $offset ) {
     $end   = wp_date( 'Y-m-d', strtotime( "-{$offset} days", $today_ts ) ) . ' 23:59:59';
     $start = wp_date( 'Y-m-d', strtotime( '-' . ( $offset + $days ) . ' days', $today_ts ) ) . ' 00:00:00';
 
-    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-        "SELECT post_id, COALESCE(SUM(view_count),0) AS views FROM `{$table}`
+    $post_views = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- direct query on analytics custom table
+        'SELECT post_id, COALESCE(SUM(view_count),0) AS views FROM %i
          WHERE viewed_at >= %s AND viewed_at <= %s
-         GROUP BY post_id ORDER BY views DESC", $start, $end ) );
+         GROUP BY post_id ORDER BY views DESC', $table, $start, $end ) );
 
     if ( empty( $post_views ) ) { return null; }
 

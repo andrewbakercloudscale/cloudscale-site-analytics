@@ -529,8 +529,8 @@ function cspv_ajax_save_throttle_settings() {
 
     try {
         $enabled = ! empty( $_POST['enabled'] );
-        $limit   = isset( $_POST['limit'] ) ? max( 1, min( 10000, (int) wp_unslash( $_POST['limit'] ) ) ) : 50; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast is the sanitization
-        $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist on the next line
+        $limit   = isset( $_POST['limit'] ) ? max( 1, min( 10000, absint( wp_unslash( $_POST['limit'] ) ) ) ) : 50;
+        $raw_win = isset( $_POST['window'] ) ? absint( wp_unslash( $_POST['window'] ) ) : 3600;
         $window  = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
 
         update_option( 'cspv_throttle_enabled', $enabled, false );
@@ -615,10 +615,10 @@ function cspv_ajax_save_ftb_settings() {
 
     try {
         $enabled    = ! empty( $_POST['enabled'] );
-        $page_limit = isset( $_POST['page_limit'] ) ? max( 1, min( 100000, (int) wp_unslash( $_POST['page_limit'] ) ) ) : 1000; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast is the sanitization
-        $raw_win    = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 3600; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $page_limit = isset( $_POST['page_limit'] ) ? max( 1, min( 100000, absint( wp_unslash( $_POST['page_limit'] ) ) ) ) : 1000;
+        $raw_win    = isset( $_POST['window'] ) ? absint( wp_unslash( $_POST['window'] ) ) : 3600;
         $window     = in_array( $raw_win, array( 600, 1800, 3600, 7200, 86400 ), true ) ? $raw_win : 3600;
-        $raw_dur    = isset( $_POST['block_duration'] ) ? (int) wp_unslash( $_POST['block_duration'] ) : CSPV_FTB_BLOCK_DURATION_DEFAULT; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $raw_dur    = isset( $_POST['block_duration'] ) ? absint( wp_unslash( $_POST['block_duration'] ) ) : CSPV_FTB_BLOCK_DURATION_DEFAULT;
         $block_dur  = in_array( $raw_dur, array( 1800, 3600, 7200, 14400, 28800, 43200, 86400 ), true ) ? $raw_dur : CSPV_FTB_BLOCK_DURATION_DEFAULT;
 
         update_option( 'cspv_ftb_enabled',        $enabled,    false );
@@ -782,7 +782,7 @@ function cspv_ajax_save_dedup_settings() {
 
     try {
         $enabled = ! empty( $_POST['enabled'] );
-        $raw_win = isset( $_POST['window'] ) ? (int) wp_unslash( $_POST['window'] ) : 86400; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- integer cast; value validated against whitelist below
+        $raw_win = isset( $_POST['window'] ) ? absint( wp_unslash( $_POST['window'] ) ) : 86400;
         $allowed = array( 3600, 7200, 21600, 43200, 86400, 172800 );
         $window  = in_array( $raw_win, $allowed, true ) ? $raw_win : 86400;
 
@@ -890,3 +890,30 @@ function cspv_ajax_test_ftb() {
         wp_send_json_error( $e->getMessage(), 500 );
     }
 }
+
+// =========================================================================
+// Telegram alert credentials (the card on the IP Throttle tab)
+// =========================================================================
+
+/**
+ * AJAX: save the Telegram bot token and chat ID entered on this plugin's settings screen.
+ *
+ * @since 2.9.516
+ * @return void
+ */
+function cspv_ajax_save_telegram() {
+    if ( ! check_ajax_referer( 'cspv_throttle', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
+        return;
+    }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );
+        return;
+    }
+    $token   = isset( $_POST['telegram_token'] ) ? sanitize_text_field( wp_unslash( $_POST['telegram_token'] ) ) : '';
+    $chat_id = isset( $_POST['telegram_chat_id'] ) ? sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ) ) : '';
+    CSPV_Telegram::save_credentials( $token, $chat_id );
+    wp_send_json_success();
+}
+add_action( 'wp_ajax_cspv_save_telegram', 'cspv_ajax_save_telegram' );
+CSPV_Telegram::register_ajax();

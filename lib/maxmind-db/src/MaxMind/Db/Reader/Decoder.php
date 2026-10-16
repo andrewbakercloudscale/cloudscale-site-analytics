@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-namespace MaxMind\Db\Reader;
+namespace Cspv\MaxMind\Db\Reader;
 
 // @codingStandardsIgnoreLine
 
@@ -94,10 +94,10 @@ class Decoder
 
             if ($type < 8) {
                 throw new InvalidDatabaseException(
-                    'Something went horribly wrong in the decoder. An extended type '
-                    . 'resolved to a type number < 8 (' // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
+                    esc_html( 'Something went horribly wrong in the decoder. An extended type '
+                    . 'resolved to a type number < 8 ('
                     . $type
-                    . ')'
+                    . ')' )
                 );
             }
 
@@ -153,8 +153,8 @@ class Decoder
                 return [$this->decodeUint($bytes, $size), $newOffset];
 
             default:
-                throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
-                    'Unknown or unexpected type: ' . $type
+                throw new InvalidDatabaseException( esc_html(
+                    'Unknown or unexpected type: ' . $type )
                 );
         }
     }
@@ -329,8 +329,8 @@ class Decoder
                 break;
 
             default:
-                throw new InvalidDatabaseException( // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- vendor library exception
-                    'Unexpected pointer size ' . $pointerSize
+                throw new InvalidDatabaseException( esc_html(
+                    'Unexpected pointer size ' . $pointerSize )
                 );
         }
 

@@ -93,7 +93,7 @@ function cspv_get_view_count( $post_id = null ) {
  * this article's narration", deduped per listener per 24h by the beacon exactly as
  * views are, so the two numbers mean comparable things and can sit side by side.
  *
- * READS A META COUNTER, NOT THE BUCKET TABLE. cs_analytics_audio_v2 keeps one row per
+ * READS A META COUNTER, NOT THE BUCKET TABLE. cspv_analytics_audio_v2 keeps one row per
  * post per hour and remains the record of truth (the stats pages and the SEO plugin's
  * editor line both aggregate it). A public template cannot afford that: a listing page
  * renders a player per result, and one SUM per player is a query per player on a page
@@ -124,20 +124,12 @@ function cspv_get_audio_play_count( $post_id = null ) {
 
     $total = 0;
     global $wpdb;
-    $table = $wpdb->prefix . 'cs_analytics_audio_v2';
+    $table = $wpdb->prefix . 'cspv_analytics_audio_v2';
     if ( function_exists( 'cspv_table_exists' ) && cspv_table_exists( $table ) ) {
-        // The table name comes from $wpdb->prefix and a literal, it cannot be a
-        // placeholder, and post_id IS bound. One indexed aggregate that runs at most
-        // once per post, after which the meta counter answers, so there is nothing to
-        // cache. A disable/enable pair rather than a phpcs:ignore because the offending
-        // token is the string on its own line INSIDE the call: an ignore on the line
-        // above covers that line only, which is how this first failed the build.
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $total = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COALESCE(SUM(plays),0) FROM `{$table}` WHERE post_id = %d",
-            $post_id
-        ) );
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        // Table name bound through %i, post_id through %d. One indexed aggregate that
+        // runs at most once per post, after which the meta counter answers, so there is
+        // nothing to cache.
+        $total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COALESCE(SUM(plays),0) FROM %i WHERE post_id = %d', $table, $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-time backfill of the meta counter
     }
     update_post_meta( $post_id, CSPV_AUDIO_META_KEY, $total );
 
@@ -161,11 +153,23 @@ function cspv_get_audio_play_count( $post_id = null ) {
  * @return void
  */
 function cspv_the_audio_plays( $args = array() ) {
-    // NOT run through wp_kses_post(). KSES strips data-* attributes unless the element's
-    // allow-list names 'data-*' explicitly, and data-cspv-audio-id is what the beacon uses
-    // to find this counter and repaint it, filtered markup would render a number that
-    // silently never updates. Every value is escaped where it is built, below.
-    echo cspv_audio_plays_html( $args ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped at construction in cspv_audio_plays_html()
+    // wp_kses() with an explicit allow-list rather than wp_kses_post(): the data-cspv-*
+    // attributes are what the beacon uses to find this counter and repaint it, and if a
+    // filter ever narrowed post kses they would be stripped and the number would silently
+    // never update. Naming every tag and attribute cspv_audio_plays_html() emits keeps the
+    // markup intact whatever kses filters are active. Values are also escaped at build.
+    echo wp_kses(
+        cspv_audio_plays_html( $args ),
+        array(
+            'span' => array(
+                'class'                      => true,
+                'aria-hidden'                => true,
+                'data-cspv-audio-id'         => true,
+                'data-cspv-audio-suffix'     => true,
+                'data-cspv-audio-suffix-one' => true,
+            ),
+        )
+    );
 }
 
 /**

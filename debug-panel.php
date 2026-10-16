@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: direct queries on custom time-series tables are required
 
 // Enqueue styles for the debug panel (admin-only, singular only).
 add_action( 'wp_enqueue_scripts', 'cspv_debug_panel_enqueue' );
@@ -370,33 +370,37 @@ function cspv_render_debug_panel() {
 
     if ( $table_exists ) {
         $log_count = (int) $wpdb->get_var(
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d",
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT COALESCE(SUM(view_count),0) FROM %i WHERE post_id = %d',
+                $table,
                 $post_id
             )
         );
 
         $first_log = $wpdb->get_var(
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                "SELECT MIN(viewed_at) FROM `{$table}` WHERE post_id = %d",
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT MIN(viewed_at) FROM %i WHERE post_id = %d',
+                $table,
                 $post_id
             )
         );
 
         $last_log = $wpdb->get_var(
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                "SELECT MAX(viewed_at) FROM `{$table}` WHERE post_id = %d",
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT MAX(viewed_at) FROM %i WHERE post_id = %d',
+                $table,
                 $post_id
             )
         );
 
         // Last 14 days daily chart.
         $rows = $wpdb->get_results(
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                "SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views
-             FROM `{$table}`
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views
+             FROM %i
              WHERE post_id = %d AND viewed_at >= %s
-             GROUP BY day ORDER BY day ASC",
+             GROUP BY day ORDER BY day ASC',
+                $table,
                 $post_id,
                 wp_date( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - ( 14 * 86400 ) )
             )
@@ -411,15 +415,16 @@ function cspv_render_debug_panel() {
         }
 
         // Country totals (all-time) from geo table.
-        $geo_table  = esc_sql( $wpdb->prefix . 'cs_analytics_geo_v2' );
-        $geo_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cs_analytics_geo_v2' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $geo_table  = esc_sql( $wpdb->prefix . 'cspv_analytics_geo_v2' );
+        $geo_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'cspv_analytics_geo_v2' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ( $geo_exists ) {
             $geo_rows = $wpdb->get_results(
-                $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    "SELECT country_code, COALESCE(SUM(view_count),0) AS views
-                 FROM `{$geo_table}`
+                $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                    'SELECT country_code, COALESCE(SUM(view_count),0) AS views
+                 FROM %i
                  WHERE post_id = %d
-                 GROUP BY country_code ORDER BY views DESC LIMIT 8",
+                 GROUP BY country_code ORDER BY views DESC LIMIT 8',
+                    $geo_table,
                     $post_id
                 )
             );
@@ -630,8 +635,9 @@ function cspv_ajax_resync_meta() {
 
         $table     = esc_sql( cspv_views_table() );
         $log_count = (int) $wpdb->get_var(
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                "SELECT COALESCE(SUM(view_count),0) FROM `{$table}` WHERE post_id = %d",
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT COALESCE(SUM(view_count),0) FROM %i WHERE post_id = %d',
+                $table,
                 $post_id
             )
         );

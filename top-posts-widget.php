@@ -12,7 +12,7 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: all interpolated vars are internal table/column names; direct queries on custom time-series tables are required
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.PHP.DevelopmentFunctions.error_log_error_log -- analytics plugin: direct queries on custom time-series tables are required
 
 // Enqueue widget CSS/JS only on pages where the widget is active.
 add_action( 'wp_enqueue_scripts', 'cspv_top_posts_widget_enqueue' );
@@ -65,7 +65,7 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         $in_transition = false;
 
         if ( $table_exists && $view_window > 0 ) {
-            $earliest = $wpdb->get_var( "SELECT MIN(viewed_at) FROM `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- trusted internal table name
+            $earliest = $wpdb->get_var( $wpdb->prepare( 'SELECT MIN(viewed_at) FROM %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
             if ( $earliest ) {
                 $log_days = (int) floor( ( time() - strtotime( $earliest ) ) / 86400 );
             } else {
@@ -77,8 +77,9 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         // ── Transition period: blend meta + beacon, rank by combined total ──
         if ( $in_transition ) {
             $since       = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-                "SELECT post_id, COALESCE(SUM(view_count),0) AS cnt FROM `{$table}` WHERE viewed_at >= %s GROUP BY post_id",
+            $beacon_rows = $table_exists ? $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                'SELECT post_id, COALESCE(SUM(view_count),0) AS cnt FROM %i WHERE viewed_at >= %s GROUP BY post_id',
+                $table,
                 $since
             ) ) : array();
 
@@ -88,16 +89,20 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
             }
 
             // Get all posts with lifetime meta > 0
-            $meta_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared -- no user input; fully hardcoded query
-                "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS lifetime
-                 FROM {$wpdb->posts} p
-                 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
-                 WHERE p.post_type = 'post'
-                   AND p.post_status = 'publish'
-                   AND pm.meta_key = '_cspv_view_count'
-                   AND CAST(pm.meta_value AS UNSIGNED) > 0
-                 ORDER BY lifetime DESC
-                 LIMIT 500"
+            $meta_rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- ranked lifetime-meta read during the transition window
+                $wpdb->prepare(
+                    "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS lifetime
+                     FROM %i p
+                     INNER JOIN %i pm ON pm.post_id = p.ID
+                     WHERE p.post_type = 'post'
+                       AND p.post_status = 'publish'
+                       AND pm.meta_key = '_cspv_view_count'
+                       AND CAST(pm.meta_value AS UNSIGNED) > 0
+                     ORDER BY lifetime DESC
+                     LIMIT 500",
+                    $wpdb->posts,
+                    $wpdb->postmeta
+                )
             );
 
             // Rank by lifetime meta (includes all tracked views).
@@ -145,23 +150,25 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         if ( $table_exists ) {
             if ( $view_window > 0 ) {
                 $since = gmdate( 'Y-m-d H:i:s', strtotime( "-{$view_window} days" ) );
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-                    "SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
-                     FROM `{$table}`
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                    'SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
+                     FROM %i
                      WHERE viewed_at >= %s
                      GROUP BY post_id
                      ORDER BY view_count DESC
-                     LIMIT %d",
+                     LIMIT %d',
+                    $table,
                     $since,
                     $total * 2
                 ) );
             } else {
-                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- trusted internal table name
-                    "SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
-                     FROM `{$table}`
+                $ranked = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table
+                    'SELECT post_id, COALESCE(SUM(view_count),0) AS view_count
+                     FROM %i
                      GROUP BY post_id
                      ORDER BY view_count DESC
-                     LIMIT %d",
+                     LIMIT %d',
+                    $table,
                     $total * 2
                 ) );
             }
@@ -201,17 +208,19 @@ function cspv_get_top_posts( $total, $order_by, $view_window = -1 ) {
         }
 
         // Fallback: rank by meta if log table empty or missing
-        $meta_fallback = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- trusted core table names
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $wpdb->posts/$wpdb->postmeta are trusted core table names
+        $meta_fallback = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- ranked meta fallback, runs only when the log table is empty
+            $wpdb->prepare(
                 "SELECT p.ID, CAST(pm.meta_value AS UNSIGNED) AS total_views
-                 FROM {$wpdb->posts} p
-                 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+                 FROM %i p
+                 INNER JOIN %i pm ON pm.post_id = p.ID
                  WHERE p.post_type = 'post'
                    AND p.post_status = 'publish'
                    AND pm.meta_key = '_cspv_view_count'
                    AND CAST(pm.meta_value AS UNSIGNED) > 0
                  ORDER BY total_views DESC
                  LIMIT %d",
+                $wpdb->posts,
+                $wpdb->postmeta,
                 absint( $total )
             )
         );
@@ -310,14 +319,14 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
         $uid = 'cspv_tp_' . preg_replace( '/[^a-zA-Z0-9]/', '_', $args['widget_id'] );
         $safe_wid = esc_attr( $args['widget_id'] );
 
-        echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
-        echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+        echo wp_kses_post( $args['before_widget'] );
+        echo wp_kses_post( $args['before_title'] ) . esc_html( $title ) . wp_kses_post( $args['after_title'] );
 
         $posts_arr = cspv_get_top_posts( $total_posts, $order_by, $view_window );
 
         if ( empty( $posts_arr ) ) {
             echo '<p style="font-size:0.85em;color:#888;">' . esc_html__( 'No published posts found.', 'cloudscale-site-analytics' ) . '</p>';
-            echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+            echo wp_kses_post( $args['after_widget'] );
             return;
         }
 
@@ -451,7 +460,7 @@ class CSPV_Top_Posts_Widget extends WP_Widget {
 })();';
 
         wp_add_inline_script( 'cspv-top-posts-widget', $js );
-        echo $args['after_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- standard WP widget output
+        echo wp_kses_post( $args['after_widget'] );
     }
 
     /**

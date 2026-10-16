@@ -23,27 +23,13 @@
 
     <!--
         Analytics plugin: all DB queries operate on custom time-series tables
-        created by this plugin (cs_analytics_*). Table names are built from
-        $wpdb->prefix and cannot be passed as prepare() positional placeholders.
-        Every interpolated variable ({$table}, {$cnt}, etc.) is an internal
-        string derived from $wpdb->prefix or a hardcoded column name — there is
-        no user input involved. Direct queries to these tables are inherently
+        created by this plugin (cspv_analytics_*). Table names are passed to
+        prepare() as %i identifier placeholders (WordPress 6.2+), so
+        InterpolatedNotPrepared is NOT suppressed anywhere. Direct queries to these tables are inherently
         required; caching time-series event data with transients would produce
         incorrect counts. Suppress the three repetitive warnings plugin-wide for
         the analytics query files.
     -->
-    <rule ref="WordPress.DB.PreparedSQL.InterpolatedNotPrepared">
-        <exclude-pattern>stats-library.php</exclude-pattern>
-        <exclude-pattern>stats-page-ajax.php</exclude-pattern>
-        <exclude-pattern>stats-page-render.php</exclude-pattern>
-        <exclude-pattern>debug-panel.php</exclude-pattern>
-        <exclude-pattern>dashboard-widget.php</exclude-pattern>
-        <exclude-pattern>rest-api.php</exclude-pattern>
-        <exclude-pattern>site-health.php</exclude-pattern>
-        <exclude-pattern>top-posts-widget.php</exclude-pattern>
-        <exclude-pattern>not-found.php</exclude-pattern>
-        <exclude-pattern>search.php</exclude-pattern>
-    </rule>
 
     <rule ref="WordPress.DB.DirectDatabaseQuery.DirectQuery">
         <exclude-pattern>stats-library.php</exclude-pattern>

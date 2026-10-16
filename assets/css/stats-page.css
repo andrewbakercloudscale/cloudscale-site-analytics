@@ -920,6 +920,16 @@ body.cspv-modal-open { overflow: hidden; }
 .cspv-ins-posts-tbl thead th:last-child { border-radius: 0 6px 0 0; }
 .cspv-ins-posts-tbl tbody tr:nth-child(even) td { background: var(--csds-surface-2, #f8fafc); }
 .cspv-ins-posts-tbl tbody tr:hover td { background: #f0f9ff !important; }
+/* Five-column audience table (renderInsPostsTable). These rules used to be
+   injected as a <style> tag by the JS at render time, after the rules above,
+   so they sit after them here to keep the same cascade order. min-width lets
+   the wrap's overflow-x:auto scroll on narrow screens. */
+.cspv-ins-posts-tbl { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 12px; }
+.cspv-ins-posts-tbl th, .cspv-ins-posts-tbl td { padding: 7px 8px; text-align: right; vertical-align: middle; }
+.cspv-ins-posts-tbl thead th { color: #e5e7eb; font-weight: 700; background: #0f172a; font-size: 11px; white-space: normal; line-height: 1.2; }
+.cspv-ins-posts-tbl tbody td { color: #0f172a; border-bottom: 1px solid #eef2f7; white-space: nowrap; }
+.cspv-ins-posts-tbl th.left, .cspv-ins-posts-tbl td.left { text-align: left; white-space: normal; width: 260px; min-width: 240px; }
+.cspv-ins-posts-tbl td.left a { color: #1d4ed8; text-decoration: none; font-weight: 600; line-height: 1.3; word-break: break-word; }
 .cspv-ins-pt-title-cell { text-align: left; max-width: 260px; padding: 8px 10px; }
 .cspv-ins-pt-title-cell a { color: var(--csds-accent, #3b82f6); text-decoration: none; font-weight: 500; }
 .cspv-ins-pt-title-cell a:hover { text-decoration: underline; }

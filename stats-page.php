@@ -30,7 +30,7 @@ require_once plugin_dir_path( __FILE__ ) . 'stats-page-render.php';
  * @return void
  */
 function cspv_admin_menu_styles() {
-    if ( isset( $_GET['page'] ) && $_GET['page'] === 'cloudscale-site-analytics' ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page slug check
+    if ( isset( $_GET['page'] ) && 'cloudscale-site-analytics' === sanitize_key( wp_unslash( $_GET['page'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin page slug check
         echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
     }
 }
@@ -93,7 +93,7 @@ function cspv_add_tools_page() {
  */
 function cspv_redirect_legacy_slug() {
     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only slug check on a GET navigation redirect
-    if ( isset( $_GET['page'] ) && 'cloudscale-wordpress-free-analytics' === $_GET['page'] ) {
+    if ( isset( $_GET['page'] ) && 'cloudscale-wordpress-free-analytics' === sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
         wp_safe_redirect( admin_url( 'tools.php?page=cloudscale-site-analytics' ), 301 );
         exit;
     }

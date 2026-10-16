@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 namespace Cspv\MaxMind\Db;
 
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
 use Cspv\MaxMind\Db\Reader\Decoder;
 use Cspv\MaxMind\Db\Reader\InvalidDatabaseException;
 use Cspv\MaxMind\Db\Reader\Metadata;

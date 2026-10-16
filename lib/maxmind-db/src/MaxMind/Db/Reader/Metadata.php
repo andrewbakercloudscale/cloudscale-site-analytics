@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 namespace Cspv\MaxMind\Db\Reader;
 
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
 /**
  * This class provides the metadata for the MaxMind DB file.
  */

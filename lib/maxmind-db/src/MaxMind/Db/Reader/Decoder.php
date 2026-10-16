@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 namespace Cspv\MaxMind\Db\Reader;
 
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
 // @codingStandardsIgnoreLine
 
 class Decoder

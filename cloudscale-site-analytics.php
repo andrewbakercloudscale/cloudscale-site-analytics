@@ -110,6 +110,7 @@ add_action( 'admin_init', function () {
 
 // Tables created before 2.9.516 carried no plugin prefix. Moved before anything can write.
 add_action( 'init', 'cspv_migrate_table_names', 0 );
+add_action( 'admin_notices', 'cspv_sibling_table_name_notice' );
 
 register_activation_hook( __FILE__, 'cspv_activate' );
 

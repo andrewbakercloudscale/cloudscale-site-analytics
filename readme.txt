@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.518
+Stable tag: 2.9.519
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -80,6 +80,9 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.519 =
+* Fixed: country flags are built without mb_chr(), which WordPress 7.1 polyfills, so the plugin keeps working from WordPress 6.2.
 
 = 2.9.516 =
 * Changed: database tables renamed to the plugin's cspv_analytics_ prefix; existing data is moved automatically on first load.

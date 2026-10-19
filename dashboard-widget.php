@@ -536,8 +536,9 @@ if ( ! empty( $ss_items ) ) :
                     $ss_pct = 0;
                 }
                 if ( 2 === strlen( $ss_cc ) && ctype_alpha( $ss_cc ) ) {
-                    $ss_flag  = mb_chr( 0x1F1E6 + ord( $ss_cc[0] ) - 65, 'UTF-8' )
-                              . mb_chr( 0x1F1E6 + ord( $ss_cc[1] ) - 65, 'UTF-8' );
+                    // UTF-8 bytes, not mb_chr(), which the WordPress.org upload check refuses below WordPress 7.1.
+                    $ss_flag  = "\xF0\x9F\x87" . chr( 0xA6 + ord( $ss_cc[0] ) - 65 )
+                              . "\xF0\x9F\x87" . chr( 0xA6 + ord( $ss_cc[1] ) - 65 );
                     $ss_label = $ss_flag . ' ' . $ss_cc;
                     if ( $ss_pct > 0 ) {
                         $ss_label .= ' ' . $ss_pct . '%';

@@ -127,11 +127,13 @@ function cspv_inject_debug_button( $content ) {
  */
 function cspv_flag_emoji( string $cc ): string {
     $cc = strtoupper( trim( $cc ) );
-    if ( strlen( $cc ) !== 2 || $cc === 'ZZ' ) {
+    if ( strlen( $cc ) !== 2 || $cc === 'ZZ' || ! ctype_alpha( $cc ) ) {
         return '🌐';
     }
-    $offset = 0x1F1E6 - ord( 'A' );
-    return mb_chr( ord( $cc[0] ) + $offset ) . mb_chr( ord( $cc[1] ) + $offset );
+    // UTF-8 bytes, not mb_chr(): WordPress.org's upload check reads mb_chr() as a
+    // WordPress 7.1 function (core polyfills it) and refuses it below Requires at least 7.1.
+    // Regional indicator U+1F1E6 + n encodes as F0 9F 87 (A6 + n).
+    return "\xF0\x9F\x87" . chr( 0xA6 + ord( $cc[0] ) - 65 ) . "\xF0\x9F\x87" . chr( 0xA6 + ord( $cc[1] ) - 65 );
 }
 
 /**

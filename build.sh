@@ -723,6 +723,14 @@ else
   echo "WARNING: standards-grep-guard.sh not found — file-write guard skipped."
 fi
 
+# ── Functions newer than "Requires at least", by WordPress.org's trunk dataset ──
+# 19Oct26 the upload form refused cyber-devtools on mb_chr() ("requires WordPress 7.1.0",
+# a core polyfill); this plugin had the same calls. No other gate runs that rule.
+if ! php "$GITHUB_DIR/shared-build-tools/check-wp-functions-since.php" "$TEMP_DIR/$PLUGIN_NAME"; then
+  echo "ERROR: WP function-since check failed — build blocked (details above)."
+  rm -rf "$TEMP_DIR"; exit 1
+fi
+
 # Build zip with correct structure
 rm -f "$ZIP_FILE"
 cd "$TEMP_DIR"

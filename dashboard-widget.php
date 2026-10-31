@@ -120,6 +120,143 @@ function cspv_register_dashboard_widget() {
 }
 
 /**
+ * Read-through transient cache for the widget's period-scale numbers.
+ *
+ * The 30-day KPI, the Smart Summary and the 28-day and 6-month chart series were
+ * about 560ms of the 900ms Dashboard load on production, recomputed on every visit
+ * to wp-admin. None of them needs to be live to the second, so they are kept for
+ * a few minutes. The 12 hour, 24 hour and today numbers never pass through here.
+ *
+ * The caller puts everything that defines the answer in $inputs, including the
+ * hour or day it belongs to, so a new hour, a new day or different inputs is a
+ * different key and a miss. CSPV_VERSION is part of the key so a release that
+ * changes a value's shape never reads the previous release's entry.
+ *
+ * The value is stored wrapped, so an empty array or a zero is a hit and is not
+ * recomputed on every load. Callers must return plain arrays and scalars (they
+ * survive serialisation) and never HTML: escaping happens at render time.
+ *
+ * @since 2.9.520
+ * @param  string   $part    Short name of the cached part, e.g. 'insights'.
+ * @param  array    $inputs  Everything the value depends on.
+ * @param  callable $compute Produces the value on a miss.
+ * @return mixed
+ */
+function cspv_dashboard_cached( $part, array $inputs, callable $compute ) {
+    $ttl = (int) apply_filters( 'cspv_dashboard_cache_ttl', 10 * MINUTE_IN_SECONDS );
+    if ( $ttl <= 0 ) {
+        return $compute();
+    }
+    $key    = 'cspv_dw_' . md5( (string) wp_json_encode( array( $part, CSPV_VERSION, $inputs ) ) );
+    $cached = get_transient( $key );
+    if ( is_array( $cached ) && array_key_exists( 'v', $cached ) ) {
+        return $cached['v'];
+    }
+    $value = $compute();
+    set_transient( $key, array( 'v' => $value ), $ttl );
+    return $value;
+}
+
+/**
+ * The widget's 30-day Smart Summary items, cached by cspv_dashboard_cached().
+ *
+ * The dashboard render path calls this and never cspv_insights_kpi() or
+ * cspv_insights_smart_summary() directly; tests/dashboard-cache-test.php holds it there.
+ * The key is the host, the window length and the hour the window ends in.
+ *
+ * @since 2.9.520
+ * @param  string                 $host Own host, so self-referrals are labelled.
+ * @param  int                    $days Window length in days.
+ * @param  DateTimeInterface|null $now  End of the window; defaults to now in the site timezone.
+ * @return array Smart Summary items: { icon, text, detail, type }, plain text.
+ */
+function cspv_dashboard_insights_cached( $host, $days = 30, $now = null ) {
+    $now_dt = $now ? new DateTime( $now->format( 'Y-m-d H:i:s' ), $now->getTimezone() ) : new DateTime( 'now', wp_timezone() );
+    $to     = $now_dt->format( 'Y-m-d H:i:s' );
+    $from   = ( clone $now_dt )->modify( '-' . (int) $days . ' days' )->format( 'Y-m-d H:i:s' );
+    $inputs = array(
+        'host' => (string) $host,
+        'days' => (int) $days,
+        'hour' => $now_dt->format( 'Y-m-d H' ),
+    );
+    return cspv_dashboard_cached(
+        'insights',
+        $inputs,
+        function () use ( $from, $to, $host, $days ) {
+            $kpi = cspv_insights_kpi( $from, $to, $host );
+            return cspv_insights_smart_summary( $from, $to, $host, (int) $days, $kpi );
+        }
+    );
+}
+
+/**
+ * The widget's 28-day daily and 6-month weekly chart series.
+ *
+ * Called through cspv_dashboard_cached() by cspv_dashboard_query_data().
+ *
+ * @since 2.9.520
+ * @param  string $table        Views table name.
+ * @param  bool   $table_exists Whether the views table exists.
+ * @param  string $today        Today in the site timezone, Y-m-d.
+ * @return array { month_labels, month_values, m6_labels, m6_values }
+ */
+function cspv_dashboard_long_series( $table, $table_exists, $today ) {
+    global $wpdb;
+
+    // 1 Month (28 days), query once, fill array
+    $month_labels = array();
+    $month_values = array();
+    $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
+    $raw_month    = array();
+    if ( $table_exists ) {
+        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views FROM %i WHERE viewed_at >= %s GROUP BY day', $table, $m28_s ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table, cached by cspv_dashboard_cached()
+        foreach ( $rows as $r ) { $raw_month[ $r->day ] = (int) $r->views; }
+    }
+    for ( $i = 27; $i >= 0; $i-- ) {
+        $d              = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
+        $dow            = (int) wp_date( 'N', strtotime( $d ) );
+        $month_labels[] = $dow === 1 ? wp_date( 'j M', strtotime( $d ) ) : wp_date( 'j', strtotime( $d ) );
+        $month_values[] = $raw_month[ $d ] ?? 0;
+    }
+
+    // 6 Months, group by week (26 weeks)
+    $m6_labels = array();
+    $m6_values = array();
+    $m6_s      = wp_date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
+    $raw_6m    = array();
+    if ( $table_exists ) {
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at, '%%Y-%%u') AS week_key, MIN(DATE(viewed_at)) AS week_start, COALESCE(SUM(view_count),0) AS views FROM %i WHERE viewed_at >= %s GROUP BY week_key ORDER BY week_key ASC", $table, $m6_s ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table, cached by cspv_dashboard_cached()
+        foreach ( $rows as $r ) { $raw_6m[ $r->week_key ] = array( 'views' => (int) $r->views, 'start' => $r->week_start ); }
+    }
+    if ( ! empty( $raw_6m ) ) {
+        foreach ( $raw_6m as $data ) {
+            $m6_labels[] = wp_date( 'j M', strtotime( $data['start'] ) );
+            $m6_values[] = $data['views'];
+        }
+        // Ensure exactly 26 entries, pad front with zeros if needed
+        $m6_pad_count = max( 0, 26 - count( $m6_labels ) );
+        for ( $i = 0; $i < $m6_pad_count; $i++ ) {
+            array_unshift( $m6_labels, '' );
+            array_unshift( $m6_values, 0 );
+        }
+    } else {
+        // No data, still generate 26 labeled slots
+        for ( $i = 25; $i >= 0; $i-- ) {
+            $d           = wp_date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
+            $m6_labels[] = wp_date( 'j M', strtotime( $d ) );
+            $m6_values[] = 0;
+        }
+    }
+
+    return array(
+        'month_labels' => $month_labels,
+        'month_values' => $month_values,
+        'm6_labels'    => $m6_labels,
+        'm6_values'    => $m6_values,
+    );
+}
+
+/**
  * Query all data needed by the dashboard widget.
  *
  * @since 1.0.0
@@ -306,63 +443,22 @@ function cspv_dashboard_query_data() {
         }
         $day7_values = array_values( $d7_map );
     }
-    // 1 Month (28 days), query once, fill array
-    $month_labels = array();
-    $month_values = array();
-    $m28_s        = wp_date( 'Y-m-d', strtotime( '-27 days', strtotime( $today ) ) ) . ' 00:00:00';
-    $raw_month    = array();
-    if ( $table_exists ) {
-        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT DATE(viewed_at) AS day, COALESCE(SUM(view_count),0) AS views FROM %i WHERE viewed_at >= %s GROUP BY day', $table, $m28_s ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table, live counts
-        foreach ( $rows as $r ) { $raw_month[ $r->day ] = (int) $r->views; }
-    }
-    for ( $i = 27; $i >= 0; $i-- ) {
-        $d              = wp_date( 'Y-m-d', strtotime( "-{$i} days", strtotime( $today ) ) );
-        $dow            = (int) wp_date( 'N', strtotime( $d ) );
-        $month_labels[] = $dow === 1 ? wp_date( 'j M', strtotime( $d ) ) : wp_date( 'j', strtotime( $d ) );
-        $month_values[] = $raw_month[ $d ] ?? 0;
-    }
-
-    // 6 Months, group by week (26 weeks)
-    $m6_labels = array();
-    $m6_values = array();
-    $m6_s      = wp_date( 'Y-m-d', strtotime( '-181 days', strtotime( $today ) ) ) . ' 00:00:00';
-    $raw_6m    = array();
-    if ( $table_exists ) {
-        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT DATE_FORMAT(viewed_at, '%%Y-%%u') AS week_key, MIN(DATE(viewed_at)) AS week_start, COALESCE(SUM(view_count),0) AS views FROM %i WHERE viewed_at >= %s GROUP BY week_key ORDER BY week_key ASC", $table, $m6_s ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom analytics table, live counts
-        foreach ( $rows as $r ) { $raw_6m[ $r->week_key ] = array( 'views' => (int) $r->views, 'start' => $r->week_start ); }
-    }
-    // Build 26 week slots
-    for ( $i = 25; $i >= 0; $i-- ) {
-        $week_start     = wp_date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
-        $wk             = wp_date( 'Y-W', strtotime( $week_start ) );
-        $m6_labels[]    = wp_date( 'j M', strtotime( $week_start ) );
-        $m6_values[]    = isset( $raw_6m[ str_replace( '-', '-', $wk ) ] )
-                            ? $raw_6m[ str_replace( '-', '-', $wk ) ]['views'] : 0;
-    }
-    // Fill 6m from raw (simpler, just use ordered results directly)
-    if ( ! empty( $raw_6m ) ) {
-        $m6_labels = array();
-        $m6_values = array();
-        foreach ( $raw_6m as $wk => $data ) {
-            $m6_labels[] = wp_date( 'j M', strtotime( $data['start'] ) );
-            $m6_values[] = $data['views'];
+    // 1 Month (28 days) and 6 Months (26 weeks): period-scale, cached for a few minutes.
+    $long_series = cspv_dashboard_cached(
+        'series',
+        array(
+            'table'  => (string) $table,
+            'exists' => (bool) $table_exists,
+            'hour'   => current_time( 'Y-m-d H' ),
+        ),
+        function () use ( $table, $table_exists, $today ) {
+            return cspv_dashboard_long_series( $table, $table_exists, $today );
         }
-        // Ensure exactly 26 entries, pad front with zeros if needed
-        $m6_pad_count = max( 0, 26 - count( $m6_labels ) );
-        for ( $i = 0; $i < $m6_pad_count; $i++ ) {
-            array_unshift( $m6_labels, '' );
-            array_unshift( $m6_values, 0 );
-        }
-    } else {
-        // No data, still generate 26 labeled slots
-        $m6_labels = array();
-        $m6_values = array();
-        for ( $i = 25; $i >= 0; $i-- ) {
-            $d           = wp_date( 'Y-m-d', strtotime( '-' . ( $i * 7 ) . ' days', strtotime( $today ) ) );
-            $m6_labels[] = wp_date( 'j M', strtotime( $d ) );
-            $m6_values[] = 0;
-        }
-    }
+    );
+    $month_labels = $long_series['month_labels'];
+    $month_values = $long_series['month_values'];
+    $m6_labels    = $long_series['m6_labels'];
+    $m6_values    = $long_series['m6_values'];
 
     $stats_url   = admin_url( 'tools.php?page=cloudscale-site-analytics' );
     $throttle_on = cspv_throttle_enabled();
@@ -509,12 +605,8 @@ function cspv_render_dashboard_widget() {
 
 <!-- Smart Summary (30-day) -->
 <?php
-$ss_now   = new DateTime( 'now', wp_timezone() );
-$ss_to    = $ss_now->format( 'Y-m-d H:i:s' );
-$ss_from  = ( clone $ss_now )->modify( '-30 days' )->format( 'Y-m-d H:i:s' );
 $ss_host  = (string) wp_parse_url( home_url(), PHP_URL_HOST );
-$ss_kpi   = cspv_insights_kpi( $ss_from, $ss_to, $ss_host );
-$ss_items = cspv_insights_smart_summary( $ss_from, $ss_to, $ss_host, 30, $ss_kpi );
+$ss_items = cspv_dashboard_insights_cached( $ss_host, 30 );
 if ( ! empty( $ss_items ) ) :
     $ss_type_colors = array( 'positive' => '#059669', 'negative' => '#e53e3e', 'neutral' => '#6d28d9' );
 ?>

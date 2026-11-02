@@ -1111,5 +1111,6 @@ function cspv_ajax_post_geo_map() {
 }
 
 function cspv_ajax_version() {
+    // ajax-guard-exempt: public read of the plugin version only, no input read and nothing changed.
     wp_send_json( array( 'v' => CSPV_VERSION ) );
 }

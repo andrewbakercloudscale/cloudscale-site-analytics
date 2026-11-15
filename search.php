@@ -244,7 +244,10 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 	// For multi-word queries, require every individual word to appear somewhere
 	// in the post (word-order independent). Single-word queries use the original
 	// phrase match unchanged.
-	$words = array_values( array_filter( array_map( 'trim', explode( ' ', $term ) ) ) );
+	// At most 8 words: each adds three unindexed LIKE scans. Password-protected posts are
+	// left out of both queries below: matching their content let a visitor test words
+	// against text the password was meant to hide (core search does not do that).
+	$words = array_slice( array_values( array_filter( array_map( 'trim', explode( ' ', $term ) ) ) ), 0, 8 );
 
 	// Only one table is queried, so columns are unqualified and the table name
 	// goes in through %i.
@@ -276,6 +279,7 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 				       'wp_block','wp_template','wp_template_part',
 				       'wp_global_styles','wp_navigation'
 				   )
+				   AND post_password = ''
 				   AND "
 				. implode( ' AND ', array_fill( 0, count( $words ), '( post_title LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s )' ) )
 				. "
@@ -315,6 +319,7 @@ function cspv_wildcard_posts_pre_query( $posts, $query ) {
 				       'wp_block','wp_template','wp_template_part',
 				       'wp_global_styles','wp_navigation'
 				   )
+				   AND post_password = ''
 				   AND (
 				       post_title   LIKE %s
 				    OR post_content LIKE %s

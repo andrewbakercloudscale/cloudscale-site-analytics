@@ -109,9 +109,23 @@ function cspv_allow_beacon_without_auth( $result ) {
     if ( ! is_wp_error( $result ) ) {
         return $result;
     }
-    $rest_prefix = rest_get_url_prefix();
-    $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-    if ( false !== strpos( $request_uri, '/' . $rest_prefix . '/cloudscale-site-analytics/v1/' ) ) {
+    // The route being served, not a substring of the URL. The old strpos() matched the
+    // text anywhere in REQUEST_URI, so ?rest_route=/wp/v2/users&x=/wp-json/cloudscale-
+    // site-analytics/v1/ cleared another plugin's lockdown for every REST route.
+    $route = '';
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reads the route name only; the route's own permission_callback checks the nonce
+    if ( isset( $_GET['rest_route'] ) ) {
+        $route = sanitize_text_field( wp_unslash( $_GET['rest_route'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- as above
+    } else {
+        $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+        $path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+        $home_path   = (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH );
+        $prefix      = rtrim( $home_path, '/' ) . '/' . rest_get_url_prefix();
+        if ( 0 === strpos( $path, $prefix . '/' ) ) {
+            $route = substr( $path, strlen( $prefix ) );
+        }
+    }
+    if ( 0 === strpos( '/' . ltrim( $route, '/' ), '/cloudscale-site-analytics/v1/' ) ) {
         return null; // Let the route's own permission_callback decide
     }
     return $result;
@@ -706,7 +720,9 @@ function cspv_record_gate( WP_REST_Request $request ) {
 
     // --- IP throttle check -----------------------------------------
     $raw_ip  = cspv_get_client_ip();
-    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
+    // No usable address (a forged X-Forwarded-For resolves to '') shares one bucket,
+    // so it is throttled together instead of not at all (2.9.x security fix).
+    $ip_hash = hash( 'sha256', ( $raw_ip ? $raw_ip : 'no-ip' ) . wp_salt() );
     if ( cspv_is_throttled( $ip_hash ) ) {
         // Silent accept, attacker gets no signal
         return cspv_beacon_silent_refusal( array(
@@ -771,7 +787,9 @@ function cspv_audio_gate( WP_REST_Request $request ) {
 
     // Per-IP throttle (shared with views): silent accept on trip.
     $raw_ip  = cspv_get_client_ip();
-    $ip_hash = $raw_ip ? hash( 'sha256', $raw_ip . wp_salt() ) : '';
+    // No usable address (a forged X-Forwarded-For resolves to '') shares one bucket,
+    // so it is throttled together instead of not at all (2.9.x security fix).
+    $ip_hash = hash( 'sha256', ( $raw_ip ? $raw_ip : 'no-ip' ) . wp_salt() );
     if ( $ip_hash && cspv_is_throttled( $ip_hash ) ) {
         return cspv_beacon_silent_refusal( array( 'logged' => false ) );
     }

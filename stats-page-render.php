@@ -2383,7 +2383,7 @@ ob_start();
             return '<div class="cspv-row">'
                  + '<div class="cspv-bar-wrap">'
                  +   '<div class="cspv-bar-fill" style="width:' + pct + '%"></div>'
-                 +   '<span class="cspv-bar-label"><a href="' + esc(item.url) + '" target="_blank" title="' + esc(item.url) + '">' + esc(display) + '</a></span>'
+                 +   '<span class="cspv-bar-label"><a href="' + esc(/^https?:\/\//i.test(String(item.url || '')) ? item.url : '#') + '" target="_blank" rel="noopener noreferrer" title="' + esc(item.url) + '">' + esc(display) + '</a></span>'
                  + '</div>'
                  + '<span class="cspv-row-views">' + item.views.toLocaleString() + '</span>'
                  + '</div>';
@@ -2512,7 +2512,9 @@ ob_start();
         if (!cc || cc.length !== 2 || cc === 'ZZ') return '🌐 ';
         return String.fromCodePoint(... Array.from(cc.toUpperCase()).map(function(c){ return 0x1F1E6 - 65 + c.charCodeAt(0); })) + ' ';
     }
-    function countryName(cc) { return cc === 'ZZ' ? 'Unknown' : (countryNames[cc] || cc); }
+    // The fallback is the code itself, and this name goes into tooltip and legend HTML:
+    // letters only, at most 2, so an unexpected stored value cannot carry markup.
+    function countryName(cc) { return cc === 'ZZ' ? 'Unknown' : (countryNames[cc] || String(cc || '').replace(/[^A-Za-z]/g, '').slice(0, 2)); }
 
     // Country centroids for map markers
     var countryCentroids = {AF:[33,65],AL:[41,20],DZ:[28,3],AO:[-12.5,18.5],AR:[-34,-64],AT:[47.5,14],AU:[-25,134],BD:[24,90],BE:[50.8,4.5],BG:[43,25],BR:[-10,-55],CA:[56,-96],CH:[47,8],CL:[-35.5,-71],CN:[35,105],CO:[4,-72],CZ:[49.8,15.5],DE:[51,10],DK:[56,10],EG:[27,30],ES:[40,-4],FI:[64,26],FR:[46.5,2.5],GB:[54,-2],GH:[8,-1.5],GR:[39,22],HK:[22.3,114.2],HU:[47,19],ID:[-5,120],IE:[53.5,-8],IL:[31.5,34.8],IN:[22,79],IQ:[33,44],IR:[32,53],IT:[42.5,12.5],JP:[36,138],KE:[-1,38],KR:[36,128],MA:[32,-6],MX:[23,-102],MY:[4.2,101.9],NG:[10,8],NL:[52.5,5.7],NO:[64,12],NZ:[-42,174],PH:[12,122],PK:[30,70],PL:[52,20],PT:[39.5,-8],RO:[46,25],RU:[60,100],SA:[24,45],SE:[63,16],SG:[1.35,103.8],TH:[15.5,101],TR:[39,35],TW:[23.7,121],TZ:[-6.5,35],UA:[49,32],US:[39,-98],VN:[16,106],ZA:[-29,24],ZW:[-19.5,29.8]};
@@ -3991,6 +3993,13 @@ ob_start();
 
                 if (refWrap && refBody && refsData.length) {
                     var siteHost = location.hostname.replace(/^www\./, '');
+                    // Referrers come from logged-out visitors' beacons: escape every
+                    // one, in text and in the title attribute (quotes included).
+                    var escRef = function(s) {
+                        return String(s).replace(/[&<>"']/g, function(c) {
+                            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                        });
+                    };
                     refBody.innerHTML = refsData.map(function(ref, i) {
                         var label = ref.r;
                         try {
@@ -4005,7 +4014,7 @@ ob_start();
                             }
                         } catch(e) {}
                         var bg = i % 2 === 0 ? '#f8fafc' : '#fff';
-                        return '<tr style="background:' + bg + ';"><td style="padding:5px 8px;color:#334155;overflow:hidden;text-overflow:ellipsis;max-width:0;white-space:nowrap;" title="' + ref.r + '">' + label + '</td><td style="padding:5px 8px;text-align:right;color:#7e22ce;font-weight:700;font-variant-numeric:tabular-nums;">' + ref.v.toLocaleString() + '</td></tr>';
+                        return '<tr style="background:' + bg + ';"><td style="padding:5px 8px;color:#334155;overflow:hidden;text-overflow:ellipsis;max-width:0;white-space:nowrap;" title="' + escRef(ref.r) + '">' + escRef(label) + '</td><td style="padding:5px 8px;text-align:right;color:#7e22ce;font-weight:700;font-variant-numeric:tabular-nums;">' + ref.v.toLocaleString() + '</td></tr>';
                     }).join('');
                     refWrap.style.display = 'block';
                 }

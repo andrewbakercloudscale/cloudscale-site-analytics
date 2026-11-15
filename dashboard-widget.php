@@ -862,7 +862,9 @@ if ( ! empty( $ss_items ) ) :
                 var display = rp.host;
                 try { var u = new URL(rp.url); display = u.hostname + u.pathname.replace(/\/$/, ''); } catch(e) {}
                 ph += '<div class="cspv-dw-row">'
-                    + '<a href="' + esc(rp.url) + '" target="_blank" class="cspv-dw-ref-link" title="' + esc(rp.url) + '">' + esc(display) + '</a>'
+                    // Referrers come from visitors: only http(s) may become a link (stored values
+                    // pass esc_url_raw, which already drops javascript:; this is the second line).
+                    + '<a href="' + esc(/^https?:\/\//i.test(String(rp.url || '')) ? rp.url : '#') + '" target="_blank" rel="noopener noreferrer" class="cspv-dw-ref-link" title="' + esc(rp.url) + '">' + esc(display) + '</a>'
                     + '<div class="cspv-dw-row-bar"><div class="cspv-dw-row-fill" style="width:' + ppct + '%"></div></div>'
                     + '<span class="cspv-dw-row-num">' + rp.views.toLocaleString() + '</span></div>';
             }

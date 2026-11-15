@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  CloudScale Site Analytics
  * Description:  Accurate page view tracking via a JavaScript beacon that bypasses Cloudflare cache. Includes auto display on posts, Top Posts and Recent Posts sidebar widgets, and a live statistics dashboard under Tools.
- * Version:      2.9.523
+ * Version:      2.9.524
  * Author:       CloudScale
  * Author URI:   https://cloudscale.consulting
  * Contributors: cloudscale
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CSPV_VERSION',    '2.9.523' );
+define( 'CSPV_VERSION',    '2.9.524' );
 define( 'CSPV_META_KEY',   '_cspv_view_count' );
 // Denormalised narration play counter, the audio equivalent of CSPV_META_KEY.
 // The hourly buckets in cspv_analytics_audio_v2 stay the record of truth; this is
@@ -117,6 +117,7 @@ register_activation_hook( __FILE__, 'cspv_activate' );
 register_deactivation_hook( __FILE__, function () {
     wp_clear_scheduled_hook( 'cspv_dbip_auto_update' );
     wp_clear_scheduled_hook( 'cspv_flush_view_queue' );
+    wp_clear_scheduled_hook( 'cspv_daily_prune' );
 } );
 
 // Register a 1-minute WP-Cron interval for the view-queue flush.
@@ -138,7 +139,59 @@ add_action( 'init', function () {
     if ( ! wp_next_scheduled( 'cspv_flush_view_queue' ) ) {
         wp_schedule_event( time(), 'cspv_every_minute', 'cspv_flush_view_queue' );
     }
+    if ( ! wp_next_scheduled( 'cspv_daily_prune' ) ) {
+        wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'cspv_daily_prune' );
+    }
 } );
+
+/**
+ * Daily: bound the tables that anonymous requests write to.
+ *
+ * The beacon and the 404 logger take rows from logged-out visitors, and nothing removed
+ * any, so a script sending unique referrers, sessions or missing URLs could grow them
+ * without limit. Kept: referrers and sessions for 400 days (the longest range a report
+ * offers is one year); 404s last seen in the past 90 days, at most 5,000 rows. Not
+ * pruned: hourly view totals, geo and audio (the charts' history) and the visitors table,
+ * which the All Time Unique Visitors figure counts.
+ *
+ * Deletes in batches so one run never holds a long lock on a large table.
+ *
+ * @since 2.9.524
+ * @return void
+ */
+function cspv_daily_prune(): void {
+    global $wpdb;
+    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bounded maintenance deletes on the plugin's own tables
+    $day_cut  = gmdate( 'Y-m-d', time() - 400 * DAY_IN_SECONDS );
+    $hour_cut = $day_cut . ' 00:00:00';
+    $jobs     = array(
+        array( $wpdb->prefix . 'cspv_analytics_referrers_v2', 'viewed_at', $hour_cut ),
+        array( $wpdb->prefix . 'cspv_analytics_sessions_v2', 'viewed_at', $day_cut ),
+        array( $wpdb->prefix . 'cspv_analytics_404_v2', 'last_seen', gmdate( 'Y-m-d H:i:s', time() - 90 * DAY_IN_SECONDS ) ),
+    );
+    foreach ( $jobs as $job ) {
+        list( $table, $col, $cut ) = $job;
+        if ( ! function_exists( 'cspv_table_exists' ) || ! cspv_table_exists( $table ) ) {
+            continue;
+        }
+        for ( $i = 0; $i < 50; $i++ ) {
+            $n = (int) $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE %i < %s LIMIT 5000', $table, $col, $cut ) );
+            if ( $n < 5000 ) {
+                break;
+            }
+        }
+    }
+    // 404s: the newest 5,000 only.
+    $t404 = $wpdb->prefix . 'cspv_analytics_404_v2';
+    if ( function_exists( 'cspv_table_exists' ) && cspv_table_exists( $t404 ) ) {
+        $edge = $wpdb->get_var( $wpdb->prepare( 'SELECT last_seen FROM %i ORDER BY last_seen DESC LIMIT 1 OFFSET 4999', $t404 ) );
+        if ( null !== $edge ) {
+            $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE last_seen < %s', $t404, $edge ) );
+        }
+    }
+    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+}
+add_action( 'cspv_daily_prune', 'cspv_daily_prune' );
 
 add_action( 'admin_init', function () {
     $stored = get_option( 'cspv_version', '0' );

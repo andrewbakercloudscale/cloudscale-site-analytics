@@ -125,7 +125,14 @@ function cspv_allow_beacon_without_auth( $result ) {
             $route = substr( $path, strlen( $prefix ) );
         }
     }
-    if ( 0 === strpos( '/' . ltrim( $route, '/' ), '/cloudscale-site-analytics/v1/' ) ) {
+    // Never core's cookie-nonce refusal: clearing it would let a cross-site form with a
+    // bad _wpnonce act as the signed-in admin (the admin-only POST /cache-test shares
+    // this namespace). Only the public beacon routes are exempted, and only from other
+    // plugins' blanket REST lockdowns.
+    if ( 'rest_cookie_invalid_nonce' === $result->get_error_code() ) {
+        return $result;
+    }
+    if ( 1 === preg_match( '#^/cloudscale-site-analytics/v1/(?:record/\d+|audio/\d+|ping|counts)/?$#', '/' . ltrim( $route, '/' ) ) ) {
         return null; // Let the route's own permission_callback decide
     }
     return $result;

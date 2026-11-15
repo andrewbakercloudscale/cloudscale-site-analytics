@@ -3,6 +3,17 @@
 All notable changes to CloudScale Analytics are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.9.524] - 2026-11-15
+
+### Security
+- Referrers on a post's map are escaped (a logged-out visitor's fake referrer could run script in the admin); referrer links open only for http(s); an unknown country code is reduced to two letters before it reaches tooltip HTML.
+- The REST exemption that keeps the tracking beacon working behind other plugins' REST lockdowns matches only the public routes (`record`, `audio`, `ping`, `counts`) by parsed route, never a substring of the URL, and never clears WordPress's cookie-nonce refusal.
+- Beacons with no usable IP are throttled as one bucket instead of not at all.
+- Search leaves out password-protected posts and reads at most 8 words.
+
+### Added
+- Daily `cspv_daily_prune`: referrers and sessions kept 400 days; 404 log keeps entries seen in the last 90 days, at most 5,000. Views, geo, audio and visitors (All Time figures) are not pruned.
+
 ## [2.9.515] - 2026-10-15
 
 ### Changed

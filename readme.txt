@@ -4,7 +4,7 @@ Tags: page views, analytics, statistics, view counter, cdn analytics
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.523
+Stable tag: 2.9.524
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -80,6 +80,10 @@ No. The beacon uses sessionStorage to deduplicate views. Each browser session re
 IP addresses are hashed using SHA256 combined with your site wp_salt before storage. Raw IP addresses are never written to the database. The IP hash is used only for throttle protection.
 
 == Changelog ==
+
+= 2.9.524 =
+* Security: the REST exemption covers only the public tracking routes, and never WordPress's own check of a signed-in user's nonce.
+* Maintenance: a daily job keeps referrers and sessions for 400 days and the newest 5,000 missing-page entries from the past 90 days, so anonymous traffic cannot grow these tables without limit. View history and the All Time figures are untouched.
 
 = 2.9.523 =
 * Security: referrer links in the dashboard widget and Referrers list open only for http and https addresses.
